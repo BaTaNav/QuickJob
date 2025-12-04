@@ -2,10 +2,6 @@ import { StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { Text, View } from "@/components/Themed";
 import React from "react";
 
-export const options = {
-  title: 'Student Dashboard',
-};
-
 export default function StudentDashboard() {
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
