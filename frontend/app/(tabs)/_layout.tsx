@@ -1,11 +1,23 @@
 import React from 'react';
-import { SafeAreaView, Alert } from 'react-native';
-import Login from '../../components/Login';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { Link, Tabs } from 'expo-router';
+import { Pressable } from 'react-native';
 
-export default function TabOneScreen() {
-  const handleLogin = (email: string, password: string) => {
-    Alert.alert('Login Info', `Email: ${email}\nPassword: ${password}`);
-  };
+import Colors from '../../constants/Colors';
+
+import { useColorScheme } from '../../components/useColorScheme';
+import { useClientOnlyValue } from '../../components/useClientOnlyValue';
+
+// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
+function TabBarIcon(props: {
+  name: React.ComponentProps<typeof FontAwesome>['name'];
+  color: string;
+}) {
+  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+}
+
+export default function TabLayout() {
+  const colorScheme = useColorScheme();
 
   return (
     <SafeAreaView style={{ flex: 1, justifyContent: 'center', padding: 16 }}>
