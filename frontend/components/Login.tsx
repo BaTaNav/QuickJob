@@ -1,4 +1,3 @@
-// components/Login.tsx
 import React from 'react';
 import { View, TextInput, Button, StyleSheet, Text } from 'react-native';
 
@@ -36,7 +35,9 @@ export default function Login({ onSubmit, title = 'Login' }: Props) {
         onChangeText={setPassword}
       />
 
-      <Button title="Login" onPress={handleSubmit} />
+      <View style={styles.buttonContainer}>
+        <Button title="Login" onPress={handleSubmit} />
+      </View>
     </View>
   );
 }
@@ -46,11 +47,13 @@ const styles = StyleSheet.create({
     width: '100%',
     padding: 16,
     gap: 12,
+    justifyContent: 'center',
   },
   header: {
-    fontSize: 22,
-    fontWeight: '600',
-    marginBottom: 8,
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 16,
+    textAlign: 'center',
   },
   input: {
     borderWidth: 1,
@@ -58,5 +61,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 6,
+  },
+  buttonContainer: {
+    marginTop: 12,
   },
 });
