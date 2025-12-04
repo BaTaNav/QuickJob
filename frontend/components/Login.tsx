@@ -3,7 +3,7 @@ import { View, TextInput, Button, StyleSheet, Text } from 'react-native';
 
 type Props = {
   onSubmit: (email: string, password: string) => void;
-  title?: string;
+  title?: string; 
 };
 
 export default function Login({ onSubmit, title = 'Login' }: Props) {
