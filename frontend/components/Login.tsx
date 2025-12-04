@@ -1,6 +1,6 @@
-
+// components/Login.tsx
 import React from 'react';
-import { View, TextInput, StyleSheet, Text } from 'react-native';
+import { View, TextInput, Button, StyleSheet, Text } from 'react-native';
 
 type Props = {
   onSubmit: (email: string, password: string) => void;
@@ -10,6 +10,10 @@ type Props = {
 export default function Login({ onSubmit, title = 'Login' }: Props) {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
+
+  const handleSubmit = () => {
+    onSubmit(email.trim(), password);
+  };
 
   return (
     <View style={styles.container}>
@@ -31,6 +35,8 @@ export default function Login({ onSubmit, title = 'Login' }: Props) {
         value={password}
         onChangeText={setPassword}
       />
+
+      <Button title="Login" onPress={handleSubmit} />
     </View>
   );
 }
