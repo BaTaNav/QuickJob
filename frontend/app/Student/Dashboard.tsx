@@ -3,7 +3,7 @@ import { Text, View } from "@/components/Themed";
 import * as React from "react";
 
 export default function StudentDashboard() {
-  const [tab, setTab] = React.useState<'available' | 'applications'>('available');
+  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('today');
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
@@ -35,35 +35,62 @@ export default function StudentDashboard() {
 
       {/* NAV TABS */}
       <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'available' && styles.tabActive]}
-          onPress={() => setTab('available')}
-        >
+        <TouchableOpacity style={[styles.tab, tab === 'today' && styles.tabActive]} onPress={() => setTab('today')}>
+          <Text style={tab === 'today' ? styles.tabActiveText : styles.tabText}>Today (0)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.tab, tab === 'upcoming' && styles.tabActive]} onPress={() => setTab('upcoming')}>
+          <Text style={tab === 'upcoming' ? styles.tabActiveText : styles.tabText}>Upcoming (0)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.tab, tab === 'available' && styles.tabActive]} onPress={() => setTab('available')}>
           <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available (0)</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tab, tab === 'applications' && styles.tabActive]}
-          onPress={() => setTab('applications')}
-        >
-          <Text style={tab === 'applications' ? styles.tabActiveText : styles.tabText}>My Applications (0)</Text>
+        <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
+          <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending (0)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.tab, tab === 'archive' && styles.tabActive]} onPress={() => setTab('archive')}>
+          <Text style={tab === 'archive' ? styles.tabActiveText : styles.tabText}>Archive (0)</Text>
         </TouchableOpacity>
       </View>
 
       {/* EMPTY STATE */}
       <View style={styles.emptyState}>
         <Text style={styles.emptyIcon}>📄</Text>
-        {tab === 'available' ? (
+        {tab === 'today' && (
+          <>
+            <Text style={styles.emptyTitle}>No jobs for today</Text>
+            <Text style={styles.emptySubtitle}>You have no scheduled jobs for today.</Text>
+          </>
+        )}
+
+        {tab === 'upcoming' && (
+          <>
+            <Text style={styles.emptyTitle}>No upcoming jobs</Text>
+            <Text style={styles.emptySubtitle}>You have no upcoming jobs scheduled.</Text>
+          </>
+        )}
+
+        {tab === 'available' && (
           <>
             <Text style={styles.emptyTitle}>No available jobs</Text>
-            <Text style={styles.emptySubtitle}>Jobs that match your profile will appear here.</Text>
+            <Text style={styles.emptySubtitle}>Available jobs will appear here (filters coming later).</Text>
           </>
-        ) : (
+        )}
+
+        {tab === 'pending' && (
           <>
-            <Text style={styles.emptyTitle}>No applications yet</Text>
-            <Text style={styles.emptySubtitle}>
-              You haven't applied to any jobs yet. Your applications will show up here.
-            </Text>
+            <Text style={styles.emptyTitle}>No pending applications</Text>
+            <Text style={styles.emptySubtitle}>Applications that are awaiting response will show up here.</Text>
+          </>
+        )}
+
+        {tab === 'archive' && (
+          <>
+            <Text style={styles.emptyTitle}>No previous jobs</Text>
+            <Text style={styles.emptySubtitle}>Your past jobs will be archived here.</Text>
           </>
         )}
       </View>
