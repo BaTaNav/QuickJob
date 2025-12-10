@@ -65,4 +65,4 @@ export default function PostJobModal({ visible, onClose, onSubmit }: PostJobModa
       compensation: '',
     });
     onClose();
-  };}
+  }};
