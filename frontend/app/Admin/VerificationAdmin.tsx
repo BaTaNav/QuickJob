@@ -119,7 +119,10 @@ export default function AdminVerificationPage() {
             </View>
           </View>
 
-          <TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => router.push("/Admin/StudentProfileAdmin")}
+            style={styles.navTab}
+          >
             <View style={styles.card}>
               <View style={styles.cardTop}>
                 <View style={styles.detailsGrid}>
