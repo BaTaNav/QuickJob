@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     paddingBottom: 80,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: "#fff",
   },
 
   /* HEADER */
@@ -179,6 +179,11 @@ const styles = StyleSheet.create({
   emptyState: {
     paddingVertical: 90,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E4E6EB",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    paddingHorizontal: 18,
   },
   emptyIcon: {
     fontSize: 42,
