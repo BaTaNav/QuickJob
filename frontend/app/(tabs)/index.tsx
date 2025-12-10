@@ -3,7 +3,18 @@ import { Text, View } from "@/components/Themed";
 import React, { useState } from "react";
 import { useRouter } from "expo-router";
 
+import { LogtoProvider, LogtoConfig } from '@logto/rn';
 
+const config: LogtoConfig = {
+  endpoint: 'https://bj5jss.logto.app/',
+  appId: 'wzeh3flb57zysmqls3d7x',
+};
+
+const App = () => (
+  <LogtoProvider config={config}>
+    <YourAppContent />
+  </LogtoProvider>
+);
 
 
 export default function TabOneScreen() {
