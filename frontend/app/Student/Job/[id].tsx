@@ -12,6 +12,7 @@ export default function JobDetail() {
     { id: 't1', status: 'today', category: 'Delivery', title: 'Grocery pickup', description: 'Pick up groceries and deliver to client.', time: '2025-12-10 10:00', hours: '2', address: 'Rue Example 12, Leuven', pay: '€12/hr' },
     { id: 'u1', status: 'upcoming', category: 'Pet care', title: 'Dog walking', description: 'Walk the dog for 30 minutes.', time: '2025-12-11 14:00', hours: '0.5', address: 'Chaussée de Namur 5, Brussels', pay: '€10/hr' },
     { id: 'a1', status: 'available', category: 'Promotion', title: 'Flyer distribution', description: 'Distribute flyers in the neighbourhood.', time: 'Flexible', hours: '3', address: 'Leuven Centrum', pay: '€9/hr' },
+    { id: 'a2', status: 'available', category: 'Gardening', title: 'Lawn mowing', description: 'Mow the lawn for a client.', time: 'Flexible', hours: '2', address: 'Parkstraat 10, Antwerp', pay: '€11/hr' },
     { id: 'p1', status: 'pending', category: 'Home help', title: 'Cleaning help', description: 'Help with light cleaning.', time: 'Pending - 08/12', hours: '4', address: 'Avenue Louise 45, Brussels', pay: '€13/hr' },
     { id: 'ar1', status: 'archive', category: 'Moving', title: 'Moved boxes', description: 'Helped move boxes last week.', time: '2025-12-03', hours: '5', address: 'Rue du Parc 2, Wavre', pay: '€20' },
   ];
@@ -53,12 +54,10 @@ export default function JobDetail() {
         <Text style={styles.sectionText}>{job.pay}</Text>
       </View>
 
-      {job.status === 'available' ? (
+      {job.status === 'available' && (
         <Pressable style={styles.applyBtn} onPress={() => { /* TODO: apply flow */ }}>
           <Text style={styles.applyBtnText}>Apply for this job</Text>
         </Pressable>
-      ) : (
-        <Text style={{ color: '#7A7F85', marginTop: 16 }}>You can only apply for jobs listed under "Available".</Text>
       )}
     </ScrollView>
   );

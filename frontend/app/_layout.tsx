@@ -67,19 +67,35 @@ function RootLayoutNav() {
             // replace `null` with a component that renders your asset (see comment below).
             headerLeft: () => null,
             headerRight: () => (
-              // Log out icon (for now it just navigates to home)
-              <Link href="/" asChild>
-                <Pressable>
-                  {({ pressed }) => (
-                    <FontAwesome
-                      name="sign-out"
-                      size={22}
-                      color={Colors[colorScheme ?? 'light'].text}
-                      style={{ marginRight: 12, opacity: pressed ? 0.6 : 1 }}
-                    />
-                  )}
-                </Pressable>
-              </Link>
+              <>
+                {/* Profile button (left of logout) */}
+                <Link href={'/Student/Profile' as unknown as any} asChild>
+                  <Pressable>
+                    {({ pressed }) => (
+                      <FontAwesome
+                        name="user"
+                        size={20}
+                        color={Colors[colorScheme ?? 'light'].text}
+                        style={{ marginRight: 12, opacity: pressed ? 0.6 : 1 }}
+                      />
+                    )}
+                  </Pressable>
+                </Link>
+
+                {/* Log out icon (for now it just navigates to home) */}
+                <Link href="/" asChild>
+                  <Pressable>
+                    {({ pressed }) => (
+                      <FontAwesome
+                        name="sign-out"
+                        size={22}
+                        color={Colors[colorScheme ?? 'light'].text}
+                        style={{ marginRight: 12, opacity: pressed ? 0.6 : 1 }}
+                      />
+                    )}
+                  </Pressable>
+                </Link>
+              </>
             ),
           }}
         />
