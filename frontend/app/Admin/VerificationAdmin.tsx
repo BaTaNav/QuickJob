@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput, Image } from "react-native";
 import { Handshake, Search, LogOut, Home, User } from "lucide-react-native";
+import { useRouter } from "expo-router";
 
 export default function AdminVerificationPage() {
+    const router = useRouter();
   const [activeTab, setActiveTab] = useState("verification"); // 'verification' or 'incidents'
 
   return (
@@ -14,9 +16,9 @@ export default function AdminVerificationPage() {
         <View style={styles.headerLeft}>
           <Handshake size={28} color="#176B51" strokeWidth={2.5} />
           <Text style={styles.headerTitle}>QuickJob</Text>
-          <TouchableOpacity
-            onPress={() => setActiveTab("home")}
-            style={[styles.subTab, activeTab === "home" && styles.activeSubTab]}
+          <TouchableOpacity 
+            onPress={() => router.push("/Admin/DashboardAdmin")}
+            style={styles.navTab}
           >
             <Text style={[styles.subTabText, activeTab === "home" && styles.activeSubTabText]}>
               Home
@@ -203,6 +205,18 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#1a2e4c",
     marginRight: 24,
+  },
+  navTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  navTabText: {
+    fontSize: 16,
+    color: "#000",
+    fontWeight: "400",
+  },
+  activeNavTabText: {
+    fontWeight: "700",
   },
   navLink: {
     paddingHorizontal: 8,
