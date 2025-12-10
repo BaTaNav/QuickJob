@@ -61,12 +61,12 @@ const Signup = () => {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      justifyContent: 'center',
       padding: '3rem 2rem',
       backgroundColor: '#F8FAFB',
-      backgroundImage: 'linear-gradient(135deg, #F8FAFB 0%, #EDF1F2 100%)'
+      backgroundImage: 'linear-gradient(135deg, #F8FAFB 0%, #EDF1F2 100%)',
+      overflowY: 'auto'
     }}>
-      <div style={{ marginBottom: '2.5rem' }}>
+      <div style={{ marginBottom: '2.5rem', marginTop: '2rem' }}>
         <h1 style={{ 
           fontSize: '2.25rem', 
           fontWeight: '800',
