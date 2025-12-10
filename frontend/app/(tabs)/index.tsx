@@ -35,7 +35,7 @@ export default function TabOneScreen() {
           <Text style={styles.primaryBtnText}>Post a job</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.secondaryBtn}>
+        <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.push("/Signup")}>
           <Text style={styles.secondaryBtnText}>Become a student helper</Text>
         </TouchableOpacity>
       </View>
