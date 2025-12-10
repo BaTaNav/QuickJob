@@ -5,21 +5,7 @@ import * as React from "react";
 export default function StudentDashboard() {
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('today');
 
-  // Mock jobs data for previewing UI. In the future these will come from API calls.
-  const mockJobs: Record<string, Array<any>> = {
-    today: [
-      { id: 't1', title: 'Grocery pickup', time: '10:00', location: 'Leuven', pay: '€12/hr' },
-    ],
-    upcoming: [
-      { id: 'u1', title: 'Dog walking', time: 'Tomorrow 14:00', location: 'Brussels', pay: '€10/hr' },
-      { id: 'u2', title: 'Garden help', time: 'Sat 09:00', location: 'Leuven', pay: '€15/hr' },
-    ],
-    available: [],
-    pending: [],
-    archive: [{ id: 'a1', title: 'Moved boxes', time: 'Last week', location: 'Wavre', pay: '€20' }],
-  };
-
-  const jobs = mockJobs[tab] ?? [];
+  // No mock jobs: data will come from API later. Tabs will show the empty state until then.
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
@@ -67,68 +53,50 @@ export default function StudentDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* JOB LIST or EMPTY STATE */}
-      {jobs.length > 0 ? (
-        <View style={styles.jobsContainer}>
-          <View style={styles.jobsList}>
-            {jobs.map((job) => (
-              <JobCard key={job.id} job={job} />
-            ))}
-          </View>
-        </View>
-      ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📄</Text>
-          {tab === 'today' && (
-            <>
-              <Text style={styles.emptyTitle}>No jobs for today</Text>
-              <Text style={styles.emptySubtitle}>You have no scheduled jobs for today.</Text>
-            </>
-          )}
+      {/* EMPTY STATE */}
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyIcon}>📄</Text>
+        {tab === 'today' && (
+          <>
+            <Text style={styles.emptyTitle}>No jobs for today</Text>
+            <Text style={styles.emptySubtitle}>You have no scheduled jobs for today.</Text>
+          </>
+        )}
 
-          {tab === 'upcoming' && (
-            <>
-              <Text style={styles.emptyTitle}>No upcoming jobs</Text>
-              <Text style={styles.emptySubtitle}>You have no upcoming jobs scheduled.</Text>
-            </>
-          )}
+        {tab === 'upcoming' && (
+          <>
+            <Text style={styles.emptyTitle}>No upcoming jobs</Text>
+            <Text style={styles.emptySubtitle}>You have no upcoming jobs scheduled.</Text>
+          </>
+        )}
 
-          {tab === 'available' && (
-            <>
-              <Text style={styles.emptyTitle}>No available jobs</Text>
-              <Text style={styles.emptySubtitle}>Available jobs will appear here (filters coming later).</Text>
-            </>
-          )}
+        {tab === 'available' && (
+          <>
+            <Text style={styles.emptyTitle}>No available jobs</Text>
+            <Text style={styles.emptySubtitle}>Available jobs will appear here (filters coming later).</Text>
+          </>
+        )}
 
-          {tab === 'pending' && (
-            <>
-              <Text style={styles.emptyTitle}>No pending applications</Text>
-              <Text style={styles.emptySubtitle}>Applications that are awaiting response will show up here.</Text>
-            </>
-          )}
+        {tab === 'pending' && (
+          <>
+            <Text style={styles.emptyTitle}>No pending applications</Text>
+            <Text style={styles.emptySubtitle}>Applications that are awaiting response will show up here.</Text>
+          </>
+        )}
 
-          {tab === 'archive' && (
-            <>
-              <Text style={styles.emptyTitle}>No previous jobs</Text>
-              <Text style={styles.emptySubtitle}>Your past jobs will be archived here.</Text>
-            </>
-          )}
-        </View>
-      )}
+        {tab === 'archive' && (
+          <>
+            <Text style={styles.emptyTitle}>No previous jobs</Text>
+            <Text style={styles.emptySubtitle}>Your past jobs will be archived here.</Text>
+          </>
+        )}
+      </View>
 
     </ScrollView>
   );
 }
 
 /* COMPONENTS */
-function JobCard({ job }: any) {
-  return (
-    <View style={styles.jobCard}>
-      <Text style={styles.jobTitle}>{job.title}</Text>
-      <Text style={styles.jobMeta}>{job.time} • {job.location} • {job.pay}</Text>
-    </View>
-  );
-}
 
 
 
@@ -243,21 +211,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   jobsContainer: {
-    borderWidth: 1,
-    borderColor: '#E4E6EB',
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    padding: 12,
+    // kept minimal in case it's reused later
     marginBottom: 12,
   },
-  jobCard: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#E4E6EB',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-  },
-  jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
-  jobMeta: { color: '#7A7F85', fontSize: 13 },
 });
