@@ -26,12 +26,7 @@ export default function StudentDashboard() {
         </View>
       )}
 
-      {/* STATS ROW */}
-      <View style={styles.statsRow}>
-        <StatCard label="Applications" number={0} icon="💼" />
-        <StatCard label="Accepted" number={0} icon="✔️" />
-        <StatCard label="Pending" number={0} icon="⏳" />
-      </View>
+     
 
       {/* NAV TABS */}
       <View style={styles.tabs}>
@@ -99,16 +94,7 @@ export default function StudentDashboard() {
   );
 }
 
-/* COMPONENTS */
-function StatCard({ number, label, icon }: any) {
-  return (
-    <View style={styles.statCard}>
-      <Text style={styles.statIcon}>{icon}</Text>
-      <Text style={styles.statNumber}>{number}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
+
 
 /* STYLES */
 const styles = StyleSheet.create({
@@ -168,26 +154,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  /* STATS */
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 28,
-  },
-  statCard: {
-    backgroundColor: "#fff",
-    width: "30%",
-    padding: 20,
-    borderRadius: 14,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  statIcon: { fontSize: 22, marginBottom: 6 },
-  statNumber: { fontSize: 20, fontWeight: "700", marginBottom: 2 },
-  statLabel: { fontSize: 13, color: "#7A7F85" },
+  
 
   /* TABS */
   tabs: {
