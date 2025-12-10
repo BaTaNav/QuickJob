@@ -63,8 +63,8 @@ function RootLayoutNav() {
             headerShown: true,
             headerStyle: { backgroundColor: '#fff' },
             headerTitleStyle: { fontWeight: '600' },
-            // Remove the automatic back button. If you want a custom left icon,
-            // replace `null` with a component that renders your asset (see comment below).
+            // Hide the automatic back button on the Dashboard itself (we want a clean root screen).
+            // Other screens will still render the default back button.
             headerLeft: () => null,
             headerRight: () => (
               <>
