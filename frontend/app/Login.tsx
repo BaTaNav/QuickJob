@@ -1,19 +1,30 @@
-import React from 'react';
-import { useState } from 'react';
+import React, { useState } from 'react';
+import Auth0 from 'react-native-auth0';
+import { useRouter } from 'expo-router';
 
-type Props = {
-  onSubmit?: (email: string, password: string) => void;
-  title?: string; 
-};
+const auth0 = new Auth0({
+  domain: process.env.EXPO_PUBLIC_AUTH0_DOMAIN || '',
+  clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '',
+});
 
-export default function Login({ onSubmit, title = 'Login' }: Props) {
+export default function Login({ title = 'Login' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (onSubmit) {
-      onSubmit(email.trim(), password);
+    try {
+      // Voor web gebruik authorize zonder await - het redirected automatisch
+      auth0.webAuth.authorize({
+        scope: 'openid profile email',
+        audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE,
+        redirectUrl: 'http://localhost:8081/callback',
+      });
+      
+    } catch (error) {
+      console.error('Auth0 error:', error);
     }
   };
 
@@ -49,108 +60,127 @@ export default function Login({ onSubmit, title = 'Login' }: Props) {
       minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'center',
-      padding: '3rem 2rem',
       backgroundColor: '#F8FAFB',
       backgroundImage: 'linear-gradient(135deg, #F8FAFB 0%, #EDF1F2 100%)',
-      overflowY: 'auto'
     }}>
-      <div style={{ marginBottom: '2.5rem', marginTop: '2rem' }}>
-        <h1 style={{ 
-          fontSize: '2.25rem', 
-          fontWeight: '800',
-          color: '#176B51',
-          letterSpacing: '-0.02em'
-        }}>QuickJob</h1> 
-      </div>
-
+      {/* Header */}
       <div style={{
-        width: '100%',
-        maxWidth: '520px',
-        padding: '3rem 3.5rem',
-        backgroundColor: '#FFFFFF',
-        borderRadius: '16px',
-        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)',
-        border: '1px solid rgba(225, 231, 235, 0.6)'
+        backgroundColor: '#fff',
+        borderBottom: '1px solid #E1E7EB',
+        padding: '1rem 2rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem'
       }}>
-        <h2 style={{ 
-          fontSize: '1.875rem', 
-          fontWeight: '700', 
-          textAlign: 'center', 
-          marginBottom: '0.75rem',
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#176B51" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+          <polyline points="15 3 21 3 21 9" />
+          <line x1="10" y1="14" x2="21" y2="3" />
+        </svg>
+        <span style={{
+          fontSize: '1.5rem',
+          fontWeight: '700',
           color: '#041316',
           letterSpacing: '-0.01em'
-        }}>
-          {title}
-        </h2>
-        
-        <p style={{ 
-          textAlign: 'center', 
-          marginBottom: '2.5rem',
-          color: '#5D6B73',
-          fontSize: '0.9375rem'
-        }}>
-          Don't have an account? <a href="/Signup" style={{ 
-            color: '#176B51', 
-            fontWeight: '600',
-            textDecoration: 'none',
-            borderBottom: '1px solid #176B51'
-          }}>Sign up</a>
-        </p>
-
-        <form onSubmit={handleSubmit}>
-          <label htmlFor="email" style={{ 
-            fontWeight: '600', 
-            display: 'block',
-            marginBottom: '0.5rem',
-            color: '#041316',
-            fontSize: '0.875rem'
-          }}>Email</label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={inputStyle}
-            aria-label="Email"
-          />
-
-          <label htmlFor="password" style={{ 
-            fontWeight: '600', 
-            display: 'block',
-            marginBottom: '0.5rem',
-            color: '#041316',
-            fontSize: '0.875rem'
-          }}>Password</label>
-          <input
-            type="password"
-            id="password"
-            name="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={inputStyle}
-            aria-label="Password"
-          />
-
-          <button type="submit" style={buttonStyle}>
-            Login
-          </button>
-        </form>
-
-        <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-          <a href="/forgot-password" style={{ 
-            color: '#5D6B73', 
-            textDecoration: 'none',
-            fontSize: '0.9375rem'
-          }}>
-            Forgot password?
-          </a>
-        </div>
+        }}>QuickJob</span>
       </div>
 
+      {/* Main Content */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '3rem 2rem',
+        overflowY: 'auto'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '520px',
+          padding: '3rem 3.5rem',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '16px',
+          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)',
+          border: '1px solid rgba(225, 231, 235, 0.6)'
+        }}>
+          <h2 style={{ 
+            fontSize: '1.875rem', 
+            fontWeight: '700', 
+            textAlign: 'center', 
+            marginBottom: '0.75rem',
+            color: '#041316',
+            letterSpacing: '-0.01em'
+          }}>
+            {title}
+          </h2>
+          
+          <p style={{ 
+            textAlign: 'center', 
+            marginBottom: '2.5rem',
+            color: '#5D6B73',
+            fontSize: '0.9375rem'
+          }}>
+            Don't have an account? <a href="/Signup" style={{ 
+              color: '#176B51', 
+              fontWeight: '600',
+              textDecoration: 'none',
+              borderBottom: '1px solid #176B51'
+            }}>Sign up</a>
+          </p>
+
+          <form onSubmit={handleSubmit}>
+            <label htmlFor="email" style={{ 
+              fontWeight: '600', 
+              display: 'block',
+              marginBottom: '0.5rem',
+              color: '#041316',
+              fontSize: '0.875rem'
+            }}>Email</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={inputStyle}
+              aria-label="Email"
+            />
+
+            <label htmlFor="password" style={{ 
+              fontWeight: '600', 
+              display: 'block',
+              marginBottom: '0.5rem',
+              color: '#041316',
+              fontSize: '0.875rem'
+            }}>Password</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={inputStyle}
+              aria-label="Password"
+            />
+
+            <button type="submit" style={buttonStyle}>
+              Login with Auth0
+            </button>
+          </form>
+
+          <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+            <a href="/forgot-password" style={{ 
+              color: '#5D6B73', 
+              textDecoration: 'none',
+              fontSize: '0.9375rem'
+            }}>
+              Forgot password?
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
