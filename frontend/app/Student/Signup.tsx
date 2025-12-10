@@ -61,20 +61,40 @@ const Signup = () => {
       minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'center',
-      padding: '3rem 2rem',
       backgroundColor: '#F8FAFB',
       backgroundImage: 'linear-gradient(135deg, #F8FAFB 0%, #EDF1F2 100%)',
-      overflowY: 'auto'
     }}>
-      <div style={{ marginBottom: '2.5rem', marginTop: '2rem' }}>
-        <h1 style={{ 
-          fontSize: '2.25rem', 
-          fontWeight: '800',
-          color: '#176B51',
-          letterSpacing: '-0.02em'
-        }}>QuickJob</h1> 
+      {/* Header */}
+      <div style={{
+        backgroundColor: '#fff',
+        borderBottom: '1px solid #E1E7EB',
+        padding: '1rem 2rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem'
+      }}>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#176B51" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+          <polyline points="15 3 21 3 21 9" />
+          <line x1="10" y1="14" x2="21" y2="3" />
+        </svg>
+        <span style={{
+          fontSize: '1.5rem',
+          fontWeight: '700',
+          color: '#041316',
+          letterSpacing: '-0.01em'
+        }}>QuickJob</span>
       </div>
+
+      {/* Main Content */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '3rem 2rem',
+        overflowY: 'auto'
+      }}>
       
 
       <div style={{
@@ -227,7 +247,7 @@ const Signup = () => {
           </a>
         </div>
       </div>
-
+      </div>
     </div>
   );
 };
