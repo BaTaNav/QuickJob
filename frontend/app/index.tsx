@@ -31,7 +31,7 @@ export default function TabOneScreen() {
 
       {/* CTA BUTTONS */}
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.primaryBtn}>
+        <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push("/Client/Signup")}>
           <Text style={styles.primaryBtnText}>Post a job</Text>
         </TouchableOpacity>
 

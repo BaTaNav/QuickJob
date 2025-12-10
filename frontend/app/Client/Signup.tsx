@@ -94,7 +94,7 @@ const Signup = () => {
           color: '#041316',
           letterSpacing: '-0.01em'
         }}>
-          Create student account
+          Create  client account
         </h2>
         
         <p style={{ 
@@ -207,13 +207,13 @@ const Signup = () => {
             fontWeight: '500',
             textAlign: 'center'
           }}>
-            Liever als client beginnen?
+            Liever als student beginnen?
           </p>
           <button 
             style={clientButtonStyle}
-            onClick={() => router.push('/Client/Signup')}
+            onClick={() =>router.push('/Student/Signup')}
           >
-            Maak client account
+            Maak student account
           </button>
         </div>
 

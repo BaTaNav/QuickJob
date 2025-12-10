@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import React, { useState } from 'react'; 
 
 const Signup = () => {
@@ -211,7 +210,7 @@ const Signup = () => {
           </p>
           <button 
             style={clientButtonStyle}
-            onClick={() => router.push('/Client/Signup')}
+            onClick={() => console.log('Naar Client Account registratie')}
           >
             Maak client account
           </button>
