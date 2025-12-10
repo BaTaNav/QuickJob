@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
 import { RefreshCw, Plus, ArrowDown, Handshake } from "lucide-react-native";
+import PostJobModal from "@/components/PostJobModal";
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState("Open");
+  const [showJobModal, setShowJobModal] = useState(false);
 
   const stats = [
     { label: "Open jobs", value: 0 },
@@ -44,7 +46,7 @@ export default function DashboardClient() {
           </View>
 
           {/* Primary Action */}
-          <TouchableOpacity style={styles.createJobBtn}>
+          <TouchableOpacity style={styles.createJobBtn} onPress={() => setShowJobModal(true)}>
             <Plus size={24} color="#FFF" />
             <Text style={styles.createJobText}>Create job</Text>
           </TouchableOpacity>
@@ -73,13 +75,23 @@ export default function DashboardClient() {
             <Text style={styles.emptySubtitle}>
               Post your first job to get started
             </Text>
-            <TouchableOpacity style={styles.emptyButton}>
+            <TouchableOpacity style={styles.emptyButton} onPress={() => setShowJobModal(true)}>
               <Text style={styles.emptyButtonText}>+ Post job</Text>
             </TouchableOpacity>
           </View>
 
         </View>
       </ScrollView>
+
+      {/* Post Job Modal */}
+      <PostJobModal 
+        visible={showJobModal}
+        onClose={() => setShowJobModal(false)}
+        onSubmit={(jobData) => {
+          console.log('Job created:', jobData);
+          // later hier job data naar backend sturen
+        }}
+      />
     </View>
   );
 }
