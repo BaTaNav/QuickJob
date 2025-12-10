@@ -7,23 +7,24 @@ export default function StudentDashboard() {
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
-
       {/* HEADER */}
       <Text style={styles.pageTitle}>Student Dashboard</Text>
       <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
 
-      {/* DOCUMENT BANNER */}
-      <View style={styles.banner}>
-        <Text style={styles.bannerTitle}>Document verification required</Text>
-        <Text style={styles.bannerText}>
-          You need to upload and verify your documents before you can apply for jobs.
-          Please upload your student card, ID card, bank card, and profile photo.
-        </Text>
+      {/* DOCUMENT BANNER (hidden by default while testing) */}
+      {false && (
+        <View style={styles.banner}>
+          <Text style={styles.bannerTitle}>Document verification required</Text>
+          <Text style={styles.bannerText}>
+            You need to upload and verify your documents before you can apply for jobs.
+            Please upload your student card, ID card, bank card, and profile photo.
+          </Text>
 
-        <TouchableOpacity style={styles.bannerBtn}>
-          <Text style={styles.bannerBtnText}>Upload documents</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity style={styles.bannerBtn}>
+            <Text style={styles.bannerBtnText}>Upload documents</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* STATS ROW */}
       <View style={styles.statsRow}>
@@ -49,15 +50,13 @@ export default function StudentDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* EMPTY STATE (changes based on active tab) */}
+      {/* EMPTY STATE */}
       <View style={styles.emptyState}>
         <Text style={styles.emptyIcon}>📄</Text>
         {tab === 'available' ? (
           <>
             <Text style={styles.emptyTitle}>No available jobs</Text>
-            <Text style={styles.emptySubtitle}>
-              Jobs that match your profile will appear here.
-            </Text>
+            <Text style={styles.emptySubtitle}>Jobs that match your profile will appear here.</Text>
           </>
         ) : (
           <>
@@ -89,51 +88,56 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     paddingBottom: 80,
-    backgroundColor: "#fff",
+    backgroundColor: "#FAFAFA",
   },
 
   /* HEADER */
   pageTitle: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: "700",
     marginTop: 10,
+    color: "#1B1B1B",
   },
   pageSubtitle: {
-    fontSize: 15,
-    color: "#6C757D",
-    marginBottom: 20,
+    fontSize: 16,
+    color: "#7A7F85",
+    marginBottom: 25,
   },
 
   /* DOCUMENT VERIFICATION BANNER */
   banner: {
-    backgroundColor: "#FFF7E6",
+    backgroundColor: "#FFF4D9",
     borderLeftWidth: 4,
     borderLeftColor: "#FFB01F",
-    padding: 16,
-    borderRadius: 10,
-    marginBottom: 25,
+    padding: 18,
+    borderRadius: 12,
+    marginBottom: 28,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
   },
   bannerTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
-    marginBottom: 6,
+    marginBottom: 8,
+    color: "#664D0E",
   },
   bannerText: {
     fontSize: 14,
-    color: "#6C757D",
-    marginBottom: 14,
+    color: "#7C7C7C",
+    marginBottom: 16,
+    lineHeight: 20,
   },
   bannerBtn: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#FFB01F",
+    backgroundColor: "#FFB01F",
     paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     alignSelf: "flex-start",
     borderRadius: 8,
   },
   bannerBtnText: {
-    color: "#D48806",
+    color: "#fff",
     fontWeight: "600",
   },
 
@@ -141,59 +145,62 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 25,
-    backgroundColor: "#fff",
+    marginBottom: 28,
   },
   statCard: {
     backgroundColor: "#fff",
     width: "30%",
-    padding: 18,
-    borderRadius: 12,
+    padding: 20,
+    borderRadius: 14,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E4E6EB",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
   },
-  statIcon: { fontSize: 20, marginBottom: 6 },
-  statNumber: { fontSize: 18, fontWeight: "700" },
-  statLabel: { fontSize: 13, color: "#6C757D", marginTop: 4 },
+  statIcon: { fontSize: 22, marginBottom: 6 },
+  statNumber: { fontSize: 20, fontWeight: "700", marginBottom: 2 },
+  statLabel: { fontSize: 13, color: "#7A7F85" },
 
   /* TABS */
   tabs: {
     flexDirection: "row",
-    marginBottom: 20,
+    marginBottom: 22,
     marginTop: 10,
   },
   tab: {
     paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: "#F1F3F5",
-    borderRadius: 8,
-    marginRight: 10,
+    paddingHorizontal: 18,
+    backgroundColor: "#E9ECEF",
+    borderRadius: 10,
+    marginRight: 12,
   },
   tabActive: {
     backgroundColor: "#176B51",
   },
-  tabText: { color: "#6C757D", fontWeight: "500" },
+  tabText: { color: "#7A7F85", fontWeight: "500" },
   tabActiveText: { color: "#fff", fontWeight: "600" },
 
   /* EMPTY STATE */
   emptyState: {
-    paddingVertical: 80,
+    paddingVertical: 90,
     alignItems: "center",
   },
   emptyIcon: {
-    fontSize: 40,
-    marginBottom: 14,
+    fontSize: 42,
+    marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "700",
-    marginBottom: 4,
+    marginBottom: 6,
+    color: "#1B1B1B",
   },
   emptySubtitle: {
     fontSize: 14,
-    color: "#6C757D",
+    color: "#7A7F85",
     textAlign: "center",
-    maxWidth: 250,
+    lineHeight: 20,
+    maxWidth: 260,
   },
 });
