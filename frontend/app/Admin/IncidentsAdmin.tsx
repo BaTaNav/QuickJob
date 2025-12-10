@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput } from "react-native";
 import { Handshake, LogOut } from "lucide-react-native";
 import { useRouter } from "expo-router";
 
 export default function AdminIncidentsPage() {
   const router = useRouter();
+const [activeTab, setActiveTab] = useState("Open");
+
 
   return (
     <View style={styles.screen}>
@@ -15,36 +17,36 @@ export default function AdminIncidentsPage() {
         <View style={styles.headerLeft}>
           <Handshake size={28} color="#176B51" strokeWidth={2.5} />
           <Text style={styles.headerTitle}>QuickJob</Text>
-          <TouchableOpacity style={styles.navLink} onPress={() => router.push("/")}>
-            <Text style={styles.navLinkText}>Home</Text>
+          <TouchableOpacity 
+            onPress={() => router.push("/Admin/DashboardAdmin")}
+            style={styles.subTab}
+          >
+            <Text style={[styles.subTabText, activeTab === "home" && styles.activeSubTabText]}>
+              Home
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => router.push("/Admin/VerificationAdmin")}
+            style={styles.subTab}
+          >
+            <Text style={[styles.subTabText, activeTab === "verification" && styles.activeSubTabText]}>
+              Studenten verificatie
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setActiveTab("incidents")}
+            style={[styles.subTab, activeTab === "incidents" && styles.activeSubTab]}
+          >
+            <Text style={[styles.subTabText, activeTab === "incidents" && styles.activeSubTabText]}>
+              Incidenten
+            </Text>
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.logoutBtn} onPress={() => router.push("/Login")}>
           <Text style={styles.logoutText}>Log out</Text>
           <LogOut size={18} color="#1a2e4c" />
         </TouchableOpacity>
-      </View>
-
-      {/* Sub Header / Tabs */}
-      <View style={styles.subHeader}>
-        <View style={styles.subHeaderContent}>
-          <TouchableOpacity 
-            onPress={() => router.push("/Admin/VerificationAdmin")}
-            style={styles.subTab}
-          >
-            <Text style={styles.subTabText}>
-              Studenten verificatie
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.subTab, styles.activeSubTab]}
-          >
-            <Text style={[styles.subTabText, styles.activeSubTabText]}>
-              Incidenten
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -89,8 +91,7 @@ export default function AdminIncidentsPage() {
             {/* Incident Input */}
             <View style={styles.inputSection}>
                 <Text style={styles.inputLabel}>Beschrijving incident</Text>
-                <TextInput 
-                    style={styles.textArea} 
+                <TextInput  
                     multiline 
                     numberOfLines={4}
                     placeholder=""
