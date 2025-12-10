@@ -59,10 +59,13 @@ function RootLayoutNav() {
         <Stack.Screen
           name="Student/Dashboard"
           options={{
-            title: 'Student Dashboard',
+            title: 'QuickJob',
             headerShown: true,
             headerStyle: { backgroundColor: '#fff' },
             headerTitleStyle: { fontWeight: '600' },
+            // Remove the automatic back button. If you want a custom left icon,
+            // replace `null` with a component that renders your asset (see comment below).
+            headerLeft: () => null,
             headerRight: () => (
               // Log out icon (for now it just navigates to home)
               <Link href="/" asChild>
