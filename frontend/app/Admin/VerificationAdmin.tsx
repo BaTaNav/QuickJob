@@ -8,13 +8,21 @@ export default function AdminVerificationPage() {
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
+
       {/* Top Navigation Bar */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Handshake size={28} color="#176B51" strokeWidth={2.5} />
           <Text style={styles.headerTitle}>QuickJob</Text>
-<TouchableOpacity 
+          <TouchableOpacity
+            onPress={() => setActiveTab("home")}
+            style={[styles.subTab, activeTab === "home" && styles.activeSubTab]}
+          >
+            <Text style={[styles.subTabText, activeTab === "home" && styles.activeSubTabText]}>
+              Home
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={() => setActiveTab("verification")}
             style={[styles.subTab, activeTab === "verification" && styles.activeSubTab]}
           >
@@ -22,8 +30,8 @@ export default function AdminVerificationPage() {
               Studenten verificatie
             </Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             onPress={() => setActiveTab("incidents")}
             style={[styles.subTab, activeTab === "incidents" && styles.activeSubTab]}
           >
@@ -38,60 +46,60 @@ export default function AdminVerificationPage() {
         </TouchableOpacity>
       </View>
 
-    
+
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.contentContainer}>
-          
+
           <Text style={styles.pageTitle}>Student Verificatie</Text>
 
           {/* SECTION: TO VERIFY */}
           <Text style={styles.sectionHeader}>Te Verifiëren</Text>
-          
+
           <View style={styles.card}>
             <View style={styles.cardTop}>
               {/* Avatar Placeholder */}
               <View style={styles.avatarContainer}>
                 <View style={styles.avatarPlaceholder}>
-                    <User size={32} color="#fff" />
+                  <User size={32} color="#fff" />
                 </View>
               </View>
 
               {/* Details Grid */}
               <View style={styles.detailsGrid}>
                 <View style={styles.detailColumn}>
-                    <DetailRow label="Naam student" value="dummy data" />
-                    <DetailRow label="Email student" value="dummy data" />
-                    <DetailRow label="Gemeente" value="dummy data" />
-                    <DetailRow label="Datum" value="dummy data" />
+                  <DetailRow label="Naam student" value="dummy data" />
+                  <DetailRow label="Email student" value="dummy data" />
+                  <DetailRow label="Gemeente" value="dummy data" />
+                  <DetailRow label="Datum" value="dummy data" />
                 </View>
                 <View style={styles.detailColumn}>
-                    <DetailRow label="GSM nummer" value="+dummy data" />
-                    <DetailRow label="Universiteit" value="dummy data" />
+                  <DetailRow label="GSM nummer" value="+dummy data" />
+                  <DetailRow label="Universiteit" value="dummy data" />
                 </View>
               </View>
             </View>
 
             {/* Documents Box */}
             <View style={styles.docsContainer}>
-                <View style={styles.docsHeader}>
-                    <Text style={styles.docsHeaderText}>Documenten</Text>
-                </View>
-                <View style={styles.docsBody}>
-                    <DocRow label="Studentenkaart:" status="geupload" />
-                    <DocRow label="Identiteitskaart:" status="geupload" />
-                    <DocRow label="Verificatiegesprek:" status="te plannen" />
-                </View>
+              <View style={styles.docsHeader}>
+                <Text style={styles.docsHeaderText}>Documenten</Text>
+              </View>
+              <View style={styles.docsBody}>
+                <DocRow label="Studentenkaart:" status="geupload" />
+                <DocRow label="Identiteitskaart:" status="geupload" />
+                <DocRow label="Verificatiegesprek:" status="te plannen" />
+              </View>
             </View>
 
             {/* Action Buttons */}
             <View style={styles.actionRow}>
-                <TouchableOpacity style={[styles.actionBtn, styles.approveBtn]}>
-                    <Text style={styles.btnText}>Goedkeuren en verifiëren</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]}>
-                    <Text style={styles.btnText}>Weigeren</Text>
-                </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionBtn, styles.approveBtn]}>
+                <Text style={styles.btnText}>Goedkeuren en verifiëren</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]}>
+                <Text style={styles.btnText}>Weigeren</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -100,43 +108,43 @@ export default function AdminVerificationPage() {
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionHeader}>Geverifeerde Studenten</Text>
             <View style={styles.searchBar}>
-                <Search size={16} color="#64748B" />
-                <TextInput 
-                    placeholder="zoekbalk" 
-                    style={styles.searchInput}
-                    placeholderTextColor="#94A3B8"
-                />
+              <Search size={16} color="#64748B" />
+              <TextInput
+                placeholder="zoekbalk"
+                style={styles.searchInput}
+                placeholderTextColor="#94A3B8"
+              />
             </View>
           </View>
 
           <TouchableOpacity>
-          <View style={styles.card}>
-            <View style={styles.cardTop}>
-              <View style={styles.detailsGrid}>
-                <View style={styles.detailColumn}>
+            <View style={styles.card}>
+              <View style={styles.cardTop}>
+                <View style={styles.detailsGrid}>
+                  <View style={styles.detailColumn}>
                     <DetailRow label="Naam student" value="[dummy data]" />
                     <DetailRow label="Email student" value="[dummy data]" />
                     <DetailRow label="Gemeente" value="[dummy data]" />
-                </View>
-                <View style={styles.detailColumn}>
+                  </View>
+                  <View style={styles.detailColumn}>
                     <DetailRow label="GSM nummer" value="[dummy data]" />
                     <DetailRow label="Universiteit" value="[dummy data]" />
+                  </View>
                 </View>
               </View>
-            </View>
 
-            <View style={styles.divider} />
+              <View style={styles.divider} />
 
-            <View style={styles.cardFooter}>
+              <View style={styles.cardFooter}>
                 <View style={styles.statsRow}>
-                    <Text style={styles.statText}>jobs voltooid: <Text style={styles.statValue}>dummy data</Text></Text>
-                    <Text style={styles.statText}>Rating: <Text style={styles.statValue}>dummy data</Text></Text>
+                  <Text style={styles.statText}>jobs voltooid: <Text style={styles.statValue}>dummy data</Text></Text>
+                  <Text style={styles.statText}>Rating: <Text style={styles.statValue}>dummy data</Text></Text>
                 </View>
                 <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]}>
-                    <Text style={styles.btnText}>Verwijderen</Text>
+                  <Text style={styles.btnText}>Verwijderen</Text>
                 </TouchableOpacity>
+              </View>
             </View>
-          </View>
           </TouchableOpacity>
 
         </View>
@@ -147,21 +155,21 @@ export default function AdminVerificationPage() {
 
 // Helper Components
 function DetailRow({ label, value }: { label: string, value: string }) {
-    return (
-        <View style={{ marginBottom: 8 }}>
-            <Text style={styles.label}>{label}</Text>
-            <Text style={styles.value}>{value}</Text>
-        </View>
-    );
+  return (
+    <View style={{ marginBottom: 8 }}>
+      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.value}>{value}</Text>
+    </View>
+  );
 }
 
 function DocRow({ label, status }: { label: string, status: string }) {
-    return (
-        <View style={styles.docRow}>
-            <Text style={styles.docLabel}>{label}</Text>
-            <Text style={styles.docStatus}>{status}</Text>
-        </View>
-    );
+  return (
+    <View style={styles.docRow}>
+      <Text style={styles.docLabel}>{label}</Text>
+      <Text style={styles.docStatus}>{status}</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -172,7 +180,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 100,
   },
-  
+
   // Header
   header: {
     backgroundColor: "#fff",

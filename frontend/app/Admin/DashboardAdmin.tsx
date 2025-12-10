@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
-import { RefreshCw, Plus, ArrowDown, Handshake } from "lucide-react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput, Image } from "react-native";
+import { RefreshCw, Plus, ArrowDown, Handshake, Home, Search, LogOut, User } from "lucide-react-native";
 
 export default function DashboardAdmin() {
   const [activeTab, setActiveTab] = useState("Open");
@@ -15,17 +15,45 @@ export default function DashboardAdmin() {
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
-      {/* Header */}
+
+      {/* Top Navigation Bar */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Handshake size={28} color="#176B51" strokeWidth={2.5} />
           <Text style={styles.headerTitle}>QuickJob</Text>
+          <TouchableOpacity
+            onPress={() => setActiveTab("home")}
+            style={[styles.subTab, activeTab === "home" && styles.activeSubTab]}
+          >
+            <Text style={[styles.subTabText, activeTab === "home" && styles.activeSubTabText]}>
+              Home
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setActiveTab("verification")}
+            style={[styles.subTab, activeTab === "verification" && styles.activeSubTab]}
+          >
+            <Text style={[styles.subTabText, activeTab === "verification" && styles.activeSubTabText]}>
+              Studenten verificatie
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setActiveTab("incidents")}
+            style={[styles.subTab, activeTab === "incidents" && styles.activeSubTab]}
+          >
+            <Text style={[styles.subTabText, activeTab === "incidents" && styles.activeSubTabText]}>
+              Incidenten
+            </Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.iconButton}>
-          <RefreshCw size={20} color="#64748B" />
+        <TouchableOpacity style={styles.logoutBtn}>
+          <Text style={styles.logoutText}>Log out</Text>
+          <LogOut size={18} color="#1a2e4c" />
         </TouchableOpacity>
       </View>
+      
+ 
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.contentContainer}>
@@ -75,6 +103,18 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 100,
   },
+
+   logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+   logoutText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1a2e4c",
+  },
   
   // Header
   header: {
@@ -102,6 +142,22 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: "#F7F9FC",
     borderRadius: 999,
+  },
+
+    subTab: {},
+  activeSubTab: {
+    borderBottomWidth: 2,
+    borderBottomColor: "#000",
+    paddingBottom: 2,
+  },
+  subTabText: {
+    fontSize: 16,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  activeSubTabText: {
+    color: "#000",
+    fontWeight: "700",
   },
 
   // Content
