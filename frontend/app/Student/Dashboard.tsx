@@ -1,8 +1,10 @@
 import { StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { Text, View } from "@/components/Themed";
-import React from "react";
+import * as React from "react";
 
 export default function StudentDashboard() {
+  const [tab, setTab] = React.useState<'available' | 'applications'>('available');
+
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
 
@@ -32,22 +34,39 @@ export default function StudentDashboard() {
 
       {/* NAV TABS */}
       <View style={styles.tabs}>
-        <TouchableOpacity style={[styles.tab, styles.tabActive]}>
-          <Text style={styles.tabActiveText}>Available (0)</Text>
+        <TouchableOpacity
+          style={[styles.tab, tab === 'available' && styles.tabActive]}
+          onPress={() => setTab('available')}
+        >
+          <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available (0)</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.tab}>
-          <Text style={styles.tabText}>My Applications (0)</Text>
+        <TouchableOpacity
+          style={[styles.tab, tab === 'applications' && styles.tabActive]}
+          onPress={() => setTab('applications')}
+        >
+          <Text style={tab === 'applications' ? styles.tabActiveText : styles.tabText}>My Applications (0)</Text>
         </TouchableOpacity>
       </View>
 
-      {/* EMPTY STATE */}
+      {/* EMPTY STATE (changes based on active tab) */}
       <View style={styles.emptyState}>
         <Text style={styles.emptyIcon}>📄</Text>
-        <Text style={styles.emptyTitle}>No available jobs</Text>
-        <Text style={styles.emptySubtitle}>
-          Jobs that match your profile will appear here.
-        </Text>
+        {tab === 'available' ? (
+          <>
+            <Text style={styles.emptyTitle}>No available jobs</Text>
+            <Text style={styles.emptySubtitle}>
+              Jobs that match your profile will appear here.
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.emptyTitle}>No applications yet</Text>
+            <Text style={styles.emptySubtitle}>
+              You haven't applied to any jobs yet. Your applications will show up here.
+            </Text>
+          </>
+        )}
       </View>
 
     </ScrollView>
@@ -70,6 +89,7 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     paddingBottom: 80,
+    backgroundColor: "#fff",
   },
 
   /* HEADER */
@@ -122,6 +142,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 25,
+    backgroundColor: "#fff",
   },
   statCard: {
     backgroundColor: "#fff",

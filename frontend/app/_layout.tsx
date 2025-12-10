@@ -5,7 +5,7 @@ import { Stack, Link } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-import { Pressable } from 'react-native';
+import { Pressable, Text } from 'react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -64,11 +64,12 @@ function RootLayoutNav() {
             headerStyle: { backgroundColor: '#fff' },
             headerTitleStyle: { fontWeight: '600' },
             headerRight: () => (
-              <Link href="/modal" asChild>
+              // Log out icon (for now it just navigates to home)
+              <Link href="/" asChild>
                 <Pressable>
                   {({ pressed }) => (
                     <FontAwesome
-                      name="info-circle"
+                      name="sign-out"
                       size={22}
                       color={Colors[colorScheme ?? 'light'].text}
                       style={{ marginRight: 12, opacity: pressed ? 0.6 : 1 }}
