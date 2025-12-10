@@ -1,11 +1,32 @@
-import { StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable } from "react-native";
 import { Text, View } from "@/components/Themed";
 import * as React from "react";
+import { useRouter } from 'expo-router';
 
 export default function StudentDashboard() {
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('today');
+  // Placeholder jobs per tab for building pages. Replace with API data later.
+  const router = useRouter();
 
-  // No mock jobs: data will come from API later. Tabs will show the empty state until then.
+  const mockJobs: Record<string, Array<any>> = {
+    today: [
+      { id: 't1', status: 'today', category: 'Delivery', title: 'Grocery pickup', description: 'Pick up groceries and deliver to client.', time: '2025-12-10 10:00', hours: '2', address: 'Rue Example 12, Leuven', location: 'Leuven', pay: '€12/hr' },
+    ],
+    upcoming: [
+      { id: 'u1', status: 'upcoming', category: 'Pet care', title: 'Dog walking', description: 'Walk the dog for 30 minutes.', time: '2025-12-11 14:00', hours: '0.5', address: 'Chaussée de Namur 5, Brussels', location: 'Brussels', pay: '€10/hr' },
+    ],
+    available: [
+      { id: 'a1', status: 'available', category: 'Promotion', title: 'Flyer distribution', description: 'Distribute flyers in the neighbourhood.', time: 'Flexible', hours: '3', address: 'Leuven Centrum', location: 'Leuven', pay: '€9/hr' },
+    ],
+    pending: [
+      { id: 'p1', status: 'pending', category: 'Home help', title: 'Cleaning help', description: 'Help with light cleaning.', time: 'Pending - 08/12', hours: '4', address: 'Avenue Louise 45, Brussels', location: 'Brussels', pay: '€13/hr' },
+    ],
+    archive: [
+      { id: 'ar1', status: 'archive', category: 'Moving', title: 'Moved boxes', description: 'Helped move boxes last week.', time: '2025-12-03', hours: '5', address: 'Rue du Parc 2, Wavre', location: 'Wavre', pay: '€20' },
+    ],
+  };
+
+  const jobs = mockJobs[tab] ?? [];
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
@@ -53,44 +74,58 @@ export default function StudentDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* EMPTY STATE */}
-      <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>📄</Text>
-        {tab === 'today' && (
-          <>
-            <Text style={styles.emptyTitle}>No jobs for today</Text>
-            <Text style={styles.emptySubtitle}>You have no scheduled jobs for today.</Text>
-          </>
-        )}
+      {/* JOB LIST or EMPTY STATE */}
+      {jobs.length > 0 ? (
+        <View style={styles.jobsContainer}>
+          <View style={styles.jobsList}>
+            {jobs.map((job: any) => (
+              <Pressable key={job.id} style={styles.jobCard} onPress={() => router.push(`/Student/Job/${job.id}` as unknown as any)}>
+                <Text style={styles.jobTitle}>{job.title}</Text>
+                <Text style={styles.jobDescription}>{job.description}</Text>
+                <Text style={styles.jobMeta}>{job.time} • {job.location} • {job.pay}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>📄</Text>
+          {tab === 'today' && (
+            <>
+              <Text style={styles.emptyTitle}>No jobs for today</Text>
+              <Text style={styles.emptySubtitle}>You have no scheduled jobs for today.</Text>
+            </>
+          )}
 
-        {tab === 'upcoming' && (
-          <>
-            <Text style={styles.emptyTitle}>No upcoming jobs</Text>
-            <Text style={styles.emptySubtitle}>You have no upcoming jobs scheduled.</Text>
-          </>
-        )}
+          {tab === 'upcoming' && (
+            <>
+              <Text style={styles.emptyTitle}>No upcoming jobs</Text>
+              <Text style={styles.emptySubtitle}>You have no upcoming jobs scheduled.</Text>
+            </>
+          )}
 
-        {tab === 'available' && (
-          <>
-            <Text style={styles.emptyTitle}>No available jobs</Text>
-            <Text style={styles.emptySubtitle}>Available jobs will appear here (filters coming later).</Text>
-          </>
-        )}
+          {tab === 'available' && (
+            <>
+              <Text style={styles.emptyTitle}>No available jobs</Text>
+              <Text style={styles.emptySubtitle}>Available jobs will appear here (filters coming later).</Text>
+            </>
+          )}
 
-        {tab === 'pending' && (
-          <>
-            <Text style={styles.emptyTitle}>No pending applications</Text>
-            <Text style={styles.emptySubtitle}>Applications that are awaiting response will show up here.</Text>
-          </>
-        )}
+          {tab === 'pending' && (
+            <>
+              <Text style={styles.emptyTitle}>No pending applications</Text>
+              <Text style={styles.emptySubtitle}>Applications that are awaiting response will show up here.</Text>
+            </>
+          )}
 
-        {tab === 'archive' && (
-          <>
-            <Text style={styles.emptyTitle}>No previous jobs</Text>
-            <Text style={styles.emptySubtitle}>Your past jobs will be archived here.</Text>
-          </>
-        )}
-      </View>
+          {tab === 'archive' && (
+            <>
+              <Text style={styles.emptyTitle}>No previous jobs</Text>
+              <Text style={styles.emptySubtitle}>Your past jobs will be archived here.</Text>
+            </>
+          )}
+        </View>
+      )}
 
     </ScrollView>
   );
@@ -211,7 +246,19 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   jobsContainer: {
-    // kept minimal in case it's reused later
+    borderWidth: 1,
+    borderColor: '#E4E6EB',
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    padding: 12,
     marginBottom: 12,
   },
+  jobCard: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF0F2',
+  },
+  jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  jobDescription: { fontSize: 14, color: '#4A4A4A', marginBottom: 6 },
+  jobMeta: { color: '#7A7F85', fontSize: 13 },
 });
