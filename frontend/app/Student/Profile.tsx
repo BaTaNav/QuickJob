@@ -22,8 +22,6 @@ export default function StudentProfile() {
           <Text style={styles.editBtnText}>Edit profile</Text>
         </Pressable>
       </View>
-
-      <Link href="/Student/Dashboard">Back to dashboard</Link>
     </View>
   );
 }
