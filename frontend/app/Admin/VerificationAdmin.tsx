@@ -24,18 +24,18 @@ export default function AdminVerificationPage() {
               Home
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setActiveTab("verification")}
-            style={[styles.subTab, activeTab === "verification" && styles.activeSubTab]}
+          <TouchableOpacity 
+            onPress={() => router.push("/Admin/VerificationAdmin")}
+            style={styles.navTab}
           >
             <Text style={[styles.subTabText, activeTab === "verification" && styles.activeSubTabText]}>
               Studenten verificatie
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => setActiveTab("incidents")}
-            style={[styles.subTab, activeTab === "incidents" && styles.activeSubTab]}
+          <TouchableOpacity 
+            onPress={() => router.push("/Admin/IncidentsAdmin")}
+            style={styles.navTab}
           >
             <Text style={[styles.subTabText, activeTab === "incidents" && styles.activeSubTabText]}>
               Incidenten
