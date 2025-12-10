@@ -49,7 +49,7 @@ export default function DashboardAdmin() {
                         </Text>
                     </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.logoutBtn}>
+                <TouchableOpacity style={styles.logoutBtn} onPress={() => router.push("/Login")}>
                     <Text style={styles.logoutText}>Log out</Text>
                     <LogOut size={18} color="#1a2e4c" />
                 </TouchableOpacity>
