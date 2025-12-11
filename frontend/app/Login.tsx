@@ -1,240 +1,254 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ScrollView, 
-  Platform 
-} from 'react-native';
+import React, { useState } from 'react';
+import Auth0 from 'react-native-auth0';
+import { useRouter } from 'expo-router';
 
-// Import Linking for external navigation (like the "Sign up" link)
-import * as Linking from 'expo-linking'; // Assuming you are using Expo or have Linking installed/configured
+const auth0 = new Auth0({
+  domain: process.env.EXPO_PUBLIC_AUTH0_DOMAIN || '',
+  clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '',
+});
 
-type Props = {
-  onSubmit?: (email: string, password: string) => void;
-  title?: string;
-};
-
-export default function Login({ onSubmit, title = 'Login' }: Props) {
+export default function Login({ title = 'Login' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const router = useRouter();
 
-  const handleSubmit = () => {
-    // In React Native, the form submission is typically a direct call from an onPress handler.
-    // No need to call e.preventDefault()
-    if (onSubmit) {
-      onSubmit(email.trim(), password);
+  const handleNormalLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Normale login via jouw backend
+      const response = await fetch('http://localhost:3000/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Login successful:', data);
+        // Redirect naar dashboard
+        router.push('/Student/Dashboard');
+      } else {
+        const error = await response.text();
+        console.error('Login failed:', error);
+        alert('Login failed: ' + error);
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Login error. Check console for details.');
     }
   };
 
-  // The 'document.title' logic is for web browsers and needs to be removed for React Native.
-  // We'll keep the useEffect hook as a placeholder if platform-specific logic is ever needed.
-  useEffect(() => {
-    // Platform-specific title setting is often handled by the native navigation stack.
-    // If you need to explicitly set a screen title, it's done via navigation options (e.g., React Navigation).
-  }, []);
-
-  // Handler for navigation links (since React Native doesn't use HTML <a> tags)
-  const handleLinkPress = (url: string) => {
-    // Use the Linking API to open an external URL or handle internal navigation
-    Linking.openURL(url);
+  const handleAuth0Login = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Voor web gebruik authorize zonder await - het redirected automatisch
+      auth0.webAuth.authorize({
+        scope: 'openid profile email',
+        audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE,
+        redirectUrl: 'http://localhost:8081/callback',
+      });
+      
+    } catch (error) {
+      console.error('Auth0 error:', error);
+    }
   };
 
+  const inputStyle = {
+    width: '100%',
+    padding: '0.875rem 1rem',
+    marginBottom: '1.25rem',
+    border: '2px solid #E1E7EB',
+    borderRadius: '10px',
+    fontSize: '0.9375rem',
+    transition: 'border-color 0.2s ease',
+    outline: 'none',
+    backgroundColor: '#FFFFFF',
+  };
+
+  const buttonStyle = {
+    width: '100%',
+    padding: '1rem 1.5rem',
+    backgroundColor: '#176B51', 
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontSize: '1rem',
+    fontWeight: '600',
+    marginTop: '0.5rem',
+    transition: 'background-color 0.2s ease, transform 0.1s ease',
+    boxShadow: '0 2px 8px rgba(23, 107, 81, 0.2)',
+  };
+
+  const auth0ButtonStyle = {
+    width: '100%',
+    padding: '1rem 1.5rem',
+    backgroundColor: '#FFFFFF',
+    color: '#041316',
+    border: '2px solid #E1E7EB',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontSize: '1rem',
+    fontWeight: '600',
+    marginTop: '1rem',
+    transition: 'background-color 0.2s ease, border-color 0.2s ease',
+  };
 
   return (
-    // ScrollView replaces the web 'div' with 'overflowY: auto' and 'height: 100vh'
-    <ScrollView 
-      contentContainerStyle={styles.containerContent} 
-      style={styles.container} 
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>QuickJob</Text>
-      </View>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: '#F8FAFB',
+      backgroundImage: 'linear-gradient(135deg, #F8FAFB 0%, #EDF1F2 100%)',
+    }}>
+      {/* Header */}
+      <div style={{
+        backgroundColor: '#fff',
+        borderBottom: '1px solid #E1E7EB',
+        padding: '1rem 2rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem'
+      }}>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#176B51" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+          <polyline points="15 3 21 3 21 9" />
+          <line x1="10" y1="14" x2="21" y2="3" />
+        </svg>
+        <span style={{
+          fontSize: '1.5rem',
+          fontWeight: '700',
+          color: '#041316',
+          letterSpacing: '-0.01em'
+        }}>QuickJob</span>
+      </div>
 
-      <View style={styles.formCard}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        
-        <View style={styles.signUpTextContainer}>
-          <Text style={styles.signUpText}>
-            Don't have an account?{' '}
-          </Text>
-          <TouchableOpacity onPress={() => handleLinkPress('Student/Signup')}>
-            <Text style={styles.signUpLink}>Sign up</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Main Content */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '3rem 2rem',
+        overflowY: 'auto'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '520px',
+          padding: '3rem 3.5rem',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '16px',
+          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)',
+          border: '1px solid rgba(225, 231, 235, 0.6)'
+        }}>
+          <h2 style={{ 
+            fontSize: '1.875rem', 
+            fontWeight: '700', 
+            textAlign: 'center', 
+            marginBottom: '0.75rem',
+            color: '#041316',
+            letterSpacing: '-0.01em'
+          }}>
+            {title}
+          </h2>
+          
+          <p style={{ 
+            textAlign: 'center', 
+            marginBottom: '2.5rem',
+            color: '#5D6B73',
+            fontSize: '0.9375rem'
+          }}>
+            Don't have an account? <a href="/Signup" style={{ 
+              color: '#176B51', 
+              fontWeight: '600',
+              textDecoration: 'none',
+              borderBottom: '1px solid #176B51'
+            }}>Sign up</a>
+          </p>
 
-        {/* Form area */}
-        <View>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.inputStyle}
-            placeholder="Email"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-            accessibilityLabel="Email"
-          />
+          <form onSubmit={handleNormalLogin}>
+            <label htmlFor="email" style={{ 
+              fontWeight: '600', 
+              display: 'block',
+              marginBottom: '0.5rem',
+              color: '#041316',
+              fontSize: '0.875rem'
+            }}>Email</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={inputStyle}
+              aria-label="Email"
+            />
 
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.inputStyle}
-            placeholder="Password"
-            secureTextEntry={true} // Replaces type="password"
-            value={password}
-            onChangeText={setPassword}
-            accessibilityLabel="Password"
-          />
+            <label htmlFor="password" style={{ 
+              fontWeight: '600', 
+              display: 'block',
+              marginBottom: '0.5rem',
+              color: '#041316',
+              fontSize: '0.875rem'
+            }}>Password</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={inputStyle}
+              aria-label="Password"
+            />
 
-          {/* TouchableOpacity replaces the web button for press feedback */}
-          <TouchableOpacity 
-            style={styles.buttonStyle} 
-            onPress={handleSubmit} // Attach the submission logic here
-            activeOpacity={0.8}
-          >
-            <Text style={styles.buttonText}>Login</Text>
-          </TouchableOpacity>
-        </View>
+            <button type="submit" style={buttonStyle}>
+              Login
+            </button>
+          </form>
 
-        <View style={styles.forgotPasswordContainer}>
-          <TouchableOpacity onPress={() => handleLinkPress('/Resetpassword')}>
-            <Text style={styles.forgotPasswordLink}>
+          <div style={{ 
+            textAlign: 'center', 
+            margin: '1.5rem 0',
+            color: '#5D6B73',
+            fontSize: '0.875rem',
+            position: 'relative'
+          }}>
+            <span style={{
+              backgroundColor: '#FFFFFF',
+              padding: '0 1rem',
+              position: 'relative',
+              zIndex: 1
+            }}>or</span>
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: 0,
+              right: 0,
+              height: '1px',
+              backgroundColor: '#E1E7EB',
+              zIndex: 0
+            }}></div>
+          </div>
+
+          <button onClick={handleAuth0Login} style={auth0ButtonStyle}>
+            Login with Auth0
+          </button>
+
+          <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+            <a href="/forgot-password" style={{ 
+              color: '#5D6B73', 
+              textDecoration: 'none',
+              fontSize: '0.9375rem'
+            }}>
               Forgot password?
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ScrollView>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
-
-// StyleSheet.create is the standard way to define styles in React Native
-const styles = StyleSheet.create({
-  container: {
-    flex: 1, // Fills the available space
-    backgroundColor: '#F8FAFB',
-    // Background Image/Gradient is harder in RN, we'll approximate with color
-  },
-  containerContent: {
-    flexGrow: 1, // Allows content to grow within the ScrollView
-    justifyContent: 'center', // Centers the card vertically
-    alignItems: 'center',
-    paddingVertical: 48, // 3rem
-    paddingHorizontal: 32, // 2rem
-    backgroundColor: '#F8FAFB', 
-    // Simplified background gradient:
-    // RN usually requires a separate library (like expo-linear-gradient) for proper gradients.
-  },
-  headerContainer: {
-    marginBottom: 40, // 2.5rem
-    marginTop: 32, // 2rem
-  },
-  headerTitle: {
-    fontSize: 36, // 2.25rem
-    fontWeight: '800',
-    color: '#176B51',
-    letterSpacing: -0.5, // Approx -0.02em
-  },
-  formCard: {
-    width: '100%',
-    maxWidth: 520,
-    padding: 48, // 3rem
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    // RN uses elevation for Android shadow and shadow properties for iOS
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.08,
-        shadowRadius: 15,
-      },
-      android: {
-        elevation: 10,
-      },
-    }),
-    borderWidth: 1,
-    borderColor: 'rgba(225, 231, 235, 0.6)',
-  },
-  cardTitle: {
-    fontSize: 30, // 1.875rem
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 12, // 0.75rem
-    color: '#041316',
-    letterSpacing: -0.25, // Approx -0.01em
-  },
-  signUpTextContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 40, // 2.5rem
-  },
-  signUpText: {
-    textAlign: 'center',
-    color: '#5D6B73',
-    fontSize: 15, // 0.9375rem
-  },
-  signUpLink: {
-    color: '#176B51',
-    fontWeight: '600',
-    textDecorationLine: 'underline', // Replaces textDecoration: 'none' + borderBottom
-    fontSize: 15,
-  },
-  label: {
-    fontWeight: '600',
-    marginBottom: 8, // 0.5rem
-    color: '#041316',
-    fontSize: 14, // 0.875rem
-  },
-  inputStyle: {
-    width: '100%',
-    paddingHorizontal: 16, // 1rem
-    paddingVertical: 14, // 0.875rem
-    marginBottom: 20, // 1.25rem
-    borderWidth: 2,
-    borderColor: '#E1E7EB',
-    borderRadius: 10,
-    fontSize: 15, // 0.9375rem
-    backgroundColor: '#FFFFFF',
-    color: '#000', // Ensure text is visible
-  },
-  buttonStyle: {
-    width: '100%',
-    paddingVertical: 16, // 1rem
-    paddingHorizontal: 24, // 1.5rem
-    backgroundColor: '#176B51',
-    borderRadius: 10,
-    marginTop: 8, // 0.5rem
-    justifyContent: 'center',
-    alignItems: 'center',
-    // Shadow for button
-    ...Platform.select({
-      ios: {
-        shadowColor: '#176B51',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16, // 1rem
-    fontWeight: '600',
-  },
-  forgotPasswordContainer: {
-    marginTop: 32, // 2rem
-    alignItems: 'center',
-  },
-  forgotPasswordLink: {
-    color: '#5D6B73',
-    textDecorationLine: 'none',
-    fontSize: 15, // 0.9375rem
-  }
-});
