@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
 import { RefreshCw, Plus, ArrowDown, Handshake } from "lucide-react-native";
 
@@ -13,6 +13,13 @@ export default function DashboardClient() {
   ];
 
   const tabs = ["Open", "Today", "Planned", "Completed"];
+
+    // Force Browser Tab Title on Web
+    useEffect(() => {
+      if (Platform.OS === 'web') {
+        document.title = "QuickJob | Dashboard-Client";
+      }
+    }, []);
 
   return (
     <View style={styles.screen}>
