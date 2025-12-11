@@ -11,8 +11,7 @@ export default function TabOneScreen() {
   useEffect(() => {
     if (Platform.OS === 'web') {
       document.title = "QuickJob";
-    }
-  }, []);
+    }}, []);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
