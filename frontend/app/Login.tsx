@@ -1,5 +1,4 @@
-import React from 'react';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 type Props = {
   onSubmit?: (email: string, password: string) => void;
@@ -17,10 +16,10 @@ export default function Login({ onSubmit, title = 'Login' }: Props) {
     }
   };
 
-    // Force Browser Tab Title
-    useEffect(() => {
-      document.title = "QuickJob | Login ";
-    }, []);
+  // Force Browser Tab Title
+  useEffect(() => {
+    document.title = "QuickJob | Login ";
+  }, []);
 
   const inputStyle = {
     width: '100%',
@@ -51,7 +50,7 @@ export default function Login({ onSubmit, title = 'Login' }: Props) {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh', // Changed from minHeight to enforce scroll container
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
