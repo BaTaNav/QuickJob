@@ -1,19 +1,25 @@
-import { StyleSheet, TouchableOpacity, ScrollView } from "react-native";
-import { Text, View } from "@/components/Themed";
-import React, { useState } from "react";
-import { useRouter } from "expo-router";
-
-
-
+import { StyleSheet, TouchableOpacity, ScrollView, Platform, StatusBar } from "react-native";
+import { Text, View } from "react-native";
+import React, { useState, useEffect } from "react"; // Added useEffect
+import { useRouter, Stack } from "expo-router";
 
 export default function TabOneScreen() {
   const [role, setRole] = useState<"client" | "student">("client");
   const router = useRouter();
 
- 
+  // Force Browser Tab Title on Web
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      document.title = "QuickJob";
+    }
+  }, []);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
+      
+      {/* Sets Native Navigation Header Title (Mobile) */}
+      <Stack.Screen options={{ title: "QuickJob", headerShown: false }} />
+      
       {/* HEADER WITH AUTH BUTTONS */}
       <View style={styles.header}>
         <Text style={styles.logo}>QuickJob</Text>
