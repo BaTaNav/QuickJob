@@ -1,19 +1,17 @@
-
 import { useFonts } from 'expo-font';
 import { Stack, Link } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-import { Pressable, Text, View } from 'react-native';
-import { Handshake, RefreshCw } from 'lucide-react-native';
+import { Pressable, Text, View, useColorScheme } from 'react-native';
+import { Handshake, RefreshCw, User } from 'lucide-react-native'; // Added User icon for profile
+import Colors from '../constants/Colors'; // Assuming this file exists and exports color palette
 
 
+// Catch any errors thrown by the Layout component.
+export { ErrorBoundary } from 'expo-router';
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
-
+// Global settings for Expo Router
 export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: '(tabs)',
@@ -46,67 +44,84 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
+  const colorScheme = useColorScheme(); // Hook to access the current color scheme
+
+  // Placeholder for a refresh action in the native header (e.g., refetch data)
+  const handleNativeHeaderRefresh = () => {
+    // In a production app, you would use a global state manager (Redux/Context/etc.)
+    // to dispatch a 'refresh' action that the current screen (Dashboard) listens to.
+    console.log("Header Refresh triggered (Dispatching global refresh event...)");
+  };
+
 
   return (
+    <Stack>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      {/* Explicit screen entry for Student Dashboard */}
+      <Stack.Screen
+        name="Student/Dashboard"
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: '#fff' },
+          
+          // Custom header title (QuickJob logo + text)
+          headerTitle: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Handshake size={28} color="#176B51" strokeWidth={2.5} />
+              <Text style={{ fontWeight: '800', marginLeft: 8, fontSize: 18, color: Colors[colorScheme ?? 'light'].text }}>
+                QuickJob
+              </Text>
+            </View>
+          ),
+          headerTitleStyle: { fontWeight: '600' },
+          
+          // Hide the automatic back button (as this is a root screen)
+          headerLeft: () => null,
 
-        {/* Explicit screen entry so we can control the native header for Student/Dashboard */}
-        <Stack.Screen
-          name="Student/Dashboard"
-          options={{
-            headerShown: true,
-            headerStyle: { backgroundColor: '#fff' },
-            // Render a custom title component (icon + app name) similar to the Client dashboard header
-            headerTitle: () => (
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Handshake size={28} color="#176B51" strokeWidth={2.5} />
-                <Text style={{ fontWeight: '800', marginLeft: 8, fontSize: 18, color: Colors[colorScheme ?? 'light'].text }}>QuickJob</Text>
-              </View>
-            ),
-            headerTitleStyle: { fontWeight: '600' },
-            // Hide the automatic back button on the Dashboard itself (we want a clean root screen).
-            headerLeft: () => null,
-            headerRight: () => (
-              <>
-                {/* Refresh button */}
-                <Pressable
-                  onPress={() => {
-                    try {
-                      if (typeof window !== 'undefined' && window.location) {
-                        window.location.reload();
-                      }
-                    } catch (e) {
-                      // no-op on native for now
-                    }
-                  }}
-                  style={{ marginRight: 12, padding: 6, borderRadius: 999, backgroundColor: '#F7F9FC' }}
-                >
-                  <RefreshCw size={18} color="#64748B" />
+          // Custom header right buttons (Refresh and Profile)
+          headerRight: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {/* 1. Refresh button */}
+              <Pressable
+                onPress={handleNativeHeaderRefresh}
+                style={{ padding: 6, borderRadius: 999, backgroundColor: '#F7F9FC' }}
+              >
+                <RefreshCw size={18} color="#64748B" />
+              </Pressable>
+
+              {/* 2. Profile button */}
+              {/* 'as never' or 'as any' is necessary here for non-standard routes like /Student/Profile */}
+              <Link href={'/Student/Profile' as never} asChild> 
+                <Pressable style={{ padding: 6 }}>
+                  <User size={24} color="#1B1B1B" /> 
                 </Pressable>
+              </Link>
+            </View>
+          ),
+        }}
+      />
 
-                {/* Profile button (left of logout) */}
-                <Link href={'/Student/Profile' as unknown as any} asChild>
-                  <Pressable>
-        
-                  </Pressable>
-                </Link>
-              </>
-            ),
-          }}
-        />
+      {/* Screen entry for Student Profile */}
+      <Stack.Screen
+        name="Student/Profile"
+        options={{
+          title: 'My Profile', // Custom title for the header
+          headerShown: true,
+        }}
+      />
 
-        <Stack.Screen
-          name="Student/Profile"
-          options={{
-            title: 'Profile',
-            headerShown: true,
-            
-          }}
-        />
+      {/* Generic modal screen */}
+      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
 
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
+      {/* Add the Job Detail screen entry here for correct navigation */}
+      <Stack.Screen 
+        name="Student/Job/[id]" 
+        options={{ 
+          title: 'Job Details', 
+        }} 
+      />
+
+    </Stack>
   );
 }
