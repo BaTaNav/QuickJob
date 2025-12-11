@@ -9,7 +9,7 @@ export default function StudentProfile() {
 
   function handleLogout() {
     // Simple navigation for now; replace with real logout logic when available
-    router.replace('/');
+    router.replace('/Student/Dashboard');
   }
 
   // Local settings state (demo only)
