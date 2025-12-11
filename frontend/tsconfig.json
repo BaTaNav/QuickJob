@@ -13,8 +13,14 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "baseUrl": ".",
+      "strict": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "paths": {
       "@/*": ["./*"]
+      
     },
     "customConditions": ["react-native"]
   },
@@ -23,7 +29,11 @@
     "components",
     "constants",
     ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+        "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  "extends": "expo/tsconfig.base"
+  "extends": "expo/tsconfig.base",
 }

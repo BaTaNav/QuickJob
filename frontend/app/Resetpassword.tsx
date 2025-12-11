@@ -20,12 +20,6 @@ export default function ForgotPassword({ onSubmit }: Props) {
  
   useEffect(() => {
     document.title = "QuickJob | Reset Password";
-    
-    const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement || document.createElement('link');
-    link.type = 'image/x-icon';
-    link.rel = 'icon';
-    link.href = 'https://cdn-icons-png.flaticon.com/512/2910/2910768.png'; 
-    document.getElementsByTagName('head')[0].appendChild(link);
   }, []);
 
   const inputStyle = {

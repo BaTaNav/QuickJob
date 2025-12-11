@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 type Props = {
+  
   onSubmit?: (email: string, password: string) => void;
   title?: string; 
 };
@@ -150,6 +151,7 @@ export default function Login({ onSubmit, title = 'Login' }: Props) {
             textDecoration: 'none',
             fontSize: '0.9375rem'
           }}>
+            
             Forgot password?
           </a>
         </div>
