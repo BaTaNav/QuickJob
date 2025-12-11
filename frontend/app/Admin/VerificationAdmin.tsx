@@ -87,7 +87,7 @@ export default function AdminVerificationPage() {
                   <DetailRow label="Universiteit" value="dummy data" />
                 </View>
               </View>
-            </View>
+            </View>  
 
             {/* Documents Box */}
             <View style={styles.docsContainer}>
