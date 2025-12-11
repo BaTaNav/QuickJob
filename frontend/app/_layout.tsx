@@ -1,10 +1,12 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, Link } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+import { Pressable, Text } from 'react-native';
 
+import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 
 export {
@@ -48,9 +50,52 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-    </Stack>
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
+        {/* Explicit screen entry so we can control the native header for Student/Dashboard */}
+        <Stack.Screen
+          name="Student/Dashboard"
+          options={{
+            title: 'QuickJob',
+            headerShown: true,
+            headerStyle: { backgroundColor: '#fff' },
+            headerTitleStyle: { fontWeight: '600' },
+            // Hide the automatic back button on the Dashboard itself (we want a clean root screen).
+            // Other screens will still render the default back button.
+            headerLeft: () => null,
+            headerRight: () => (
+              <>
+                {/* Profile button (left of logout) */}
+                <Link href={'/Student/Profile' as unknown as any} asChild>
+                  <Pressable>
+                    {({ pressed }) => (
+                      <FontAwesome
+                        name="user"
+                        size={20}
+                        color={Colors[colorScheme ?? 'light'].text}
+                        style={{ marginRight: 12, opacity: pressed ? 0.6 : 1 }}
+                      />
+                    )}
+                  </Pressable>
+                </Link>
+              </>
+            ),
+          }}
+        />
+
+        <Stack.Screen
+          name="Student/Profile"
+          options={{
+            title: 'Profile',
+            headerShown: true,
+            
+          }}
+        />
+
+        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+      </Stack>
+    </ThemeProvider>
   );
 }

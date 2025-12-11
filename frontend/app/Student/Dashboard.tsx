@@ -1,0 +1,265 @@
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable } from "react-native";
+import { Text, View } from "@/components/Themed";
+import * as React from "react";
+import { useRouter } from 'expo-router';
+
+export default function StudentDashboard() {
+  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('today');
+  // Placeholder jobs per tab for building pages. Replace with API data later.
+  const router = useRouter();
+
+  const mockJobs: Record<string, Array<any>> = {
+    today: [
+      { id: 't1', status: 'today', category: 'Delivery', title: 'Grocery pickup', description: 'Pick up groceries and deliver to client.', time: '2025-12-10 10:00', hours: '2', address: 'Rue Example 12, Leuven', location: 'Leuven', pay: '€12/hr' },
+    ],
+    upcoming: [
+      { id: 'u1', status: 'upcoming', category: 'Pet care', title: 'Dog walking', description: 'Walk the dog for 30 minutes.', time: '2025-12-11 14:00', hours: '0.5', address: 'Chaussée de Namur 5, Brussels', location: 'Brussels', pay: '€10/hr' },
+    ],
+    available: [
+      { id: 'a1', status: 'available', category: 'Promotion', title: 'Flyer distribution', description: 'Distribute flyers in the neighbourhood.', time: 'Flexible', hours: '3', address: 'Leuven Centrum', location: 'Leuven', pay: '€9/hr' },
+      { id: 'a2', status: 'available', category: 'Gardening', title: 'Lawn mowing', description: 'Mow the lawn for a client.', time: 'Flexible', hours: '2', address: 'Parkstraat 10, Antwerp', location: 'Antwerp', pay: '€11/hr' },
+    ],
+    pending: [
+      { id: 'p1', status: 'pending', category: 'Home help', title: 'Cleaning help', description: 'Help with light cleaning.', time: 'Pending - 08/12', hours: '4', address: 'Avenue Louise 45, Brussels', location: 'Brussels', pay: '€13/hr' },
+    ],
+    archive: [
+      { id: 'ar1', status: 'archive', category: 'Moving', title: 'Moved boxes', description: 'Helped move boxes last week.', time: '2025-12-03', hours: '5', address: 'Rue du Parc 2, Wavre', location: 'Wavre', pay: '€20' },
+    ],
+  };
+
+  const jobs = mockJobs[tab] ?? [];
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
+      {/* HEADER */}
+      <Text style={styles.pageTitle}>Student Dashboard</Text>
+      <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
+
+      {/* DOCUMENT BANNER (hidden by default while testing) */}
+      {false && (
+        <View style={styles.banner}>
+          <Text style={styles.bannerTitle}>Document verification required</Text>
+          <Text style={styles.bannerText}>
+            You need to upload and verify your documents before you can apply for jobs.
+            Please upload your student card, ID card, bank card, and profile photo.
+          </Text>
+
+          <TouchableOpacity style={styles.bannerBtn}>
+            <Text style={styles.bannerBtnText}>Upload documents</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+     
+
+      {/* NAV TABS */}
+      <View style={styles.tabs}>
+        <TouchableOpacity style={[styles.tab, tab === 'today' && styles.tabActive]} onPress={() => setTab('today')}>
+          <Text style={tab === 'today' ? styles.tabActiveText : styles.tabText}>Today (0)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.tab, tab === 'upcoming' && styles.tabActive]} onPress={() => setTab('upcoming')}>
+          <Text style={tab === 'upcoming' ? styles.tabActiveText : styles.tabText}>Upcoming (0)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.tab, tab === 'available' && styles.tabActive]} onPress={() => setTab('available')}>
+          <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available (0)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
+          <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending (0)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.tab, tab === 'archive' && styles.tabActive]} onPress={() => setTab('archive')}>
+          <Text style={tab === 'archive' ? styles.tabActiveText : styles.tabText}>Archive (0)</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* JOB LIST or EMPTY STATE */}
+      {jobs.length > 0 ? (
+        <View style={styles.jobsContainer}>
+          <View style={styles.jobsList}>
+            {jobs.map((job: any) => (
+              <Pressable key={job.id} style={styles.jobCard} onPress={() => router.push(`/Student/Job/${job.id}` as unknown as any)}>
+                <Text style={styles.jobTitle}>{job.title}</Text>
+                <Text style={styles.jobDescription}>{job.description}</Text>
+                <Text style={styles.jobMeta}>{job.time} • {job.location} • {job.pay}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>📄</Text>
+          {tab === 'today' && (
+            <>
+              <Text style={styles.emptyTitle}>No jobs for today</Text>
+              <Text style={styles.emptySubtitle}>You have no scheduled jobs for today.</Text>
+            </>
+          )}
+
+          {tab === 'upcoming' && (
+            <>
+              <Text style={styles.emptyTitle}>No upcoming jobs</Text>
+              <Text style={styles.emptySubtitle}>You have no upcoming jobs scheduled.</Text>
+            </>
+          )}
+
+          {tab === 'available' && (
+            <>
+              <Text style={styles.emptyTitle}>No available jobs</Text>
+              <Text style={styles.emptySubtitle}>Available jobs will appear here (filters coming later).</Text>
+            </>
+          )}
+
+          {tab === 'pending' && (
+            <>
+              <Text style={styles.emptyTitle}>No pending applications</Text>
+              <Text style={styles.emptySubtitle}>Applications that are awaiting response will show up here.</Text>
+            </>
+          )}
+
+          {tab === 'archive' && (
+            <>
+              <Text style={styles.emptyTitle}>No previous jobs</Text>
+              <Text style={styles.emptySubtitle}>Your past jobs will be archived here.</Text>
+            </>
+          )}
+        </View>
+      )}
+
+    </ScrollView>
+  );
+}
+
+/* COMPONENTS */
+
+
+
+/* STYLES */
+const styles = StyleSheet.create({
+  container: {
+    padding: 20,
+    paddingBottom: 80,
+    backgroundColor: "#fff",
+  },
+
+  /* HEADER */
+  pageTitle: {
+    fontSize: 30,
+    fontWeight: "700",
+    marginTop: 10,
+    color: "#1B1B1B",
+  },
+  pageSubtitle: {
+    fontSize: 16,
+    color: "#7A7F85",
+    marginBottom: 25,
+  },
+
+  /* DOCUMENT VERIFICATION BANNER */
+  banner: {
+    backgroundColor: "#FFF4D9",
+    borderLeftWidth: 4,
+    borderLeftColor: "#FFB01F",
+    padding: 18,
+    borderRadius: 12,
+    marginBottom: 28,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  bannerTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 8,
+    color: "#664D0E",
+  },
+  bannerText: {
+    fontSize: 14,
+    color: "#7C7C7C",
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  bannerBtn: {
+    backgroundColor: "#FFB01F",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignSelf: "flex-start",
+    borderRadius: 8,
+  },
+  bannerBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+
+  
+
+  /* TABS */
+  tabs: {
+    flexDirection: "row",
+    marginBottom: 22,
+    marginTop: 10,
+  },
+  tab: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    backgroundColor: "#E9ECEF",
+    borderRadius: 10,
+    marginRight: 12,
+  },
+  tabActive: {
+    backgroundColor: "#176B51",
+  },
+  tabText: { color: "#7A7F85", fontWeight: "500" },
+  tabActiveText: { color: "#fff", fontWeight: "600" },
+
+  /* EMPTY STATE */
+  emptyState: {
+    paddingVertical: 90,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E4E6EB",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    paddingHorizontal: 18,
+  },
+  emptyIcon: {
+    fontSize: 42,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 19,
+    fontWeight: "700",
+    marginBottom: 6,
+    color: "#1B1B1B",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#7A7F85",
+    textAlign: "center",
+    lineHeight: 20,
+    maxWidth: 260,
+  },
+  jobsList: {
+    gap: 12,
+    marginTop: 8,
+  },
+  jobsContainer: {
+    borderWidth: 1,
+    borderColor: '#E4E6EB',
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    padding: 12,
+    marginBottom: 12,
+  },
+  jobCard: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF0F2',
+  },
+  jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  jobDescription: { fontSize: 14, color: '#4A4A4A', marginBottom: 6 },
+  jobMeta: { color: '#7A7F85', fontSize: 13 },
+});
