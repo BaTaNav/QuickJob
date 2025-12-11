@@ -13,11 +13,8 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "baseUrl": ".",
-      "strict": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
+
+
     "paths": {
       "@/*": ["./*"]
       
