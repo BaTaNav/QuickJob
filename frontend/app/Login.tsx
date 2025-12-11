@@ -154,7 +154,6 @@ export default function Login({ onSubmit, title = 'Login' }: Props) {
           </a>
         </div>
       </div>
-
     </div>
   );
 }
