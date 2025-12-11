@@ -30,12 +30,12 @@ export default function StudentProfile() {
             </RNView>
           </RNView>
 
-          <RNView>
+          <RNView style={styles.controlsContainer}>
             <Pressable
               style={[styles.controlBtn, panel === 'info' && styles.controlBtnActive]}
               onPress={() => setPanel('info')}
             >
-              <Text style={panel === 'info' ? styles.controlBtnTextActive : styles.controlBtnText}>View Profile</Text>
+              <Text style={panel === 'info' ? styles.controlBtnTextActive : styles.controlBtnText}>My Profile</Text>
             </Pressable>
 
             <Pressable
@@ -132,9 +132,10 @@ export default function StudentProfile() {
 const styles = StyleSheet.create({
   container: { padding: 28, backgroundColor: '#fff', paddingBottom: 60 },
   layoutRow: { flexDirection: 'row', gap: 24 },
-  leftCard: { width: 220, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 14, backgroundColor: '#fff', height: 560, justifyContent: 'space-between', flexShrink: 0 },
+  leftCard: { width: 300, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 14, backgroundColor: '#fff', height: 560, justifyContent: 'space-between', flexShrink: 0 },
   leftTitle: { fontWeight: '700', marginBottom: 12 },
-  controlBtn: { paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#F4F6F7', marginBottom: 8, alignItems: 'center' },
+  controlBtn: { paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#F4F6F7', marginBottom: 8, alignItems: 'flex-start', width: '100%' },
+  controlsContainer: { alignItems: 'center' },
   controlBtnActive: { backgroundColor: '#176B51' },
   controlBtnText: { color: '#333', fontWeight: '600' },
   controlBtnTextActive: { color: '#fff', fontWeight: '600' },
@@ -152,9 +153,9 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
   rightContent: { flex: 1, justifyContent: 'space-between' },
   rightFooter: { marginTop: 12 },
-  avatarSmall: { width: 100, height: 100, borderRadius: 50, marginBottom: 12 },
+  avatarSmall: { width: 100, height: 100, borderRadius: 50, marginBottom: 0 },
   avatarLarge: { width: 120, height: 120, borderRadius: 60 },
-  leftTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  leftTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 0 },
   leftIdentity: { marginLeft: 8 },
   leftName: { fontWeight: '700', fontSize: 16 },
   leftEmail: { color: '#7A7F85', marginTop: 4 },
