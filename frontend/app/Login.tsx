@@ -1,5 +1,5 @@
 import React from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 type Props = {
   onSubmit?: (email: string, password: string) => void;
@@ -16,6 +16,11 @@ export default function Login({ onSubmit, title = 'Login' }: Props) {
       onSubmit(email.trim(), password);
     }
   };
+
+    // Force Browser Tab Title
+    useEffect(() => {
+      document.title = "QuickJob | Login ";
+    }, []);
 
   const inputStyle = {
     width: '100%',

@@ -1,7 +1,11 @@
 import { router } from 'expo-router';
-import React, { useState } from 'react'; 
+import React, { useState, useEffect } from 'react'; 
 
 const Signup = () => {
+    // Force Browser Tab Title
+    useEffect(() => {
+      document.title = "QuickJob | Signup-Student";
+    }, []);
     const [formData, setFormData] = useState({
     fullName: '',
     email: '',
