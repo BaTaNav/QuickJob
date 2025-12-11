@@ -13,13 +13,42 @@ const auth0 = new Auth0({
   clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '',
 });
 
+
+
 // Functie om de code verifier op te halen uit de browser opslag
 const getCodeVerifier = (): string | null => {
-    // Gebruik window.sessionStorage of window.localStorage
-    // Afhankelijk van de Expo/Web omgeving. sessionStorage is veiliger en logischer.
-    return window.sessionStorage.getItem(PKCE_VERIFIER_KEY);
-};
+    
+    // We doorlopen alle items in sessionStorage
+    for (let i = 0; i < window.sessionStorage.length; i++) {
+        const key = window.sessionStorage.key(i);
 
+        // Zoek naar de dynamische transactiesleutel
+        if (key && key.startsWith('a0.spajs.txs.')) {
+            const transactionJson = window.sessionStorage.getItem(key);
+            
+            if (transactionJson) {
+                try {
+                    const transaction = JSON.parse(transactionJson);
+                    
+                    // Controleer of het object de verifier bevat
+                    if (transaction.code_verifier) {
+                        
+                        // Optioneel: Verwijder de hele transactiesleutel na succesvolle vondst
+                        // window.sessionStorage.removeItem(key); 
+                        
+                        return transaction.code_verifier;
+                    }
+                } catch (e) {
+                    console.error("Fout bij het parsen van PKCE transactie:", e);
+                    // Ga door naar de volgende sleutel
+                }
+            }
+        }
+    }
+    
+    // De verifier is niet gevonden onder de verwachte sleutels
+    return null; 
+};
 export default function Callback() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -56,12 +85,15 @@ export default function Callback() {
             // ROL LEZEN EN ROUTEREN
             // =========================================================
             const idToken = credentials.idToken;
-            const namespace = "https://localhost:8081/"; // Gebruik de namespace uit je Auth0 Action
-            
-            const decodedToken = jwtDecode(idToken) as any;
-            const userRole = decodedToken[`${namespace}role`];
-            
-            console.log("Tokens succesvol ontvangen en rol gelezen:", userRole);
+            const namespace = "https://localhost:8081/"; 
+const decodedToken = jwtDecode(idToken) as any;
+
+// DE NIEUWE LEESMETHODE
+// Lees de rol direct uit het gedecodeerde object met de volledige string als sleutel
+const userRole = decodedToken[`${namespace}role`]; 
+
+// ZEKERHEIDSCHECK: Log de rolwaarde om te zien of deze nu 'student' is
+console.log("Rolwaarde nu gelezen:", userRole);
             
             // Tokens en rol opslaan in globale state (dit moet je zelf implementeren!)
             // saveUserCredentials(credentials, userRole);
