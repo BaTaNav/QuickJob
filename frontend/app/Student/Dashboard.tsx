@@ -2,6 +2,7 @@ import { StyleSheet, TouchableOpacity, ScrollView, Pressable } from "react-nativ
 import { Text, View } from "@/components/Themed";
 import * as React from "react";
 import { useRouter } from 'expo-router';
+import { RefreshCw } from 'lucide-react-native';
 
 export default function StudentDashboard() {
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('today');
@@ -32,8 +33,27 @@ export default function StudentDashboard() {
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
       {/* HEADER */}
-      <Text style={styles.pageTitle}>Student Dashboard</Text>
-      <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.pageTitle}>Student Dashboard</Text>
+          <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
+        </View>
+
+        <Pressable
+          onPress={() => {
+            try {
+              if (typeof window !== 'undefined' && window.location) {
+                window.location.reload();
+              }
+            } catch (e) {
+              // no-op on native for now
+            }
+          }}
+          style={styles.headerRefresh}
+        >
+          <RefreshCw size={18} color="#64748B" />
+        </Pressable>
+      </View>
 
       {/* DOCUMENT BANNER (hidden by default while testing) */}
       {false && (
@@ -154,7 +174,7 @@ const styles = StyleSheet.create({
   pageSubtitle: {
     fontSize: 16,
     color: "#7A7F85",
-    marginBottom: 25,
+    marginBottom: 0,
   },
 
   /* DOCUMENT VERIFICATION BANNER */
@@ -220,6 +240,14 @@ const styles = StyleSheet.create({
   },
   tabText: { color: "#7A7F85", fontWeight: "500" },
   tabActiveText: { color: "#fff", fontWeight: "600" },
+
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  headerRefresh: { padding: 6, borderRadius: 999, backgroundColor: '#F7F9FC' },
 
   /* EMPTY STATE */
   emptyState: {

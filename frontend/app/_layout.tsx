@@ -5,7 +5,8 @@ import { Stack, Link } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-import { Pressable, Text } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { Handshake, RefreshCw } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -59,15 +60,36 @@ function RootLayoutNav() {
         <Stack.Screen
           name="Student/Dashboard"
           options={{
-            title: 'QuickJob',
             headerShown: true,
             headerStyle: { backgroundColor: '#fff' },
+            // Render a custom title component (icon + app name) similar to the Client dashboard header
+            headerTitle: () => (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Handshake size={28} color="#176B51" strokeWidth={2.5} />
+                <Text style={{ fontWeight: '800', marginLeft: 8, fontSize: 18, color: Colors[colorScheme ?? 'light'].text }}>QuickJob</Text>
+              </View>
+            ),
             headerTitleStyle: { fontWeight: '600' },
             // Hide the automatic back button on the Dashboard itself (we want a clean root screen).
-            // Other screens will still render the default back button.
             headerLeft: () => null,
             headerRight: () => (
               <>
+                {/* Refresh button */}
+                <Pressable
+                  onPress={() => {
+                    try {
+                      if (typeof window !== 'undefined' && window.location) {
+                        window.location.reload();
+                      }
+                    } catch (e) {
+                      // no-op on native for now
+                    }
+                  }}
+                  style={{ marginRight: 12, padding: 6, borderRadius: 999, backgroundColor: '#F7F9FC' }}
+                >
+                  <RefreshCw size={18} color="#64748B" />
+                </Pressable>
+
                 {/* Profile button (left of logout) */}
                 <Link href={'/Student/Profile' as unknown as any} asChild>
                   <Pressable>
