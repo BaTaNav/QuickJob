@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput, Image } from "react-native";
 import { Handshake, Search, LogOut, Home, User } from "lucide-react-native";
+import { useRouter } from "expo-router";
 
 export default function AdminVerificationPage() {
+    const router = useRouter();
   const [activeTab, setActiveTab] = useState("verification"); // 'verification' or 'incidents'
 
   return (
@@ -14,26 +16,26 @@ export default function AdminVerificationPage() {
         <View style={styles.headerLeft}>
           <Handshake size={28} color="#176B51" strokeWidth={2.5} />
           <Text style={styles.headerTitle}>QuickJob</Text>
-          <TouchableOpacity
-            onPress={() => setActiveTab("home")}
-            style={[styles.subTab, activeTab === "home" && styles.activeSubTab]}
+          <TouchableOpacity 
+            onPress={() => router.push("/Admin/DashboardAdmin")}
+            style={styles.navTab}
           >
             <Text style={[styles.subTabText, activeTab === "home" && styles.activeSubTabText]}>
               Home
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setActiveTab("verification")}
-            style={[styles.subTab, activeTab === "verification" && styles.activeSubTab]}
+          <TouchableOpacity 
+            onPress={() => router.push("/Admin/VerificationAdmin")}
+            style={styles.navTab}
           >
             <Text style={[styles.subTabText, activeTab === "verification" && styles.activeSubTabText]}>
               Studenten verificatie
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => setActiveTab("incidents")}
-            style={[styles.subTab, activeTab === "incidents" && styles.activeSubTab]}
+          <TouchableOpacity 
+            onPress={() => router.push("/Admin/IncidentsAdmin")}
+            style={styles.navTab}
           >
             <Text style={[styles.subTabText, activeTab === "incidents" && styles.activeSubTabText]}>
               Incidenten
@@ -117,7 +119,10 @@ export default function AdminVerificationPage() {
             </View>
           </View>
 
-          <TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => router.push("/Admin/StudentProfileAdmin")}
+            style={styles.navTab}
+          >
             <View style={styles.card}>
               <View style={styles.cardTop}>
                 <View style={styles.detailsGrid}>
@@ -203,6 +208,18 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#1a2e4c",
     marginRight: 24,
+  },
+  navTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  navTabText: {
+    fontSize: 16,
+    color: "#000",
+    fontWeight: "400",
+  },
+  activeNavTabText: {
+    fontWeight: "700",
   },
   navLink: {
     paddingHorizontal: 8,

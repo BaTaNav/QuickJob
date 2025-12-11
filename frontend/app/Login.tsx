@@ -90,7 +90,7 @@ export default function Login({ onSubmit, title = 'Login' }: Props) {
           color: '#5D6B73',
           fontSize: '0.9375rem'
         }}>
-          Don't have an account? <a href="/Signup" style={{ 
+          Don't have an account? <a href="Student/Signup" style={{ 
             color: '#176B51', 
             fontWeight: '600',
             textDecoration: 'none',
