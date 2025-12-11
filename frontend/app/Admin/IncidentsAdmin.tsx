@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput } from "react-native";
 import { Handshake, LogOut } from "lucide-react-native";
 import { useRouter } from "expo-router";
@@ -6,6 +6,13 @@ import { useRouter } from "expo-router";
 export default function AdminIncidentsPage() {
   const router = useRouter();
 const [activeTab, setActiveTab] = useState("Open");
+
+  // Force Browser Tab Title on Web
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      document.title = "QuickJob | Incident-Admin";
+    }
+  }, []);
 
 
   return (

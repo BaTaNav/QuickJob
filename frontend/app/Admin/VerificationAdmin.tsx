@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput, Image } from "react-native";
 import { Handshake, Search, LogOut, Home, User } from "lucide-react-native";
 import { useRouter } from "expo-router";
@@ -6,6 +6,13 @@ import { useRouter } from "expo-router";
 export default function AdminVerificationPage() {
     const router = useRouter();
   const [activeTab, setActiveTab] = useState("verification"); // 'verification' or 'incidents'
+
+    // Force Browser Tab Title on Web
+    useEffect(() => {
+      if (Platform.OS === 'web') {
+        document.title = "QuickJob | Verification-Admin";
+      }
+    }, []);
 
   return (
     <View style={styles.screen}>
