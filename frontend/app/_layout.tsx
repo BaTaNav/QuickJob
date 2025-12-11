@@ -81,22 +81,17 @@ function RootLayoutNav() {
                     )}
                   </Pressable>
                 </Link>
-
-                {/* Log out icon (for now it just navigates to home) */}
-                <Link href="/" asChild>
-                  <Pressable>
-                    {({ pressed }) => (
-                      <FontAwesome
-                        name="sign-out"
-                        size={22}
-                        color={Colors[colorScheme ?? 'light'].text}
-                        style={{ marginRight: 12, opacity: pressed ? 0.6 : 1 }}
-                      />
-                    )}
-                  </Pressable>
-                </Link>
               </>
             ),
+          }}
+        />
+
+        <Stack.Screen
+          name="Student/Profile"
+          options={{
+            title: 'Profile',
+            headerShown: true,
+            
           }}
         />
 
