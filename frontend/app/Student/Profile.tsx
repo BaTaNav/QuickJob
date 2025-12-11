@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, Pressable, View as RNView } from 'react-native';
+import { StyleSheet, Pressable, View as RNView, Switch } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 
@@ -11,6 +11,11 @@ export default function StudentProfile() {
     // Simple navigation for now; replace with real logout logic when available
     router.replace('/');
   }
+
+  // Local settings state (demo only)
+  const [darkMode, setDarkMode] = React.useState(false);
+  const [language, setLanguage] = React.useState<'EN' | 'NL' | 'FR'>('EN');
+  const [notifications, setNotifications] = React.useState(true);
 
   return (
     <View style={styles.container}>
@@ -31,6 +36,10 @@ export default function StudentProfile() {
             onPress={() => setPanel('settings')}
           >
             <Text style={panel === 'settings' ? styles.controlBtnTextActive : styles.controlBtnText}>Settings</Text>
+          </Pressable>
+
+          <Pressable style={[styles.editBtn, { backgroundColor: '#B00020' }]} onPress={handleLogout}>
+                <Text style={styles.editBtnText}>Log out</Text>
           </Pressable>
 
         </View>
@@ -65,15 +74,30 @@ export default function StudentProfile() {
             <>
               <Text style={styles.sectionTitle}>Settings</Text>
 
+              <Text style={styles.label}>Language</Text>
+              <RNView style={styles.langRow}>
+                {(['EN', 'NL', 'FR'] as const).map((lang) => (
+                  <Pressable
+                    key={lang}
+                    style={[styles.langBtn, language === lang && styles.langBtnActive]}
+                    onPress={() => setLanguage(lang)}
+                  >
+                    <Text style={language === lang ? styles.langBtnTextActive : styles.langBtnText}>{lang}</Text>
+                  </Pressable>
+                ))}
+              </RNView>
+
+              <Text style={styles.label}>Dark mode</Text>
+              <RNView style={styles.switchRow}>
+                <Switch value={darkMode} onValueChange={setDarkMode} />
+                <Text style={styles.value}>{darkMode ? 'On' : 'Off'}</Text>
+              </RNView>
+
               <Text style={styles.label}>Notifications</Text>
-              <Text style={styles.value}>Email, SMS</Text>
-
-              <Text style={styles.label}>Visibility</Text>
-              <Text style={styles.value}>Public</Text>
-
-              <Pressable style={[styles.editBtn, { backgroundColor: '#B00020' }]} onPress={handleLogout}>
-                <Text style={styles.editBtnText}>Log out</Text>
-              </Pressable>
+              <RNView style={styles.switchRow}>
+                <Switch value={notifications} onValueChange={setNotifications} />
+                <Text style={styles.value}>{notifications ? 'On' : 'Off'}</Text>
+              </RNView>
             </>
           )}
         </View>
@@ -97,4 +121,10 @@ const styles = StyleSheet.create({
   editBtn: { marginTop: 16, backgroundColor: '#176B51', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   editBtnText: { color: '#fff', fontWeight: '700' },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  langRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  langBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#F4F6F7' },
+  langBtnActive: { backgroundColor: '#176B51' },
+  langBtnText: { color: '#333', fontWeight: '600' },
+  langBtnTextActive: { color: '#fff', fontWeight: '600' },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
 });
