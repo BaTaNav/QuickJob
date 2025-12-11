@@ -23,7 +23,7 @@ export default function StudentProfile() {
         {/* Left control card */}
         <View style={styles.leftCard}>
           <RNView>
-              <Image source={{ uri: 'https://placekitten.com/120/120' }} style={styles.avatarSmall} />
+              <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarSmall} />
 
               <Pressable
                 style={[styles.controlBtn, panel === 'info' && styles.controlBtnActive]}
@@ -57,7 +57,7 @@ export default function StudentProfile() {
                       <Text style={styles.label}>Name</Text>
                       <Text style={styles.value}>Student Name</Text>
                     </RNView>
-                    <Image source={{ uri: 'https://placekitten.com/120/120' }} style={styles.avatarLarge} />
+                    <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarLarge} />
                   </RNView>
 
                   <Text style={styles.label}>Bio</Text>
