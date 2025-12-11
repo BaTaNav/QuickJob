@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput, Image } from "react-native";
 import { RefreshCw, Plus, ArrowDown, Handshake, Home, Search, LogOut, User } from "lucide-react-native";
 import { useRouter } from "expo-router";
@@ -13,6 +13,14 @@ export default function DashboardAdmin() {
     ];
 
     const tabs = ["Verificaties", "Incidenten"];
+      // Force Browser Tab Title on Web
+      useEffect(() => {
+        if (Platform.OS === 'web') {
+          document.title = "QuickJob | Dashboard-Admin";
+        }
+      }, []);
+
+    
 
     return (
         <View style={styles.screen}>

@@ -1,20 +1,23 @@
 import { router } from 'expo-router';
-import React, { useState } from 'react'; 
+import React, { useState, useEffect } from 'react'; 
 
 const Signup = () => {
-    const [formData, setFormData] = useState({
+  // Force Browser Tab Title
+  useEffect(() => {
+    document.title = "QuickJob | Signup-Client ";
+  }, []);
+
+  const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     password: '',
     confirmPassword: '',
   });
 
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
   
-
   const inputStyle = {
     width: '100%',
     padding: '0.875rem 1rem',
@@ -55,7 +58,6 @@ const Signup = () => {
     transition: 'background-color 0.2s ease, color 0.2s ease',
   };
 
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -70,13 +72,12 @@ const Signup = () => {
       <div style={{ marginBottom: '2.5rem', marginTop: '2rem' }}>
         <h1 style={{ 
           fontSize: '2.25rem', 
-          fontWeight: '800',
+          fontWeight: '800', 
           color: '#176B51',
           letterSpacing: '-0.02em'
         }}>QuickJob</h1> 
       </div>
       
-
       <div style={{
         width: '100%',
         maxWidth: '520px',
@@ -94,7 +95,7 @@ const Signup = () => {
           color: '#041316',
           letterSpacing: '-0.01em'
         }}>
-          Create  client account
+          Create client account
         </h2>
         
         <p style={{ 
@@ -123,6 +124,7 @@ const Signup = () => {
             type="text"
             id="fullName"
             name="fullName"
+            placeholder='Full Name'
             value={formData.fullName}
             onChange={handleChange}
             style={inputStyle}
@@ -140,6 +142,7 @@ const Signup = () => {
             type="email"
             id="email"
             name="email"
+            placeholder='Email'
             value={formData.email}
             onChange={handleChange}
             style={inputStyle}
@@ -157,6 +160,7 @@ const Signup = () => {
             type="password"
             id="password"
             name="password"
+            placeholder='Password'
             value={formData.password}
             onChange={handleChange}
             style={inputStyle}
@@ -184,6 +188,7 @@ const Signup = () => {
             type="password"
             id="confirmPassword"
             name="confirmPassword"
+            placeholder='Confirm Password'
             value={formData.confirmPassword}
             onChange={handleChange}
             style={inputStyle}
