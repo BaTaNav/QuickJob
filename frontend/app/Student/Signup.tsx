@@ -8,78 +8,86 @@ import {
   TouchableOpacity, 
   ScrollView, 
   Platform,
-  Alert // Use Alert for feedback in native environment
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 
-import Auth0 from 'react-native-auth0'; // <-- NODIG VOOR AUTH0
-import * as Linking from 'expo-linking'; // For handling external links
-
-// Auth0 instantie (gebruikt dezelfde configuratie als Login/Callback)
-// We assume process.env variables are correctly loaded in the native environment (e.g., via babel or environment setup)
-const auth0 = new Auth0({
-  domain: process.env.EXPO_PUBLIC_AUTH0_DOMAIN || '',
-  clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '',
-});
+import * as Linking from 'expo-linking';
+import { authAPI } from '../../services/api';
 
 const Signup = () => {
   const [formData, setFormData] = useState({
-    fullName: '',
     email: '',
     password: '',
     confirmPassword: '',
+    phone: '',
+    school_name: '',
+    field_of_study: '',
+    academic_year: '',
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
 
-  // Adapted handler for React Native TextInput
   const handleChange = (name: string, value: string) => {
     setFormData((prevData) => ({ ...prevData, [name]: value }));
+    if (error) setError(''); // Clear error when user types
   };
 
-  // =========================================================
-  // FUNCTIE 1: EIGEN SITE REGISTRATIE (Native Call)
-  // =========================================================
-  const handleSiteSignup = () => {
-    // Geen e.preventDefault() nodig in native
-    // HIER KOMT JOUW LOGICA VOOR DE EIGEN BACKEND REGISTRATIE
-    console.log('Registratie via eigen site gestart met:', formData);
-    Alert.alert("Registratie", "Jouw eigen backend registratie logica wordt hier uitgevoerd.");
-    // Voer hier de POST request uit naar je /auth/signup endpoint
-  };
-
-  // =========================================================
-  // FUNCTIE 2: AUTH0 REGISTRATIE (GEFIXED)
-  // =========================================================
-  const handleAuth0Signup = async () => {
+  const handleSignup = async () => {
     try {
-      const authParams = {
-        scope: 'openid profile email',
-        audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE,
-        // De redirect URL moet de correcte native callback URL zijn, 
-        // vaak met het schema van je app, e.g., 'myapp://callback'
-        redirectUrl: process.env.EXPO_PUBLIC_AUTH0_REDIRECT_URI || 'http://localhost:8081/callback',
-        
-        // screen_hint voor Auth0 Universal Login, en custom rol via custom query parameter
-        screen_hint: 'signup',
-        user_role: 'student', // <--- De rol die de Auth0 Action nu leest
-      };
+      setError('');
+      
+      // Validate inputs
+      if (!formData.email || !formData.password) {
+        setError('Email and password are required');
+        return;
+      }
+      
+      if (formData.password !== formData.confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
 
-      // De authorize methode opent een webview/browser tab.
-      // Het resultaat is een promise die de credentials teruggeeft, 
-      // of een foutmelding.
-      const credentials = await auth0.webAuth.authorize(authParams as any);
+      if (formData.password.length < 6) {
+        setError('Password must be at least 6 characters');
+        return;
+      }
 
-      // Bij succesvolle registratie en login
-      console.log('Auth0 Signup Success:', credentials);
-      Alert.alert('Success', 'Registratie via Auth0 gelukt!');
-      // Vervolgens navigeren of tokens opslaan
-      // router.replace('/Student/Dashboard');
+      setLoading(true);
 
-    } catch (error) {
-      console.error('Auth0 Student Signup error:', error);
-      Alert.alert('Fout', 'Registratie via Auth0 mislukt. Controleer de console.');
+      // Register student
+      const result = await authAPI.registerStudent({
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone || undefined,
+        school_name: formData.school_name || undefined,
+        field_of_study: formData.field_of_study || undefined,
+        academic_year: formData.academic_year || undefined,
+      });
+
+      console.log('Registration successful:', result);
+      
+      // Show success message
+      Alert.alert(
+        'Success!',
+        'Account created successfully. Redirecting to dashboard...',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/Student/Dashboard'),
+          },
+        ]
+      );
+      
+    } catch (err: any) {
+      console.error('Signup error:', err);
+      setError(err.message || 'Registration failed. Please try again.');
+      Alert.alert('Registration Failed', err.message || 'Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
-  // =========================================================
 
   // Handler for navigation links (since React Native doesn't use HTML <a> tags)
   const handleLinkPress = (url: string) => {
@@ -117,20 +125,10 @@ const Signup = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Form area (using View instead of form) */}
+        {/* Form area */}
         <View>
-          {/* Full Name Input */}
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput
-            style={styles.inputStyle}
-            placeholder='Full Name'
-            value={formData.fullName}
-            onChangeText={(value) => handleChange('fullName', value)}
-            accessibilityLabel="Full Name"
-          />
-
           {/* Email Input */}
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>Email *</Text>
           <TextInput
             style={styles.inputStyle}
             placeholder='Email'
@@ -139,10 +137,11 @@ const Signup = () => {
             value={formData.email}
             onChangeText={(value) => handleChange('email', value)}
             accessibilityLabel="Email"
+            editable={!loading}
           />
 
           {/* Password Input */}
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>Password *</Text>
           <TextInput
             style={styles.inputStyle}
             placeholder='Password'
@@ -150,14 +149,15 @@ const Signup = () => {
             value={formData.password}
             onChangeText={(value) => handleChange('password', value)}
             accessibilityLabel="Password"
+            editable={!loading}
           />
 
           <Text style={styles.passwordHint}>
-            Must be at least 8 characters with uppercase and number
+            Must be at least 6 characters
           </Text>
 
           {/* Confirm Password Input */}
-          <Text style={styles.label}>Confirm password</Text>
+          <Text style={styles.label}>Confirm password *</Text>
           <TextInput
             style={styles.inputStyle}
             placeholder='Confirm Password'
@@ -165,34 +165,75 @@ const Signup = () => {
             value={formData.confirmPassword}
             onChangeText={(value) => handleChange('confirmPassword', value)}
             accessibilityLabel="Confirm password"
+            editable={!loading}
           />
 
+          {/* Phone Input */}
+          <Text style={styles.label}>Phone</Text>
+          <TextInput
+            style={styles.inputStyle}
+            placeholder='Phone number'
+            keyboardType="phone-pad"
+            value={formData.phone}
+            onChangeText={(value) => handleChange('phone', value)}
+            accessibilityLabel="Phone"
+            editable={!loading}
+          />
 
-          {/* Submit Button for internal registration */}
+          {/* School Name Input */}
+          <Text style={styles.label}>School Name</Text>
+          <TextInput
+            style={styles.inputStyle}
+            placeholder='e.g., KU Leuven'
+            value={formData.school_name}
+            onChangeText={(value) => handleChange('school_name', value)}
+            accessibilityLabel="School Name"
+            editable={!loading}
+          />
+
+          {/* Field of Study Input */}
+          <Text style={styles.label}>Field of Study</Text>
+          <TextInput
+            style={styles.inputStyle}
+            placeholder='e.g., Computer Science'
+            value={formData.field_of_study}
+            onChangeText={(value) => handleChange('field_of_study', value)}
+            accessibilityLabel="Field of Study"
+            editable={!loading}
+          />
+
+          {/* Academic Year Input */}
+          <Text style={styles.label}>Academic Year</Text>
+          <TextInput
+            style={styles.inputStyle}
+            placeholder='e.g., 2024-2025'
+            value={formData.academic_year}
+            onChangeText={(value) => handleChange('academic_year', value)}
+            accessibilityLabel="Academic Year"
+            editable={!loading}
+          />
+
+          {/* Error Message */}
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          {/* Submit Button */}
           <TouchableOpacity 
-            style={styles.buttonStyle}
-            onPress={handleSiteSignup}
+            style={[styles.buttonStyle, loading && styles.buttonDisabled]}
+            onPress={handleSignup}
             activeOpacity={0.8}
+            disabled={loading}
           >
-            <Text style={styles.buttonText}>Sign Up via QuickJob</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Create Student Account</Text>
+            )}
           </TouchableOpacity>
         </View>
-
-        {/* --- OPTIE 2: AUTH0 KNOP TOEGEVOEGD (Divider) --- */}
-        <View style={styles.dividerContainer}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>of</Text>
-        </View>
-
-        {/* Auth0 Button */}
-        <TouchableOpacity 
-          onPress={handleAuth0Signup} 
-          style={styles.auth0ButtonLinkStyle}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.auth0ButtonText}>Sign Up met Auth0</Text>
-        </TouchableOpacity>
-        {/* --- EINDE OPTIE 2 --- */}
 
 
         <View style={styles.ctaContainer}>
@@ -332,6 +373,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  errorContainer: {
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '500',
   },
   
   // --- Divider Styles ---

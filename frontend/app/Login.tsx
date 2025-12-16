@@ -1,56 +1,40 @@
 import React, { useState } from 'react';
-import Auth0 from 'react-native-auth0';
 import { useRouter } from 'expo-router';
-
-const auth0 = new Auth0({
-  domain: process.env.EXPO_PUBLIC_AUTH0_DOMAIN || '',
-  clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '',
-});
+import { authAPI } from '../services/api';
 
 export default function Login({ title = 'Login' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleNormalLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     try {
-      // Normale login via jouw backend
-      const response = await fetch('http://localhost:3000/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Login successful:', data);
-        // Redirect naar dashboard
-        router.push('/Student/Dashboard');
-      } else {
-        const error = await response.text();
-        console.error('Login failed:', error);
-        alert('Login failed: ' + error);
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      alert('Login error. Check console for details.');
-    }
-  };
+      setError('');
+      setLoading(true);
 
-  const handleAuth0Login = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // Voor web gebruik authorize zonder await - het redirected automatisch
-      auth0.webAuth.authorize({
-        scope: 'openid profile email',
-        audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE,
-        redirectUrl: 'http://localhost:8081/callback',
-      });
+      // Login via backend
+      const result = await authAPI.login(email, password);
       
-    } catch (error) {
-      console.error('Auth0 error:', error);
+      console.log('Login successful:', result);
+      
+      // Redirect based on role
+      if (result.user.role === 'student') {
+        router.replace('/Student/Dashboard');
+      } else if (result.user.role === 'client') {
+        router.replace('/Client/DashboardClient');
+      } else {
+        router.replace('/');
+      }
+      
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -183,7 +167,21 @@ export default function Login({ title = 'Login' }) {
             }}>Register Client</a>
           </p>
 
-          <form onSubmit={handleNormalLogin}>
+          <form onSubmit={handleLogin}>
+            {error && (
+              <div style={{
+                backgroundColor: '#FEE2E2',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                marginBottom: '1rem',
+                color: '#DC2626',
+                fontSize: '0.875rem',
+                fontWeight: '500'
+              }}>
+                {error}
+              </div>
+            )}
+
             <label htmlFor="email" style={{ 
               fontWeight: '600', 
               display: 'block',
@@ -200,6 +198,8 @@ export default function Login({ title = 'Login' }) {
               onChange={(e) => setEmail(e.target.value)}
               style={inputStyle}
               aria-label="Email"
+              disabled={loading}
+              required
             />
 
             <label htmlFor="password" style={{ 
@@ -218,50 +218,22 @@ export default function Login({ title = 'Login' }) {
               onChange={(e) => setPassword(e.target.value)}
               style={inputStyle}
               aria-label="Password"
+              disabled={loading}
+              required
             />
 
-            <button type="submit" style={buttonStyle}>
-              Login
+            <button 
+              type="submit" 
+              style={{
+                ...buttonStyle,
+                opacity: loading ? 0.6 : 1,
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+              disabled={loading}
+            >
+              {loading ? 'Signing in...' : 'Login'}
             </button>
           </form>
-
-          <div style={{ 
-            textAlign: 'center', 
-            margin: '1.5rem 0',
-            color: '#5D6B73',
-            fontSize: '0.875rem',
-            position: 'relative'
-          }}>
-            <span style={{
-              backgroundColor: '#FFFFFF',
-              padding: '0 1rem',
-              position: 'relative',
-              zIndex: 1
-            }}>or</span>
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: 0,
-              right: 0,
-              height: '1px',
-              backgroundColor: '#E1E7EB',
-              zIndex: 0
-            }}></div>
-          </div>
-
-          <button onClick={handleAuth0Login} style={auth0ButtonStyle}>
-            Login with Auth0
-          </button>
-
-          <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-            <a href="/forgot-password" style={{ 
-              color: '#5D6B73', 
-              textDecoration: 'none',
-              fontSize: '0.9375rem'
-            }}>
-              Forgot password?
-            </a>
-          </div>
         </div>
       </div>
     </div>

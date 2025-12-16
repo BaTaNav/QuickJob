@@ -4,6 +4,7 @@ const cors = require("cors");
 require("dotenv").config(); // Laadt .env
 
 const supabase = require("./supabaseClient");
+const authRouter = require("./auth/auth");
 const clientsRouter = require("./clients/clients");
 const jobsRouter = require("./jobs/jobs");
 const studentsRouter = require("./students/students");
@@ -25,6 +26,7 @@ app.get("/health", (req, res) => {
 });
 
 // Mount routers
+app.use("/auth", authRouter);
 app.use("/clients", clientsRouter);
 app.use("/jobs", jobsRouter);
 app.use("/students", studentsRouter);
