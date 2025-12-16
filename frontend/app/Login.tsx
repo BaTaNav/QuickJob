@@ -185,7 +185,7 @@ export default function Login({ title = 'Login' }: Props) {
           </form>
 
           <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-            <a href="/forgot-password" style={{ 
+            <a href="/Resetpassword" style={{ 
               color: '#5D6B73', 
               textDecoration: 'none',
               fontSize: '0.9375rem'

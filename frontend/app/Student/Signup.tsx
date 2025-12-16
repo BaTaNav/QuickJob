@@ -153,13 +153,6 @@ const Signup = () => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.forgotPasswordContainer}>
-          <TouchableOpacity onPress={() => handleLinkPress('/forgot-password')}>
-            <Text style={styles.forgotPasswordLink}>
-              Forgot password?
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
     </ScrollView>
   );

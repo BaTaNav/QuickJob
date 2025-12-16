@@ -142,18 +142,12 @@ const Signup = () => {
             onPress={() => router.push('/Student/Signup')} // Correct use of expo-router
             activeOpacity={0.8}
           >
-            <Text style={styles.clientButtonText}>Maak student account</Text>
+            <Text style={styles.clientButtonText}>Create student account</Text>
           </TouchableOpacity>
         </View>
 
         {/* Forgot Password Link */}
-        <View style={styles.forgotPasswordContainer}>
-          <TouchableOpacity onPress={() => handleLinkPress('/forgot-password')}>
-            <Text style={styles.forgotPasswordLink}>
-              Forgot password?
-            </Text>
-          </TouchableOpacity>
-        </View>
+
       </View>
     </ScrollView>
   );
