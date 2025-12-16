@@ -69,7 +69,7 @@ function RootLayoutNav() {
           headerTitle: () => (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Handshake size={28} color="#176B51" strokeWidth={2.5} />
-              <Text style={{ fontWeight: '800', marginLeft: 8, fontSize: 18, color: Colors[colorScheme ?? 'light'].text }}>
+              <Text style={{ fontWeight: '800', marginLeft: 8, fontSize: 18, color: '#176B51' }}>
                 QuickJob
               </Text>
             </View>
