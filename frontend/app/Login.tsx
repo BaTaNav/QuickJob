@@ -160,12 +160,27 @@ export default function Login({ title = 'Login' }) {
             color: '#5D6B73',
             fontSize: '0.9375rem'
           }}>
-            Don't have an account? <a href="/Signup" style={{ 
+            Don't have an account?
+          </p>
+          <p style={{ 
+            textAlign: 'center', 
+            marginBottom: '1rem',
+            color: '#5D6B73',
+            fontSize: '0.9375rem'
+          }}>
+            <a href="/Student/Signup" style={{ 
+              color: '#176B51', 
+              fontWeight: '600',
+              textDecoration: 'none',
+              borderBottom: '1px solid #176B51',
+              marginRight: '1rem'
+            }}>Register Student</a>
+            <a href="/Client/Signup" style={{ 
               color: '#176B51', 
               fontWeight: '600',
               textDecoration: 'none',
               borderBottom: '1px solid #176B51'
-            }}>Sign up</a>
+            }}>Register Client</a>
           </p>
 
           <form onSubmit={handleNormalLogin}>
