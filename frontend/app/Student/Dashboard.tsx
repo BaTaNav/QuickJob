@@ -1,44 +1,85 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator, Platform, TextInput } from "react-native";
 import * as React from "react";
 import { useRouter } from 'expo-router';
-// Using an icon library commonly used in React Native
-import { RefreshCw } from 'lucide-react-native'; 
+import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native';
+import { jobsAPI } from '../../services/api';
 
 export default function StudentDashboard() {
-  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('today');
-  // Placeholder jobs per tab for building pages. Replace with API data later.
+  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('available');
+  const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [showFilters, setShowFilters] = React.useState(false);
+  const [filterRange, setFilterRange] = React.useState(20);
+  const [filterCategory, setFilterCategory] = React.useState('All');
+  const [filterDate, setFilterDate] = React.useState('Any');
+  const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
+  const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
   const router = useRouter();
 
-  // MOCK DATA (Should be replaced with a real data fetch using a hook or Redux/Context)
-  const mockJobs: Record<string, Array<any>> = {
-    today: [
-      { id: 't1', status: 'today', category: 'Delivery', title: 'Grocery pickup', description: 'Pick up groceries and deliver to client.', time: '2025-12-10 10:00', hours: '2', address: 'Rue Example 12, Leuven', location: 'Leuven', pay: '€12/hr' },
-    ],
-    upcoming: [
-      { id: 'u1', status: 'upcoming', category: 'Pet care', title: 'Dog walking', description: 'Walk the dog for 30 minutes.', time: '2025-12-11 14:00', hours: '0.5', address: 'Chaussée de Namur 5, Brussels', location: 'Brussels', pay: '€10/hr' },
-    ],
-    available: [
-      { id: 'a1', status: 'available', category: 'Promotion', title: 'Flyer distribution', description: 'Distribute flyers in the neighbourhood.', time: 'Flexible', hours: '3', address: 'Leuven Centrum', location: 'Leuven', pay: '€9/hr' },
-      { id: 'a2', status: 'available', category: 'Gardening', title: 'Lawn mowing', description: 'Mow the lawn for a client.', time: 'Flexible', hours: '2', address: 'Parkstraat 10, Antwerp', location: 'Antwerp', pay: '€11/hr' },
-    ],
-    pending: [
-      { id: 'p1', status: 'pending', category: 'Home help', title: 'Cleaning help', description: 'Help with light cleaning.', time: 'Pending - 08/12', hours: '4', address: 'Avenue Louise 45, Brussels', location: 'Brussels', pay: '€13/hr' },
-    ],
-    archive: [
-      { id: 'ar1', status: 'archive', category: 'Moving', title: 'Moved boxes', description: 'Helped move boxes last week.', time: '2025-12-03', hours: '5', address: 'Rue du Parc 2, Wavre', location: 'Wavre', pay: '€20' },
-    ],
-  };
+  const fetchAvailable = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await jobsAPI.getAvailableJobs('open', 50);
+      setAvailableJobs(data || []);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load jobs';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  // Dynamically select the jobs based on the active tab state
-  const jobs = mockJobs[tab] ?? [];
+  React.useEffect(() => {
+    fetchAvailable();
+  }, [fetchAvailable]);
 
-  // Function to handle refresh action
   const handleRefresh = () => {
-    // In a real native app, this would trigger a data fetching action,
-    // possibly setting a loading state.
-    console.log("Refreshing data for dashboard...");
-    // Example: fetchJobs();
+    fetchAvailable();
   };
+
+  // Filter jobs based on selected filters
+  const filteredJobs = React.useMemo(() => {
+    let filtered = availableJobs;
+    
+    if (filterCategory !== 'All') {
+      filtered = filtered.filter(job => job.category === filterCategory);
+    }
+    
+    if (filterDate === 'Today') {
+      const today = new Date().toDateString();
+      filtered = filtered.filter(job => {
+        if (!job.start_time) return false;
+        return new Date(job.start_time).toDateString() === today;
+      });
+    } else if (filterDate === 'This week') {
+      const weekFromNow = new Date();
+      weekFromNow.setDate(weekFromNow.getDate() + 7);
+      filtered = filtered.filter(job => {
+        if (!job.start_time) return false;
+        const jobDate = new Date(job.start_time);
+        return jobDate <= weekFromNow;
+      });
+    } else if (filterDate === 'Specific' && selectedDate) {
+      filtered = filtered.filter(job => {
+        if (!job.start_time) return false;
+        return new Date(job.start_time).toDateString() === new Date(selectedDate).toDateString();
+      });
+    }
+    
+    return filtered;
+  }, [availableJobs, filterCategory, filterDate, selectedDate]);
+
+  const mockJobs: Record<string, Array<any>> = {
+    today: [],
+    upcoming: [],
+    available: availableJobs,
+    pending: [],
+    archive: [],
+  };
+
+  const jobs = mockJobs[tab] ?? [];
 
 
   return (
@@ -86,7 +127,7 @@ export default function StudentDashboard() {
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'available' && styles.tabActive]} onPress={() => setTab('available')}>
-            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({mockJobs.available.length})</Text>
+            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({availableJobs.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
@@ -99,21 +140,109 @@ export default function StudentDashboard() {
         </ScrollView>
       </View>
 
+      {/* FILTERS */}
+      <View style={styles.tabFilterRow}>
+        <View />
+        <View style={styles.filterToggleContainer}>
+          <TouchableOpacity style={styles.filterToggleBtn} onPress={() => setShowFilters(!showFilters)}>
+            <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Show filters'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {showFilters && (
+        <View style={styles.filterRow}>
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Category</Text>
+            <View style={styles.filterPills}>
+              {['All', 'Hospitality', 'Retail', 'Office', 'Event', 'Other'].map((cat) => (
+                <TouchableOpacity 
+                  key={cat} 
+                  style={[styles.filterBtn, filterCategory === cat && styles.filterBtnActive]} 
+                  onPress={() => setFilterCategory(cat)}
+                >
+                  <Text style={filterCategory === cat ? styles.filterBtnTextActive : styles.filterBtnText}>{cat}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Date</Text>
+            <View style={styles.filterPills}>
+              {['Any', 'Today', 'This week', 'Specific'].map((dateOpt) => (
+                <TouchableOpacity 
+                  key={dateOpt} 
+                  style={[styles.filterBtn, filterDate === dateOpt && styles.filterBtnActive]} 
+                  onPress={() => setFilterDate(dateOpt)}
+                >
+                  <Text style={filterDate === dateOpt ? styles.filterBtnTextActive : styles.filterBtnText}>{dateOpt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {filterDate === 'Specific' && (
+              <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {Platform.OS === 'web' ? (
+                  <input 
+                    type="date" 
+                    value={selectedDate || ''} 
+                    onChange={(e: any) => setSelectedDate(e.target.value)} 
+                    style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }} 
+                  />
+                ) : (
+                  <TextInput 
+                    placeholder="YYYY-MM-DD" 
+                    value={selectedDate || ''} 
+                    onChangeText={setSelectedDate} 
+                    style={styles.dateInput} 
+                  />
+                )}
+
+                <TouchableOpacity onPress={() => { setSelectedDate(null); setFilterDate('Any'); }} style={styles.clearDateBtn}>
+                  <Text style={styles.clearDateText}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
       {/* JOB LIST or EMPTY STATE */}
-      {jobs.length > 0 ? (
+      {loading && (
+        <View style={styles.loadingState}>
+          <ActivityIndicator color="#176B51" />
+          <Text style={styles.emptySubtitle}>Jobs ophalen...</Text>
+        </View>
+      )}
+
+      {!loading && error ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>⚠️</Text>
+          <Text style={styles.emptyTitle}>Kon jobs niet laden</Text>
+          <Text style={styles.emptySubtitle}>{error}</Text>
+          <TouchableOpacity style={styles.bannerBtn} onPress={handleRefresh}>
+            <Text style={styles.bannerBtnText}>Opnieuw proberen</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {!loading && !error && jobs.length > 0 ? (
         <View style={styles.jobsContainer}>
           <View style={styles.jobsList}>
-            {jobs.map((job: any) => (
+            {filteredJobs.map((job: any) => (
               <Pressable 
                 key={job.id} 
                 style={styles.jobCard} 
-                // Navigation correct for expo-router
                 onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
               >
                 <Text style={styles.jobTitle}>{job.title}</Text>
-                <Text style={styles.jobDescription}>{job.description}</Text>
+                <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
                 <Text style={styles.jobMeta}>
-                  {job.time} • {job.location} • {job.pay}
+                  {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
+                  {job.area_text ? ` • ${job.area_text}` : ''}
+                  {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
+                  {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
                 </Text>
               </Pressable>
             ))}
@@ -137,10 +266,10 @@ export default function StudentDashboard() {
             </>
           )}
 
-          {tab === 'available' && (
+          {tab === 'available' && !loading && !error && (
             <>
-              <Text style={styles.emptyTitle}>No available jobs</Text>
-              <Text style={styles.emptySubtitle}>Available jobs will appear here (filters coming later).</Text>
+              <Text style={styles.emptyTitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'No available jobs match your filters' : 'No available jobs'}</Text>
+              <Text style={styles.emptySubtitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'Try broadening your filters to find more jobs.' : 'Available jobs will appear here.'}</Text>
             </>
           )}
 
@@ -160,6 +289,87 @@ export default function StudentDashboard() {
         </View>
       )}
 
+      {/* FOOTER */}
+      <View style={styles.footer}>
+        <View style={styles.footerSection}>
+          <Text style={styles.footerTitle}>QuickJob</Text>
+          <Text style={styles.footerDescription}>
+            Connecting students with flexible job opportunities across Belgium.
+          </Text>
+        </View>
+
+        <View style={styles.footerLinks}>
+          <View style={styles.footerColumn}>
+            <Text style={styles.footerColumnTitle}>Company</Text>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>About Us</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Contact</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Careers</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.footerColumn}>
+            <Text style={styles.footerColumnTitle}>Support</Text>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Help Center</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Safety</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>FAQ</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.footerColumn}>
+            <Text style={styles.footerColumnTitle}>Legal</Text>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Terms of Service</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Cookie Policy</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.footerSocial}>
+          <Text style={styles.footerSocialTitle}>Follow Us</Text>
+          <View style={styles.socialIcons}>
+            <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Instagram')}>
+              <Instagram size={20} color="#E4405F" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('LinkedIn')}>
+              <Linkedin size={20} color="#0A66C2" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Facebook')}>
+              <Facebook size={20} color="#1877F2" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Twitter')}>
+              <Twitter size={20} color="#1DA1F2" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.footerContact}>
+          <Text style={styles.footerContactText}>📧 support@quickjob.be</Text>
+          <Text style={styles.footerContactText}>📞 +32 2 123 45 67</Text>
+        </View>
+
+        <View style={styles.footerBottom}>
+          <Text style={styles.footerCopyright}>
+            © 2025 QuickJob. All rights reserved.
+          </Text>
+          <Text style={styles.footerVersion}>v1.0.0</Text>
+        </View>
+      </View>
+
     </ScrollView>
   );
 }
@@ -168,7 +378,7 @@ export default function StudentDashboard() {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    paddingBottom: 80,
+    paddingBottom: 10,
     backgroundColor: "#fff",
   },
 
@@ -290,8 +500,37 @@ const styles = StyleSheet.create({
   jobDescription: { fontSize: 14, color: '#4A4A4A', marginBottom: 6 },
   jobMeta: { color: '#7A7F85', fontSize: 13 },
 
+  /* Filters */
+  tabFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  filterToggleContainer: { flexShrink: 0 },
+  filterToggleBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F4F6F7', borderRadius: 8 },
+  filterToggleText: { color: '#1a2e4c', fontWeight: '600' },
+  filterRow: { flexDirection: 'row', gap: 12, marginBottom: 16, backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E8EEF2' },
+  filterGroup: { flex: 1 },
+  filterLabel: { color: '#64748B', marginBottom: 8 },
+  filterPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#F4F6F7', marginRight: 8 },
+  filterBtnActive: { backgroundColor: '#176B51' },
+  filterBtnText: { color: '#333', fontWeight: '600' },
+  filterBtnTextActive: { color: '#fff', fontWeight: '600' },
+  dateInput: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', minWidth: 130 },
+  clearDateBtn: { paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#F3F4F6', borderRadius: 8 },
+  clearDateText: { color: '#1a2e4c', fontWeight: '600' },
+  datePickerBtn: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#F4F6F7', borderRadius: 8 },
+  datePickerText: { color: '#1a2e4c', fontWeight: '600' },
+
 
   /* EMPTY STATE */
+  loadingState: {
+    paddingVertical: 90,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E4E6EB",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    paddingHorizontal: 18,
+  },
   emptyState: {
     paddingVertical: 90,
     alignItems: "center",
@@ -317,5 +556,104 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     maxWidth: 260,
+  },
+
+  /* FOOTER */
+  footer: {
+    marginTop: 60,
+    paddingTop: 40,
+    paddingBottom: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 20,
+  },
+  footerSection: {
+    marginBottom: 24,
+  },
+  footerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#176B51",
+    marginBottom: 8,
+  },
+  footerDescription: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
+  },
+  footerLinks: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+  footerColumn: {
+    flex: 1,
+  },
+  footerColumnTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 12,
+  },
+  footerLink: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginBottom: 8,
+  },
+  footerSocial: {
+    marginBottom: 24,
+    alignItems: "center",
+  },
+  footerSocialTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 12,
+  },
+  socialIcons: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+  },
+  socialIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  socialIconText: {
+    fontSize: 20,
+  },
+  footerContact: {
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 8,
+  },
+  footerContactText: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  footerBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  footerCopyright: {
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  footerVersion: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontWeight: "500",
   },
 });

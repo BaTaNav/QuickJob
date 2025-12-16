@@ -1,22 +1,25 @@
 import React, { useState } from 'react';
-import Auth0 from 'react-native-auth0';
 import { useRouter } from 'expo-router';
 
-const auth0 = new Auth0({
-  domain: process.env.EXPO_PUBLIC_AUTH0_DOMAIN || '',
-  clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '',
-});
+type Props = {
+  title?: string;
+};
 
-export default function Login({ title = 'Login' }) {
+export default function Login({ title = 'Login' }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleNormalLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     try {
-      // Normale login via jouw backend
+      setError('');
+      setLoading(true);
+
+      // Login via backend
       const response = await fetch('http://localhost:3000/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -26,31 +29,42 @@ export default function Login({ title = 'Login' }) {
       if (response.ok) {
         const data = await response.json();
         console.log('Login successful:', data);
-        // Redirect naar dashboard
-        router.push('/Student/Dashboard');
+        
+        // Save user data to localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          if (data.token) {
+            localStorage.setItem('token', data.token);
+          }
+          
+          // Save role-specific ID for API calls
+          if (data.user?.role === 'student') {
+            localStorage.setItem('studentId', data.user.id.toString());
+            localStorage.removeItem('clientId');
+          } else if (data.user?.role === 'client') {
+            localStorage.setItem('clientId', data.user.id.toString());
+            localStorage.removeItem('studentId');
+          }
+        }
+        
+        // Redirect based on role
+        if (data.user?.role === 'student') {
+          router.replace('/Student/Dashboard');
+        } else if (data.user?.role === 'client') {
+          router.replace('/Client/DashboardClient');
+        } else {
+          router.replace('/');
+        }
       } else {
         const error = await response.text();
-        console.error('Login failed:', error);
-        alert('Login failed: ' + error);
+        setError(error || 'Login failed. Please check your credentials.');
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      alert('Login error. Check console for details.');
-    }
-  };
-
-  const handleAuth0Login = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // Voor web gebruik authorize zonder await - het redirected automatisch
-      auth0.webAuth.authorize({
-        scope: 'openid profile email',
-        audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE,
-        redirectUrl: 'http://localhost:8081/callback',
-      });
       
-    } catch (error) {
-      console.error('Auth0 error:', error);
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,49 +95,15 @@ export default function Login({ title = 'Login' }) {
     boxShadow: '0 2px 8px rgba(23, 107, 81, 0.2)',
   };
 
-  const auth0ButtonStyle = {
-    width: '100%',
-    padding: '1rem 1.5rem',
-    backgroundColor: '#FFFFFF',
-    color: '#041316',
-    border: '2px solid #E1E7EB',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '600',
-    marginTop: '1rem',
-    transition: 'background-color 0.2s ease, border-color 0.2s ease',
-  };
-
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh',
       display: 'flex',
       flexDirection: 'column',
       backgroundColor: '#F8FAFB',
       backgroundImage: 'linear-gradient(135deg, #F8FAFB 0%, #EDF1F2 100%)',
     }}>
-      {/* Header */}
-      <div style={{
-        backgroundColor: '#fff',
-        borderBottom: '1px solid #E1E7EB',
-        padding: '1rem 2rem',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem'
-      }}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#176B51" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-          <polyline points="15 3 21 3 21 9" />
-          <line x1="10" y1="14" x2="21" y2="3" />
-        </svg>
-        <span style={{
-          fontSize: '1.5rem',
-          fontWeight: '700',
-          color: '#041316',
-          letterSpacing: '-0.01em'
-        }}>QuickJob</span>
-      </div>
+
 
       {/* Main Content */}
       <div style={{
@@ -160,7 +140,7 @@ export default function Login({ title = 'Login' }) {
             color: '#5D6B73',
             fontSize: '0.9375rem'
           }}>
-            Don't have an account? <a href="/Signup" style={{ 
+            Don't have an account? <a href="/Student/Signup" style={{ 
               color: '#176B51', 
               fontWeight: '600',
               textDecoration: 'none',
@@ -168,7 +148,21 @@ export default function Login({ title = 'Login' }) {
             }}>Sign up</a>
           </p>
 
-          <form onSubmit={handleNormalLogin}>
+          <form onSubmit={handleLogin}>
+            {error && (
+              <div style={{
+                backgroundColor: '#FEE2E2',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                marginBottom: '1rem',
+                color: '#DC2626',
+                fontSize: '0.875rem',
+                fontWeight: '500'
+              }}>
+                {error}
+              </div>
+            )}
+
             <label htmlFor="email" style={{ 
               fontWeight: '600', 
               display: 'block',
@@ -185,6 +179,8 @@ export default function Login({ title = 'Login' }) {
               onChange={(e) => setEmail(e.target.value)}
               style={inputStyle}
               aria-label="Email"
+              disabled={loading}
+              required
             />
 
             <label htmlFor="password" style={{ 
@@ -203,43 +199,25 @@ export default function Login({ title = 'Login' }) {
               onChange={(e) => setPassword(e.target.value)}
               style={inputStyle}
               aria-label="Password"
+              disabled={loading}
+              required
             />
 
-            <button type="submit" style={buttonStyle}>
-              Login
+            <button 
+              type="submit" 
+              style={{
+                ...buttonStyle,
+                opacity: loading ? 0.6 : 1,
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+              disabled={loading}
+            >
+              {loading ? 'Signing in...' : 'Login'}
             </button>
           </form>
 
-          <div style={{ 
-            textAlign: 'center', 
-            margin: '1.5rem 0',
-            color: '#5D6B73',
-            fontSize: '0.875rem',
-            position: 'relative'
-          }}>
-            <span style={{
-              backgroundColor: '#FFFFFF',
-              padding: '0 1rem',
-              position: 'relative',
-              zIndex: 1
-            }}>or</span>
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: 0,
-              right: 0,
-              height: '1px',
-              backgroundColor: '#E1E7EB',
-              zIndex: 0
-            }}></div>
-          </div>
-
-          <button onClick={handleAuth0Login} style={auth0ButtonStyle}>
-            Login with Auth0
-          </button>
-
           <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-            <a href="/forgot-password" style={{ 
+            <a href="/Resetpassword" style={{ 
               color: '#5D6B73', 
               textDecoration: 'none',
               fontSize: '0.9375rem'

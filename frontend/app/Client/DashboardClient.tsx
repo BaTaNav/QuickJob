@@ -1,15 +1,66 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
-import { RefreshCw, Plus, ArrowDown, Handshake } from "lucide-react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator } from "react-native";
+import { useRouter } from 'expo-router';
+import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase } from "lucide-react-native";
+import { jobsAPI, getClientId } from "@/services/api";
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState("Open");
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  // Fetch jobs from backend
+  const fetchJobs = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const clientId = await getClientId();
+      if (!clientId) {
+        setError("Geen client sessie gevonden");
+        return;
+      }
+      const data = await jobsAPI.getClientJobs(clientId);
+      setJobs(data || []);
+    } catch (err: any) {
+      setError(err?.message || "Kon jobs niet laden");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
+
+  // Filter jobs by status
+  const openJobs = jobs.filter(j => j.status === 'open');
+  const plannedJobs = jobs.filter(j => j.status === 'planned' || j.status === 'assigned');
+  const completedJobs = jobs.filter(j => j.status === 'completed');
+  const todayJobs = jobs.filter(j => {
+    if (!j.start_time) return false;
+    const jobDate = new Date(j.start_time).toDateString();
+    return jobDate === new Date().toDateString() && j.status !== 'completed';
+  });
+
+  const getFilteredJobs = () => {
+    switch (activeTab) {
+      case "Open": return openJobs;
+      case "Today": return todayJobs;
+      case "Planned": return plannedJobs;
+      case "Completed": return completedJobs;
+      default: return openJobs;
+    }
+  };
+
+  const filteredJobs = getFilteredJobs();
 
   const stats = [
-    { label: "Open jobs", value: 0 },
-    { label: "Planned", value: 0 },
-    { label: "Completed", value: 0 },
-    { label: "Today", value: 0 },
+    { label: "Open jobs", value: openJobs.length },
+    { label: "Planned", value: plannedJobs.length },
+    { label: "Completed", value: completedJobs.length },
+    { label: "Today", value: todayJobs.length },
   ];
 
   const tabs = ["Open", "Today", "Planned", "Completed"];
@@ -21,6 +72,49 @@ export default function DashboardClient() {
       }
     }, []);
 
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Render a single job card
+  const renderJobCard = (job: any) => (
+    <View key={job.id} style={styles.jobCard}>
+      <View style={styles.jobHeader}>
+        <Text style={styles.jobTitle}>{job.title}</Text>
+        <View style={[styles.statusBadge, job.status === 'open' ? styles.statusOpen : styles.statusOther]}>
+          <Text style={styles.statusText}>{job.status}</Text>
+        </View>
+      </View>
+      {job.category && (
+        <View style={styles.jobMeta}>
+          <Briefcase size={14} color="#64748B" />
+          <Text style={styles.jobMetaText}>{job.category.name_nl || job.category.name_en}</Text>
+        </View>
+      )}
+      {job.area_text && (
+        <View style={styles.jobMeta}>
+          <MapPin size={14} color="#64748B" />
+          <Text style={styles.jobMetaText}>{job.area_text}</Text>
+        </View>
+      )}
+      {job.start_time && (
+        <View style={styles.jobMeta}>
+          <Clock size={14} color="#64748B" />
+          <Text style={styles.jobMetaText}>{formatDate(job.start_time)}</Text>
+        </View>
+      )}
+      <View style={styles.jobFooter}>
+        <Text style={styles.jobPrice}>
+          {job.hourly_or_fixed === 'fixed' 
+            ? `€${job.fixed_price || 0}` 
+            : `€${job.hourly_rate || 0}/uur`}
+        </Text>
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -31,9 +125,17 @@ export default function DashboardClient() {
           <Handshake size={28} color="#176B51" strokeWidth={2.5} />
           <Text style={styles.headerTitle}>QuickJob</Text>
         </View>
-        <TouchableOpacity style={styles.iconButton}>
-          <RefreshCw size={20} color="#64748B" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={styles.iconButton} onPress={() => {
+            fetchJobs();
+          }}>
+            <RefreshCw size={20} color="#64748B" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/Client/Profile' as never)}>
+            <User size={20} color="#1B1B1B" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -51,7 +153,10 @@ export default function DashboardClient() {
           </View>
 
           {/* Primary Action */}
-          <TouchableOpacity style={styles.createJobBtn}>
+          <TouchableOpacity
+            style={styles.createJobBtn}
+            onPress={() => router.push('/Client/PostJob' as never)}
+          >
             <Plus size={24} color="#FFF" />
             <Text style={styles.createJobText}>Create job</Text>
           </TouchableOpacity>
@@ -65,24 +170,132 @@ export default function DashboardClient() {
                 style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]}
               >
                 <Text style={activeTab === tab ? styles.activeTabText : styles.inactiveTabText}>
-                  {tab} (0)
+                  {tab} ({tab === "Open" ? openJobs.length : tab === "Today" ? todayJobs.length : tab === "Planned" ? plannedJobs.length : completedJobs.length})
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* Empty State */}
-          <View style={styles.emptyWrapper}>
-            <View style={styles.emptyIcon}>
-              <ArrowDown size={24} color="#176B51" />
+          {/* Loading State */}
+          {loading && (
+            <View style={styles.loadingWrapper}>
+              <ActivityIndicator size="large" color="#176B51" />
+              <Text style={styles.loadingText}>Jobs laden...</Text>
             </View>
-            <Text style={styles.emptyTitle}>No open jobs</Text>
-            <Text style={styles.emptySubtitle}>
-              Post your first job to get started
-            </Text>
-            <TouchableOpacity style={styles.emptyButton}>
-              <Text style={styles.emptyButtonText}>+ Post job</Text>
-            </TouchableOpacity>
+          )}
+
+          {/* Error State */}
+          {!loading && error && (
+            <View style={styles.emptyWrapper}>
+              <Text style={styles.emptyTitle}>⚠️ {error}</Text>
+              <TouchableOpacity style={styles.emptyButton} onPress={fetchJobs}>
+                <Text style={styles.emptyButtonText}>Opnieuw proberen</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Job List */}
+          {!loading && !error && filteredJobs.length > 0 && (
+            <View style={styles.jobsContainer}>
+              {filteredJobs.map(renderJobCard)}
+            </View>
+          )}
+
+          {/* Empty State */}
+          {!loading && !error && filteredJobs.length === 0 && (
+            <View style={styles.emptyWrapper}>
+              <View style={styles.emptyIcon}>
+                <ArrowDown size={24} color="#176B51" />
+              </View>
+              <Text style={styles.emptyTitle}>Geen {activeTab.toLowerCase()} jobs</Text>
+              <Text style={styles.emptySubtitle}>
+                Plaats je eerste job om te beginnen
+              </Text>
+              <TouchableOpacity style={styles.emptyButton} onPress={() => router.push('/Client/PostJob' as never)}>
+                <Text style={styles.emptyButtonText}>+ Job plaatsen</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* FOOTER */}
+          <View style={styles.footer}>
+            <View style={styles.footerSection}>
+              <Text style={styles.footerTitle}>QuickJob</Text>
+              <Text style={styles.footerDescription}>
+                Connecting students with flexible job opportunities across Belgium.
+              </Text>
+            </View>
+
+            <View style={styles.footerLinks}>
+              <View style={styles.footerColumn}>
+                <Text style={styles.footerColumnTitle}>Company</Text>
+                <TouchableOpacity>
+                  <Text style={styles.footerLink}>About Us</Text>
+                </TouchableOpacity>
+                <TouchableOpacity>
+                  <Text style={styles.footerLink}>Contact</Text>
+                </TouchableOpacity>
+                <TouchableOpacity>
+                  <Text style={styles.footerLink}>Careers</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.footerColumn}>
+                <Text style={styles.footerColumnTitle}>Support</Text>
+                <TouchableOpacity>
+                  <Text style={styles.footerLink}>Help Center</Text>
+                </TouchableOpacity>
+                <TouchableOpacity>
+                  <Text style={styles.footerLink}>Safety</Text>
+                </TouchableOpacity>
+                <TouchableOpacity>
+                  <Text style={styles.footerLink}>FAQ</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.footerColumn}>
+                <Text style={styles.footerColumnTitle}>Legal</Text>
+                <TouchableOpacity>
+                  <Text style={styles.footerLink}>Privacy Policy</Text>
+                </TouchableOpacity>
+                <TouchableOpacity>
+                  <Text style={styles.footerLink}>Terms of Service</Text>
+                </TouchableOpacity>
+                <TouchableOpacity>
+                  <Text style={styles.footerLink}>Cookie Policy</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.footerSocial}>
+              <Text style={styles.footerSocialTitle}>Follow Us</Text>
+              <View style={styles.socialIcons}>
+                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Instagram')}>
+                  <Instagram size={20} color="#E4405F" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('LinkedIn')}>
+                  <Linkedin size={20} color="#0A66C2" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Facebook')}>
+                  <Facebook size={20} color="#1877F2" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Twitter')}>
+                  <Twitter size={20} color="#1DA1F2" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.footerContact}>
+              <Text style={styles.footerContactText}>📧 support@quickjob.be</Text>
+              <Text style={styles.footerContactText}>📞 +32 2 123 45 67</Text>
+            </View>
+
+            <View style={styles.footerBottom}>
+              <Text style={styles.footerCopyright}>
+                © 2025 QuickJob. All rights reserved.
+              </Text>
+              <Text style={styles.footerVersion}>v1.0.0</Text>
+            </View>
           </View>
 
         </View>
@@ -97,7 +310,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F5F7FA",
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 10,
   },
   
   // Header
@@ -228,6 +441,65 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
+  // Filters
+  filterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E8EEF2',
+  },
+  tabAndFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
+  filterToggleContainer: { flexShrink: 0 },
+  filterToggleBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F4F6F7', borderRadius: 8 },
+  filterToggleText: { color: '#1a2e4c', fontWeight: '600' },
+  filterGroup: { flex: 1 },
+  filterLabel: { color: '#64748B', marginBottom: 8 },
+  filterPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#F4F6F7', marginRight: 8 },
+  filterBtnActive: { backgroundColor: '#176B51' },
+  filterBtnText: { color: '#333', fontWeight: '600' },
+  filterBtnTextActive: { color: '#fff', fontWeight: '600' },
+
+  // Jobs
+  jobCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E6EEF0',
+    marginBottom: 12,
+  },
+  jobMeta: { fontSize: 13, color: '#64748B', marginTop: 4 },
+  jobAction: { backgroundColor: '#176B51', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  jobActionText: { color: '#fff', fontWeight: '700' },
+
+  // Date input
+  dateInput: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    minWidth: 130,
+  },
+  clearDateBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+  },
+  clearDateText: { color: '#1a2e4c', fontWeight: '600' },
+  datePickerBtn: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#F4F6F7', borderRadius: 8 },
+  datePickerText: { color: '#1a2e4c', fontWeight: '600' },
+
   // Empty State
   emptyWrapper: {
     alignItems: "center",
@@ -271,5 +543,161 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 14,
+  },
+
+  // Job Cards
+  jobsContainer: {
+    gap: 12,
+  },
+  jobHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  jobTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1a2e4c",
+    flex: 1,
+    marginRight: 8,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  statusOpen: {
+    backgroundColor: "#DCFCE7",
+  },
+  statusOther: {
+    backgroundColor: "#F1F5F9",
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#166534",
+    textTransform: "uppercase",
+  },
+  jobMetaText: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+  jobFooter: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  jobPrice: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#176B51",
+  },
+  loadingWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#64748B",
+  },
+
+  /* FOOTER */
+  footer: {
+    marginTop: 60,
+    paddingTop: 40,
+    paddingBottom: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 20,
+  },
+  footerSection: {
+    marginBottom: 24,
+  },
+  footerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#176B51",
+    marginBottom: 8,
+  },
+  footerDescription: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
+  },
+  footerLinks: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+  footerColumn: {
+    flex: 1,
+  },
+  footerColumnTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 12,
+  },
+  footerLink: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginBottom: 8,
+  },
+  footerSocial: {
+    marginBottom: 24,
+    alignItems: "center",
+  },
+  footerSocialTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 12,
+  },
+  socialIcons: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+  },
+  socialIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  footerContact: {
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 8,
+  },
+  footerContactText: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  footerBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  footerCopyright: {
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  footerVersion: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontWeight: "500",
   },
 });

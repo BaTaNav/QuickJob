@@ -143,84 +143,143 @@ router.post("/login", async (req, res) => {
 });
 
 
-// GET /clients/:id - Get one client
+// GET /clients/:id - Get one client (including profile)
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
+    // Fetch user
+    const { data: user, error: userError } = await supabase
       .from("users")
       .select("id, email, role, phone, preferred_language, two_factor_enabled, created_at")
       .eq("id", id)
       .eq("role", "client")
       .single();
 
-    if (error && error.code === "PGRST116") {
+    if (userError && userError.code === "PGRST116") {
       return res.status(404).json({ error: "Client not found" });
     }
-    if (error) throw error;
+    if (userError) throw userError;
 
-    res.status(200).json({ client: data });
+    // Fetch client profile
+    const { data: profile, error: profileError } = await supabase
+      .from("client_profiles")
+      .select("address_line, postal_code, city, region, first_job_needs_approval")
+      .eq("id", id)
+      .single();
+
+    if (profileError && profileError.code !== "PGRST116") {
+      throw profileError;
+    }
+
+    // Combine user + profile
+    const combinedClient = { ...user, ...(profile || {}) };
+
+    res.status(200).json({
+      client: combinedClient,
+    });
   } catch (error) {
     console.error("Get client error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// PATCH /clients/:id - Update client profile
+
+
+// PATCH /clients/:id
 router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { email, password, phone, preferred_language, two_factor_enabled } = req.body;
+    const {
+      email,
+      password,
+      phone,
+      preferred_language,
+      two_factor_enabled,
+      address_line,
+      postal_code,
+      city,
+      region,
+      first_job_needs_approval,
+    } = req.body;
 
-    // Check if client exists
-    const { data: existing, error: existingError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("id", id)
-      .eq("role", "client")
-      .single();
-
-    if (existingError && existingError.code === "PGRST116") {
-      return res.status(404).json({ error: "Client not found" });
-    }
-    if (existingError) throw existingError;
-
-    // Build updates object
-    const updates = {};
-    if (email) updates.email = email;
-    if (phone !== undefined) updates.phone = phone;
-    if (preferred_language) updates.preferred_language = preferred_language;
-    if (two_factor_enabled !== undefined) updates.two_factor_enabled = two_factor_enabled;
-    
+    // Update users table
+    const updatesUser = {};
+    if (email) updatesUser.email = email;
+    if (phone !== undefined) updatesUser.phone = phone;
+    if (preferred_language) updatesUser.preferred_language = preferred_language;
+    if (two_factor_enabled !== undefined) updatesUser.two_factor_enabled = two_factor_enabled;
     if (password) {
       const salt = await bcrypt.genSalt(10);
-      updates.password_hash = await bcrypt.hash(password, salt);
+      updatesUser.password_hash = await bcrypt.hash(password, salt);
     }
 
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ error: "No fields to update" });
-    }
-
-    const { data, error } = await supabase
+    const { data: updatedUser, error: userError } = await supabase
       .from("users")
-      .update(updates)
+      .update(updatesUser)
       .eq("id", id)
       .eq("role", "client")
-      .select("id, email, role, phone, preferred_language, two_factor_enabled, created_at")
-      .single();
+      .select("*")
+      .maybeSingle();  // Verander van .single() naar .maybeSingle()
 
-    if (error) throw error;
+    if (userError) throw userError;
+
+    // Update client_profiles table or insert if not exists
+    const updatesProfile = {};
+    if (address_line !== undefined) updatesProfile.address_line = address_line;
+    if (postal_code !== undefined) updatesProfile.postal_code = postal_code;
+    if (city !== undefined) updatesProfile.city = city;
+    if (region !== undefined) updatesProfile.region = region;
+    if (first_job_needs_approval !== undefined) updatesProfile.first_job_needs_approval = first_job_needs_approval;
+
+    let updatedProfile = null;
+    if (Object.keys(updatesProfile).length > 0) {
+      // Controleer of het profiel bestaat
+      const { data: existingProfile, error: profileError } = await supabase
+        .from("client_profiles")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();  // Controleer of het profiel bestaat
+
+      if (profileError) throw profileError;
+
+      if (existingProfile) {
+        // Als het profiel bestaat, werk het bij
+        const { data, error: updateProfileError } = await supabase
+          .from("client_profiles")
+          .update(updatesProfile)
+          .eq("id", id)
+          .single();
+        if (updateProfileError) throw updateProfileError;
+        updatedProfile = data;
+      } else {
+        // Als het profiel niet bestaat, maak een nieuwe rij aan
+        const { data, error: insertProfileError } = await supabase
+          .from("client_profiles")
+          .insert([
+            {
+              id,
+              ...updatesProfile,
+            },
+          ])
+          .select("*")
+          .single();
+        if (insertProfileError) throw insertProfileError;
+        updatedProfile = data;
+      }
+    }
 
     res.status(200).json({
-      message: "Client updated successfully",
-      client: data,
+      message: "Client profile updated successfully",
+      client: updatedUser,
+      profile: updatedProfile,
     });
-  } catch (error) {
-    console.error("Update client error:", error);
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error("Update client error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
+
 
 // DELETE /clients/:id - Delete client
 router.delete("/:id", async (req, res) => {

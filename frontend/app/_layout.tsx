@@ -58,6 +58,21 @@ function RootLayoutNav() {
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
+      {/* Hide header for Login page (no back arrow) */}
+      <Stack.Screen name="Login" options={{ headerShown: false }} />
+
+      {/* Hide headers for signup pages */}
+      <Stack.Screen name="Student/Signup" options={{ headerShown: false }} />
+      <Stack.Screen name="Client/Signup" options={{ headerShown: false }} />
+      <Stack.Screen name="Client/DashboardClient" options={{ headerShown: false }} />
+      <Stack.Screen name="Client/Profile" options={{ headerShown: false }} />
+
+      {/* Hide headers for admin pages */}
+      <Stack.Screen name="Admin/DashboardAdmin" options={{ headerShown: false }} />
+      <Stack.Screen name="Admin/StudentProfileAdmin" options={{ headerShown: false }} />
+      <Stack.Screen name="Admin/VerificationAdmin" options={{ headerShown: false }} />
+      <Stack.Screen name="Admin/IncidentsAdmin" options={{ headerShown: false }} />
+
       {/* Explicit screen entry for Student Dashboard */}
       <Stack.Screen
         name="Student/Dashboard"
@@ -69,7 +84,7 @@ function RootLayoutNav() {
           headerTitle: () => (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Handshake size={28} color="#176B51" strokeWidth={2.5} />
-              <Text style={{ fontWeight: '800', marginLeft: 8, fontSize: 18, color: Colors[colorScheme ?? 'light'].text }}>
+              <Text style={{ fontWeight: '800', marginLeft: 8, fontSize: 18, color: '#176B51' }}>
                 QuickJob
               </Text>
             </View>

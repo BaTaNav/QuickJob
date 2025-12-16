@@ -1,54 +1,84 @@
 import { router } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ScrollView, 
-  Platform 
-} from 'react-native';
-
-// Import Linking for external navigation (like the "Sign in" link)
+import React, { useState } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, Alert } from 'react-native';
 import * as Linking from 'expo-linking';
 
 const Signup = () => {
-  // useEffect for document.title is removed as it is web-specific.
-  useEffect(() => {
-    // If you need a side effect, place it here (e.g., fetching data)
-  }, []);
-
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     password: '',
     confirmPassword: '',
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   // Adapted handler for React Native TextInput
   const handleChange = (name: string, value: string) => {
     setFormData((prevData) => ({ ...prevData, [name]: value }));
+    if (error) setError('');
   };
-  
-  const handleSignup = () => {
-    // Implement your signup/API logic here
-    console.log('Attempting Signup:', formData.email);
-    // You would typically call an async function here to handle registration.
+
+  const handleSignup = async () => {
+    try {
+      setError('');
+
+      if (!formData.email || !formData.password) {
+        setError('Email and password are required');
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
+      if (formData.password.length < 6) {
+        setError('Password must be at least 6 characters');
+        return;
+      }
+
+      setLoading(true);
+
+      const response = await fetch('http://localhost:3000/clients/register-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          role: 'client'
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Client registration successful:', data);
+        Alert.alert('Registration successful', 'You can now sign in', [
+          { text: 'OK', onPress: () => router.replace('/Login') }
+        ]);
+      } else {
+        const errText = await response.text();
+        console.error('Signup failed:', errText);
+        setError(errText || 'Registration failed');
+      }
+
+    } catch (err: any) {
+      console.error('Signup error:', err);
+      setError(err?.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handler for navigation links (since React Native doesn't use HTML <a> tags)
   const handleLinkPress = (url: string) => {
-    // Use the Linking API for external URLs or router for internal screens
     if (url.startsWith('/')) {
-        router.push(url as never); // Use router for internal paths like /Login
+        router.push(url as any);
     } else {
         Linking.openURL(url);
     }
   };
 
   return (
-    // ScrollView replaces the web div with overflow and minHeight
     <ScrollView 
       contentContainerStyle={styles.containerContent} 
       style={styles.container} 
@@ -80,11 +110,12 @@ const Signup = () => {
             style={styles.inputStyle}
             placeholder='Full Name'
             value={formData.fullName}
-            onChangeText={(value) => handleChange('fullName', value)} // Call handleChange with name and value
+            onChangeText={(value) => handleChange('fullName', value)}
             accessibilityLabel="Full Name"
+            editable={!loading}
           />
 
-          {/* Email Input */}
+          {/* Email */}
           <Text style={styles.label}>Email</Text>
           <TextInput
             style={styles.inputStyle}
@@ -94,9 +125,10 @@ const Signup = () => {
             value={formData.email}
             onChangeText={(value) => handleChange('email', value)}
             accessibilityLabel="Email"
+            editable={!loading}
           />
 
-          {/* Password Input */}
+          {/* Password */}
           <Text style={styles.label}>Password</Text>
           <TextInput
             style={styles.inputStyle}
@@ -105,13 +137,14 @@ const Signup = () => {
             value={formData.password}
             onChangeText={(value) => handleChange('password', value)}
             accessibilityLabel="Password"
+            editable={!loading}
           />
 
           <Text style={styles.passwordHint}>
-            Must be at least 8 characters with uppercase and number
+            Must be at least 6 characters
           </Text>
 
-          {/* Confirm Password Input */}
+          {/* Confirm Password */}
           <Text style={styles.label}>Confirm password</Text>
           <TextInput
             style={styles.inputStyle}
@@ -120,44 +153,43 @@ const Signup = () => {
             value={formData.confirmPassword}
             onChangeText={(value) => handleChange('confirmPassword', value)}
             accessibilityLabel="Confirm password"
+            editable={!loading}
           />
 
-          {/* Submit Button */}
+          {/* Submit Button for internal registration */}
           <TouchableOpacity 
-            style={styles.buttonStyle} 
-            onPress={handleSignup} // Submit handler
+            style={[styles.buttonStyle, loading && styles.buttonDisabled]}
+            onPress={handleSignup}
             activeOpacity={0.8}
+            disabled={loading}
           >
-            <Text style={styles.buttonText}>Sign Up</Text>
+            <Text style={styles.buttonText}>{loading ? 'Signing up...' : 'Create client account'}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Student Account CTA */}
         <View style={styles.ctaContainer}>
           <Text style={styles.ctaText}>
-            Liever als student beginnen?
+            Start as a student instead?
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.clientButtonStyle}
-            onPress={() => router.push('/Student/Signup')} // Correct use of expo-router
+            onPress={() => router.push('/Student/Signup')}
             activeOpacity={0.8}
           >
-            <Text style={styles.clientButtonText}>Maak student account</Text>
+            <Text style={styles.clientButtonText}>Create student account</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Forgot Password Link */}
         <View style={styles.forgotPasswordContainer}>
           <TouchableOpacity onPress={() => handleLinkPress('/forgot-password')}>
-            <Text style={styles.forgotPasswordLink}>
-              Forgot password?
-            </Text>
+            <Text style={styles.forgotPasswordLink}>Forgot password?</Text>
           </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
   );
 };
+
 
 export default Signup;
 
@@ -301,8 +333,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   forgotPasswordContainer: {
-    textAlign: 'center',
+    alignItems: 'center',
     marginTop: 32,
   },
   forgotPasswordLink: {
