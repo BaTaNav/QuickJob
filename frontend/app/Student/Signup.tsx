@@ -1,12 +1,5 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import Auth0 from 'react-native-auth0'; // <-- NODIG VOOR AUTH0
-
-// Auth0 instantie (gebruikt dezelfde configuratie als Login/Callback)
-const auth0 = new Auth0({
-  domain: process.env.EXPO_PUBLIC_AUTH0_DOMAIN || '',
-  clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '',
-});
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -21,41 +14,11 @@ const Signup = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // =========================================================
-  // FUNCTIE 1: EIGEN SITE REGISTRATIE (BESTAANDE LOGICA)
-  // =========================================================
   const handleSiteSignup = (e: React.FormEvent) => {
     e.preventDefault();
-    // HIER KOMT JOUW LOGICA VOOR DE EIGEN BACKEND REGISTRATIE
     console.log('Registratie via eigen site gestart met:', formData);
     // Voer hier de POST request uit naar je /auth/signup endpoint
   };
-
-  // =========================================================
-  // FUNCTIE 2: AUTH0 REGISTRATIE (GEFIXED)
-  // =========================================================
-  const handleAuth0Signup = async () => {
-    try {
-      const authParams = {
-        scope: 'openid profile email',
-        audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE,
-        redirectUrl: 'http://localhost:8081/callback',
-
-        // FIX: screen_hint en custom rol via custom query parameter
-        screen_hint: 'signup',
-        user_role: 'student', // <--- GEFIXED: De rol die de Action nu leest
-      };
-
-      // Casting naar 'any' om de strenge TypeScript check te omzeilen
-      auth0.webAuth.authorize(authParams as any);
-
-    } catch (error) {
-      console.error('Auth0 Student Signup error:', error);
-      alert('Registratie via Auth0 mislukt. Controleer de console.');
-    }
-  };
-  // =========================================================
-
 
   const inputStyle = {
     width: '100%',
@@ -82,20 +45,6 @@ const Signup = () => {
     marginTop: '0.5rem',
     transition: 'background-color 0.2s ease, transform 0.1s ease',
     boxShadow: '0 2px 8px rgba(23, 107, 81, 0.2)',
-  };
-
-  const auth0ButtonLinkStyle = { // NIEUWE STIJL VOOR DE AUTH0 KNOP
-    width: '100%',
-    padding: '1rem 1.5rem',
-    backgroundColor: '#FFFFFF',
-    color: '#041316',
-    border: '2px solid #E1E7EB',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '600',
-    marginTop: '1rem',
-    transition: 'background-color 0.2s ease, border-color 0.2s ease',
   };
 
   const clientButtonStyle = {
@@ -198,37 +147,6 @@ const Signup = () => {
             Sign Up via QuickJob
           </button>
         </form>
-
-        {/* --- OPTIE 2: AUTH0 KNOP TOEGEVOEGD --- */}
-        <div style={{
-          textAlign: 'center',
-          margin: '1.5rem 0',
-          color: '#5D6B73',
-          fontSize: '0.875rem',
-          position: 'relative'
-        }}>
-          <span style={{
-            backgroundColor: '#FFFFFF',
-            padding: '0 1rem',
-            position: 'relative',
-            zIndex: 1
-          }}>of</span>
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: 0,
-            right: 0,
-            height: '1px',
-            backgroundColor: '#E1E7EB',
-            zIndex: 0
-          }}></div>
-        </div>
-
-        <button onClick={handleAuth0Signup} style={auth0ButtonLinkStyle}>
-          Sign Up met Auth0
-        </button>
-        {/* --- EINDE OPTIE 2 --- */}
-
 
         <div style={{
           marginTop: '2rem',
