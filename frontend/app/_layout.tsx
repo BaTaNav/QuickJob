@@ -58,6 +58,13 @@ function RootLayoutNav() {
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
+      {/* Hide header for Login page (no back arrow) */}
+      <Stack.Screen name="Login" options={{ headerShown: false }} />
+
+      {/* Hide headers for signup pages */}
+      <Stack.Screen name="Student/Signup" options={{ headerShown: false }} />
+      <Stack.Screen name="Client/Signup" options={{ headerShown: false }} />
+
       {/* Explicit screen entry for Student Dashboard */}
       <Stack.Screen
         name="Student/Dashboard"

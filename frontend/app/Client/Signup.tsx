@@ -54,9 +54,6 @@ const Signup = () => {
       style={styles.container} 
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>QuickJob</Text>
-      </View>
       
       <View style={styles.formCard}>
         <Text style={styles.cardTitle}>
