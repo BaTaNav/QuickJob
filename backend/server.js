@@ -4,7 +4,9 @@ const cors = require("cors");
 require("dotenv").config(); // Laadt .env
 
 const supabase = require("./supabaseClient");
-const clientsRouter = require("./clients/clients"); // ⬅️ your clients file
+const clientsRouter = require("./clients/clients"); 
+const adminRouter = require("./Admin/Admin");
+
 const app = express();
 const port = 3000;
 
@@ -25,6 +27,8 @@ app.get("/test-db", async (req, res) => {
 
 // Mount clients router
 app.use("/clients", clientsRouter);
+app.use("/admin", adminRouter);
+
 
 app.listen(port, () => {
   console.log(`Server draait op http://localhost:${port}`);
