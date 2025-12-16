@@ -9,7 +9,7 @@ export default function ClientProfile() {
 
   function handleLogout() {
     // Simple navigation for now; replace with real logout logic when available
-    router.replace('/Client/DashboardClient');
+    router.replace('/Login');
   }
 
   // Local settings state (demo only)
@@ -60,27 +60,30 @@ export default function ClientProfile() {
               <RNView>
                 <RNView style={styles.profileHeader}>
                   <RNView>
-                    <Text style={styles.label}>Name</Text>
-                    <Text style={styles.value}>Student Name</Text>
+                    <Text style={styles.label}>Contact name</Text>
+                    <Text style={styles.value}>Client Name</Text>
                   </RNView>
 
                   <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarLarge} />
                 </RNView>
 
-                <Text style={styles.label}>Bio</Text>
-                <Text style={styles.value}>I am a dedicated student looking to help with various tasks and gain experience.</Text>
+                <Text style={styles.label}>About</Text>
+                <Text style={styles.value}>I’m looking for help with garden work (mowing, weeding and hedge trimming) for a few hours each week.</Text>
 
                 <Text style={styles.label}>Email</Text>
-                <Text style={styles.value}>student@example.com</Text>
+                <Text style={styles.value}>client@example.com</Text>
 
                 <Text style={styles.label}>Phone</Text>
                 <Text style={styles.value}>+32 123 45 678</Text>
 
-                <Text style={styles.label}>School Name</Text>
-                <Text style={styles.value}>Example School</Text>
+                <Text style={styles.label}>Address</Text>
+                <Text style={styles.value}>123 Garden Lane, Leuven</Text>
 
-                <Text style={styles.label}>Field of Study</Text>
-                <Text style={styles.value}>Computer Science</Text>
+                <Text style={styles.label}>Preferred jobs</Text>
+                <Text style={styles.value}>Lawn mowing, weeding, hedge trimming</Text>
+
+                <Text style={styles.label}>Availability</Text>
+                <Text style={styles.value}>Weekends and weekday evenings</Text>
               </RNView>
 
               <RNView style={styles.rightFooter}>
