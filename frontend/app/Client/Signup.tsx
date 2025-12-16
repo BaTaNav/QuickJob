@@ -56,6 +56,32 @@ const Signup = () => {
     transition: 'background-color 0.2s ease, color 0.2s ease',
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault(); // voorkomt reload
+
+  try {
+    // Voer validatie uit
+    validateSignup({
+      email: formData.email,
+      password: formData.password,
+      confirmPassword: formData.confirmPassword,
+    });
+
+    // API-call naar backend
+    await signupClient({
+      email: formData.email,
+      password: formData.password,
+      // optioneel: phone, preferred_language, two_factor_enabled
+    });
+
+    // Redirect naar login
+    router.push("/Login");
+  } catch (err: any) {
+    alert(err.message); // foutmelding tonen
+  }
+};
+
+
 
   return (
     <div style={{
@@ -112,7 +138,7 @@ const Signup = () => {
           }}>Sign in</a>
         </p>
 
-        <form>
+        <form onSubmit={handleSubmit}>
           <label htmlFor="fullName" style={{ 
             fontWeight: '600', 
             display: 'block',
@@ -191,9 +217,7 @@ const Signup = () => {
             aria-label="Confirm password"
           />
 
-          <button type="submit" style={buttonStyle}>
-            Sign In
-          </button>
+          <button type="submit" style={buttonStyle}>Create account</button>
         </form>
 
         <div style={{ 
