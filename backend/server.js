@@ -4,31 +4,44 @@ const cors = require("cors");
 require("dotenv").config(); // Laadt .env
 
 const supabase = require("./supabaseClient");
-const clientsRouter = require("./clients/clients"); // ⬅️ your clients file
-const jobsRouter = require("./jobs/jobs");           // ✅ jobs ook mounten
+const clientsRouter = require("./clients/clients");
+const jobsRouter = require("./jobs/jobs");
+const studentsRouter = require("./students/students");
+
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
 // Root test
 app.get("/", (req, res) => {
-  res.send("Backend met Supabase connectie draait!");
+  res.send("QuickJob Backend API is running!");
 });
 
-// Test Supabase
-app.get("/test-db", async (req, res) => {
-  const { data, error } = await supabase.from("jouw_tabel").select("*");
-  if (error) return res.status(400).json(error);
-  res.json(data);
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Mount clients router
+// Mount routers
 app.use("/clients", clientsRouter);
+app.use("/jobs", jobsRouter);
+app.use("/students", studentsRouter);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error("Server error:", err);
+  res.status(500).json({ error: "Internal server error" });
+});
 
 app.listen(port, () => {
-  console.log(`Server draait op http://localhost:${port}`);
+  console.log(`🚀 Server running on http://localhost:${port}`);
 });
 
 module.exports = app;
