@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
 import { useRouter } from 'expo-router';
-import { RefreshCw, Plus, ArrowDown, Handshake, User } from "lucide-react-native";
-import { RefreshCw, Plus, ArrowDown, Handshake, Instagram, Linkedin, Facebook, Twitter } from "lucide-react-native";
+import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter } from "lucide-react-native";
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState("Open");
