@@ -269,32 +269,70 @@ export const jobsAPI = {
   },
 };
 
-// Auth API (placeholder - implement with your auth provider)
+// Auth API
 export const authAPI = {
   async login(email: string, password: string) {
-    // This should connect to your authentication backend
-    // For now, return mock data
-    return {
-      token: 'mock_token',
-      user: {
-        id: 1,
-        email,
-        role: 'student',
-      },
-    };
+    try {
+      const url = `${API_BASE_URL}/auth/login`;
+      logRequest('POST', url);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Login failed');
+      }
+
+      const data = await response.json();
+      console.log('[API Success] Login successful:', data);
+      
+      // Save student ID for future API calls
+      if (data.user.role === 'student') {
+        await saveStudentId(data.user.id.toString());
+      }
+      
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception] Login failed:', error);
+      throw new Error(error.message || 'Login failed');
+    }
   },
 
-  async signup(data: any) {
-    // This should connect to your authentication backend
-    // For now, return mock data
-    return {
-      token: 'mock_token',
-      user: {
-        id: 1,
-        email: data.email,
-        role: 'student',
-      },
-    };
+  async registerStudent(data: { email: string; password: string; phone?: string; school_name?: string; field_of_study?: string; academic_year?: string }) {
+    try {
+      const url = `${API_BASE_URL}/auth/register/student`;
+      logRequest('POST', url);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Registration failed');
+      }
+
+      const result = await response.json();
+      console.log('[API Success] Registration successful:', result);
+      
+      // Auto-login after registration
+      await saveStudentId(result.user.id.toString());
+      
+      return result;
+    } catch (error: any) {
+      console.error('[API Exception] Registration failed:', error);
+      throw new Error(error.message || 'Registration failed');
+    }
   },
 
   async logout() {

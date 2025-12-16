@@ -5,6 +5,8 @@ require("dotenv").config(); // Laadt .env
 
 const supabase = require("./supabaseClient");
 
+const authRouter = require("./auth/auth");
+const clientsRouter = require("./clients/clients");
 const jobsRouter = require("./jobs/jobs");
 const studentsRouter = require("./students/students");
 
@@ -28,6 +30,8 @@ app.get("/test-db", async (req, res) => {
 });
 
 // Mount clients router
+// Mount routers
+app.use("/auth", authRouter);
 app.use("/clients", clientsRouter);
 
 app.listen(port, () => {

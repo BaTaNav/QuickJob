@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
+import { authAPI } from '../services/api';
 
 export default function Login({ title = 'Login' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const router = useRouter();
 
 const handleNormalLogin = async (e: React.FormEvent) => {
@@ -37,6 +39,34 @@ const handleNormalLogin = async (e: React.FormEvent) => {
   }
 };
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      setError('');
+      setLoading(true);
+
+      // Login via backend
+      const result = await authAPI.login(email, password);
+      
+      console.log('Login successful:', result);
+      
+      // Redirect based on role
+      if (result.user.role === 'student') {
+        router.replace('/Student/Dashboard');
+      } else if (result.user.role === 'client') {
+        router.replace('/Client/DashboardClient');
+      } else {
+        router.replace('/');
+      }
+      
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const inputStyle = {
     width: '100%',
@@ -153,7 +183,21 @@ const handleNormalLogin = async (e: React.FormEvent) => {
             }}>Register Client</a>
           </p>
 
-          <form onSubmit={handleNormalLogin}>
+          <form onSubmit={handleLogin}>
+            {error && (
+              <div style={{
+                backgroundColor: '#FEE2E2',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                marginBottom: '1rem',
+                color: '#DC2626',
+                fontSize: '0.875rem',
+                fontWeight: '500'
+              }}>
+                {error}
+              </div>
+            )}
+
             <label htmlFor="email" style={{ 
               fontWeight: '600', 
               display: 'block',
@@ -170,6 +214,8 @@ const handleNormalLogin = async (e: React.FormEvent) => {
               onChange={(e) => setEmail(e.target.value)}
               style={inputStyle}
               aria-label="Email"
+              disabled={loading}
+              required
             />
 
             <label htmlFor="password" style={{ 
@@ -188,10 +234,20 @@ const handleNormalLogin = async (e: React.FormEvent) => {
               onChange={(e) => setPassword(e.target.value)}
               style={inputStyle}
               aria-label="Password"
+              disabled={loading}
+              required
             />
 
-            <button type="submit" style={buttonStyle}>
-              Login
+            <button 
+              type="submit" 
+              style={{
+                ...buttonStyle,
+                opacity: loading ? 0.6 : 1,
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+              disabled={loading}
+            >
+              {loading ? 'Signing in...' : 'Login'}
             </button>
           </form>
 
