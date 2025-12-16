@@ -64,6 +64,13 @@ function RootLayoutNav() {
       {/* Hide headers for signup pages */}
       <Stack.Screen name="Student/Signup" options={{ headerShown: false }} />
       <Stack.Screen name="Client/Signup" options={{ headerShown: false }} />
+      <Stack.Screen name="Client/DashboardClient" options={{ headerShown: false }} />
+
+      {/* Hide headers for admin pages */}
+      <Stack.Screen name="Admin/DashboardAdmin" options={{ headerShown: false }} />
+      <Stack.Screen name="Admin/StudentProfileAdmin" options={{ headerShown: false }} />
+      <Stack.Screen name="Admin/VerificationAdmin" options={{ headerShown: false }} />
+      <Stack.Screen name="Admin/IncidentsAdmin" options={{ headerShown: false }} />
 
       {/* Explicit screen entry for Student Dashboard */}
       <Stack.Screen
