@@ -295,11 +295,6 @@ router.post("/register-client", async (req, res) => {
   }
 });
 
-
-// ========================
-//  LOGIN – ZONDER JWT
-//  POST /clients/login
-// ========================
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -327,11 +322,13 @@ router.post("/login", async (req, res) => {
       return res.status(500).json({ message: "Interne serverfout." });
     }
 
+    // wachtwoord checken
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       return res.status(401).json({ message: "Ongeldige email of password." });
     }
 
+    // GEEN token, GEEN password_hash teruggeven
     return res.status(200).json({
       message: "Succesvol ingelogd.",
       user: {
@@ -345,8 +342,10 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Login error:", err);
-    return res.status(500).json({ message: "Interne serverfout." });
+    console.error("Login error (catch):", err);
+    return res.status(500).json({
+      message: "Interne serverfout.",
+    });
   }
 });
 
