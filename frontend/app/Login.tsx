@@ -1,22 +1,26 @@
-import React, { useState } from 'react';
-import Auth0 from 'react-native-auth0';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 
-const auth0 = new Auth0({
-  domain: process.env.EXPO_PUBLIC_AUTH0_DOMAIN || '',
-  clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '',
-});
+type Props = {
+  title?: string;
+};
 
-export default function Login({ title = 'Login' }) {
+export default function Login({ title = 'Login' }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [accessToken, setAccessToken] = useState<string | null>(null);
   const router = useRouter();
+
+  // Force Browser Tab Title
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+        document.title = "QuickJob | Login";
+    }
+  }, []);
 
   const handleNormalLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Normale login via jouw backend
+      // Normal login via your backend
       const response = await fetch('http://localhost:3000/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -26,31 +30,15 @@ export default function Login({ title = 'Login' }) {
       if (response.ok) {
         const data = await response.json();
         console.log('Login successful:', data);
-        // Redirect naar dashboard
         router.push('/Student/Dashboard');
       } else {
         const error = await response.text();
         console.error('Login failed:', error);
-        alert('Login failed: ' + error);
+        alert('Login failed: ' + error); 
       }
     } catch (error) {
       console.error('Login error:', error);
       alert('Login error. Check console for details.');
-    }
-  };
-
-  const handleAuth0Login = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // Voor web gebruik authorize zonder await - het redirected automatisch
-      auth0.webAuth.authorize({
-        scope: 'openid profile email',
-        audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE,
-        redirectUrl: 'http://localhost:8081/callback',
-      });
-      
-    } catch (error) {
-      console.error('Auth0 error:', error);
     }
   };
 
@@ -81,23 +69,9 @@ export default function Login({ title = 'Login' }) {
     boxShadow: '0 2px 8px rgba(23, 107, 81, 0.2)',
   };
 
-  const auth0ButtonStyle = {
-    width: '100%',
-    padding: '1rem 1.5rem',
-    backgroundColor: '#FFFFFF',
-    color: '#041316',
-    border: '2px solid #E1E7EB',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '600',
-    marginTop: '1rem',
-    transition: 'background-color 0.2s ease, border-color 0.2s ease',
-  };
-
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh',
       display: 'flex',
       flexDirection: 'column',
       backgroundColor: '#F8FAFB',
@@ -160,27 +134,12 @@ export default function Login({ title = 'Login' }) {
             color: '#5D6B73',
             fontSize: '0.9375rem'
           }}>
-            Don't have an account?
-          </p>
-          <p style={{ 
-            textAlign: 'center', 
-            marginBottom: '1rem',
-            color: '#5D6B73',
-            fontSize: '0.9375rem'
-          }}>
-            <a href="/Student/Signup" style={{ 
-              color: '#176B51', 
-              fontWeight: '600',
-              textDecoration: 'none',
-              borderBottom: '1px solid #176B51',
-              marginRight: '1rem'
-            }}>Register Student</a>
-            <a href="/Client/Signup" style={{ 
+            Don't have an account? <a href="/Student/Signup" style={{ 
               color: '#176B51', 
               fontWeight: '600',
               textDecoration: 'none',
               borderBottom: '1px solid #176B51'
-            }}>Register Client</a>
+            }}>Sign up</a>
           </p>
 
           <form onSubmit={handleNormalLogin}>
@@ -224,34 +183,6 @@ export default function Login({ title = 'Login' }) {
               Login
             </button>
           </form>
-
-          <div style={{ 
-            textAlign: 'center', 
-            margin: '1.5rem 0',
-            color: '#5D6B73',
-            fontSize: '0.875rem',
-            position: 'relative'
-          }}>
-            <span style={{
-              backgroundColor: '#FFFFFF',
-              padding: '0 1rem',
-              position: 'relative',
-              zIndex: 1
-            }}>or</span>
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: 0,
-              right: 0,
-              height: '1px',
-              backgroundColor: '#E1E7EB',
-              zIndex: 0
-            }}></div>
-          </div>
-
-          <button onClick={handleAuth0Login} style={auth0ButtonStyle}>
-            Login with Auth0
-          </button>
 
           <div style={{ textAlign: 'center', marginTop: '2rem' }}>
             <a href="/forgot-password" style={{ 

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -8,18 +8,9 @@ import {
   TouchableOpacity, 
   ScrollView, 
   Platform,
-  Alert // Use Alert for feedback in native environment
+  Alert 
 } from 'react-native';
-
-import Auth0 from 'react-native-auth0'; // <-- NODIG VOOR AUTH0
-import * as Linking from 'expo-linking'; // For handling external links
-
-// Auth0 instantie (gebruikt dezelfde configuratie als Login/Callback)
-// We assume process.env variables are correctly loaded in the native environment (e.g., via babel or environment setup)
-const auth0 = new Auth0({
-  domain: process.env.EXPO_PUBLIC_AUTH0_DOMAIN || '',
-  clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '',
-});
+import * as Linking from 'expo-linking';
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -29,70 +20,49 @@ const Signup = () => {
     confirmPassword: '',
   });
 
+  // Set Browser Title for Web
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      document.title = "QuickJob | Student Signup";
+    }
+  }, []);
 
-  // Adapted handler for React Native TextInput
   const handleChange = (name: string, value: string) => {
     setFormData((prevData) => ({ ...prevData, [name]: value }));
   };
 
-  // =========================================================
-  // FUNCTIE 1: EIGEN SITE REGISTRATIE (Native Call)
-  // =========================================================
   const handleSiteSignup = () => {
-    // Geen e.preventDefault() nodig in native
-    // HIER KOMT JOUW LOGICA VOOR DE EIGEN BACKEND REGISTRATIE
-    console.log('Registratie via eigen site gestart met:', formData);
-    Alert.alert("Registratie", "Jouw eigen backend registratie logica wordt hier uitgevoerd.");
-    // Voer hier de POST request uit naar je /auth/signup endpoint
-  };
-
-  // =========================================================
-  // FUNCTIE 2: AUTH0 REGISTRATIE (GEFIXED)
-  // =========================================================
-  const handleAuth0Signup = async () => {
-    try {
-      const authParams = {
-        scope: 'openid profile email',
-        audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE,
-        // De redirect URL moet de correcte native callback URL zijn, 
-        // vaak met het schema van je app, e.g., 'myapp://callback'
-        redirectUrl: process.env.EXPO_PUBLIC_AUTH0_REDIRECT_URI || 'http://localhost:8081/callback',
-        
-        // screen_hint voor Auth0 Universal Login, en custom rol via custom query parameter
-        screen_hint: 'signup',
-        user_role: 'student', // <--- De rol die de Auth0 Action nu leest
-      };
-
-      // De authorize methode opent een webview/browser tab.
-      // Het resultaat is een promise die de credentials teruggeeft, 
-      // of een foutmelding.
-      const credentials = await auth0.webAuth.authorize(authParams as any);
-
-      // Bij succesvolle registratie en login
-      console.log('Auth0 Signup Success:', credentials);
-      Alert.alert('Success', 'Registratie via Auth0 gelukt!');
-      // Vervolgens navigeren of tokens opslaan
-      // router.replace('/Student/Dashboard');
-
-    } catch (error) {
-      console.error('Auth0 Student Signup error:', error);
-      Alert.alert('Fout', 'Registratie via Auth0 mislukt. Controleer de console.');
+    // Add your backend registration logic here
+    console.log('Registration started with:', formData);
+    
+    // Example validation
+    if (formData.password !== formData.confirmPassword) {
+        if (Platform.OS === 'web') {
+            alert("Passwords do not match");
+        } else {
+            Alert.alert("Error", "Passwords do not match");
+        }
+        return;
     }
-  };
-  // =========================================================
 
-  // Handler for navigation links (since React Native doesn't use HTML <a> tags)
+    if (Platform.OS === 'web') {
+        alert("Registration logic goes here (check console for data)");
+    } else {
+        Alert.alert("Registration", "Registration logic goes here.");
+    }
+    
+    // Perform POST request to /auth/signup here
+  };
+
   const handleLinkPress = (url: string) => {
     if (url.startsWith('/')) {
-        router.push(url as never); // Use router for internal paths
+        router.push(url as any); 
     } else {
-        Linking.openURL(url); // Use Linking for external/forgot-password paths
+        Linking.openURL(url); 
     }
   };
 
-
   return (
-    // ScrollView replaces the web div with overflow and minHeight
     <ScrollView 
       contentContainerStyle={styles.containerContent} 
       style={styles.container} 
@@ -101,7 +71,6 @@ const Signup = () => {
       <View style={styles.headerContainer}>
         <Text style={styles.headerTitle}>QuickJob</Text>
       </View>
-
 
       <View style={styles.formCard}>
         <Text style={styles.cardTitle}>
@@ -117,9 +86,7 @@ const Signup = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Form area (using View instead of form) */}
         <View>
-          {/* Full Name Input */}
           <Text style={styles.label}>Full Name</Text>
           <TextInput
             style={styles.inputStyle}
@@ -129,7 +96,6 @@ const Signup = () => {
             accessibilityLabel="Full Name"
           />
 
-          {/* Email Input */}
           <Text style={styles.label}>Email</Text>
           <TextInput
             style={styles.inputStyle}
@@ -141,7 +107,6 @@ const Signup = () => {
             accessibilityLabel="Email"
           />
 
-          {/* Password Input */}
           <Text style={styles.label}>Password</Text>
           <TextInput
             style={styles.inputStyle}
@@ -156,7 +121,6 @@ const Signup = () => {
             Must be at least 8 characters with uppercase and number
           </Text>
 
-          {/* Confirm Password Input */}
           <Text style={styles.label}>Confirm password</Text>
           <TextInput
             style={styles.inputStyle}
@@ -167,44 +131,25 @@ const Signup = () => {
             accessibilityLabel="Confirm password"
           />
 
-
-          {/* Submit Button for internal registration */}
           <TouchableOpacity 
             style={styles.buttonStyle}
             onPress={handleSiteSignup}
             activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>Sign Up via QuickJob</Text>
+            <Text style={styles.buttonText}>Sign Up</Text>
           </TouchableOpacity>
         </View>
 
-        {/* --- OPTIE 2: AUTH0 KNOP TOEGEVOEGD (Divider) --- */}
-        <View style={styles.dividerContainer}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>of</Text>
-        </View>
-
-        {/* Auth0 Button */}
-        <TouchableOpacity 
-          onPress={handleAuth0Signup} 
-          style={styles.auth0ButtonLinkStyle}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.auth0ButtonText}>Sign Up met Auth0</Text>
-        </TouchableOpacity>
-        {/* --- EINDE OPTIE 2 --- */}
-
-
         <View style={styles.ctaContainer}>
           <Text style={styles.ctaText}>
-            Liever als client beginnen?
+            Start as a client instead?
           </Text>
           <TouchableOpacity
             style={styles.clientButtonStyle}
             onPress={() => router.push('/Client/Signup')}
             activeOpacity={0.8}
           >
-            <Text style={styles.clientButtonText}>Maak client account</Text>
+            <Text style={styles.clientButtonText}>Create client account</Text>
           </TouchableOpacity>
         </View>
 
