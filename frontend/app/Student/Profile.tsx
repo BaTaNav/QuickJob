@@ -36,7 +36,7 @@ export default function StudentProfile() {
 
   async function handleLogout() {
     await authAPI.logout();
-    router.replace('/Login');
+    router.replace('/'); // Go to home page instead of login
   }
 
   // Local settings state (demo only)
@@ -49,6 +49,9 @@ export default function StudentProfile() {
       <RNView style={styles.layoutRow}>
         {/* Left control card */}
         <View style={styles.leftCard}>
+          <Pressable onPress={() => router.push('/Student/Dashboard')} style={{ marginBottom: 12 }}>
+            <Text style={{ color: '#176B51', fontWeight: '600', fontSize: 12 }}>← Dashboard</Text>
+          </Pressable>
           <RNView style={styles.leftTopRow}>
             {loading ? (
               <ActivityIndicator size="small" color="#176B51" />

@@ -68,14 +68,14 @@ const Signup = () => {
 
       console.log('Registration successful:', result);
       
-      // Show success message
+      // Show success message and redirect to login
       Alert.alert(
-        'Success!',
-        'Account created successfully. Redirecting to dashboard...',
+        'Registration Successful! ✅',
+        `Welcome ${formData.email}!\n\nYour student account has been created. You can now log in with your email and password.`,
         [
           {
-            text: 'OK',
-            onPress: () => router.replace('/Student/Dashboard'),
+            text: 'Go to Login',
+            onPress: () => router.replace('/Login'),
           },
         ]
       );
