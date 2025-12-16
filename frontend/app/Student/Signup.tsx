@@ -254,9 +254,6 @@ const Signup = () => {
 
         </View>
 
-
-
-
         <View style={styles.ctaContainer}>
           <Text style={styles.ctaText}>
             Start as a client instead?

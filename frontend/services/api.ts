@@ -242,6 +242,36 @@ export const jobsAPI = {
     }
   },
 
+  // Get jobs filtered by query params (range_km, category, date, status)
+  async getFilteredJobs({ status = 'open', range_km, category, date, limit = 50 }: { status?: string; range_km?: number; category?: string; date?: string; limit?: number }) {
+    try {
+      const params = new URLSearchParams();
+      params.append('status', status);
+      if (typeof range_km !== 'undefined') params.append('range_km', range_km.toString());
+      if (category && category !== 'All') params.append('category', category);
+      if (date) params.append('date', date);
+      params.append('limit', limit.toString());
+
+      const url = `${API_BASE_URL}/jobs/available?${params.toString()}`;
+      logRequest('GET', url);
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[API Error]', response.status, errorText);
+        throw new Error(`Failed to fetch filtered jobs: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const jobs = data.jobs || data;
+      console.log('[API Success] Filtered Jobs:', jobs?.length || 0);
+      return jobs;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Network error - is the backend running?');
+    }
+  },
+
   // Get specific job
   async getJob(jobId: number) {
     const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`);

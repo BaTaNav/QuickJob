@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput, ActivityIndicator } from "react-native";
 import { useRouter } from 'expo-router';
 import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter } from "lucide-react-native";
+import { jobsAPI } from '../../services/api';
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState("Open");
@@ -23,6 +24,82 @@ export default function DashboardClient() {
     }, []);
 
     const router = useRouter();
+
+  // --- Filters state (range in km, category and date) ---
+  const [filterRange, setFilterRange] = useState<number>(20);
+  const [filterCategory, setFilterCategory] = useState<string>('All');
+  const [filterDate, setFilterDate] = useState<string>('Any');
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // Native date picker support (dynamic require so web build doesn't fail)
+  const [showDatePickerNative, setShowDatePickerNative] = useState(false);
+  const [DateTimePickerComponent, setDateTimePickerComponent] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const mod = require('react-native-datetimepicker/datetimepicker');
+        setDateTimePickerComponent(mod?.default || mod);
+      } catch (err) {
+        console.warn('Native DateTimePicker not installed. Run `npm i react-native-datetimepicker/datetimepicker` to enable it.');
+      }
+    }
+  }, []);
+
+  const onNativeDateChange = (_event: any, date?: Date) => {
+    setShowDatePickerNative(false);
+    if (date) {
+      const iso = date.toISOString().slice(0,10);
+      setSelectedDate(iso);
+      setFilterDate('Specific');
+    }
+  };
+  // Show/hide filters (default visible on web)
+  const [showFilters, setShowFilters] = useState<boolean>(Platform.OS === 'web');
+
+  // Jobs from API
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState<boolean>(false);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+
+  // Debug: log filters when they change to confirm the UI is wiring
+  useEffect(() => {
+    console.log('[DashboardClient] filters', { filterRange, filterCategory, filterDate, selectedDate });
+  }, [filterRange, filterCategory, filterDate, selectedDate]);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchJobs = async (opts?: {status?: string}) => {
+    setLoadingJobs(true);
+    setJobsError(null);
+    try {
+      const statusMap: any = { Open: 'open', Planned: 'planned', Completed: 'completed', Today: 'open' };
+      const status = (opts?.status) || statusMap[activeTab] || 'open';
+      const dateParam = filterDate === 'Specific' && selectedDate ? selectedDate : (filterDate === 'Today' ? new Date().toISOString().slice(0,10) : (filterDate === 'This week' ? undefined : undefined));
+
+      const data = await jobsAPI.getFilteredJobs({ status, range_km: filterRange, category: filterCategory, date: dateParam });
+      setJobs(data || []);
+    } catch (err: any) {
+      console.error('Failed to load jobs', err);
+      setJobsError(err?.message || 'Failed to load jobs');
+      setJobs([]);
+    } finally {
+      setLoadingJobs(false);
+    }
+  };
+
+  useEffect(() => {
+    // Debounce filter changes
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchJobs();
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current as any);
+    };
+  }, [filterRange, filterCategory, filterDate, selectedDate, activeTab]);
 
   return (
     <View style={styles.screen}>
@@ -69,33 +146,128 @@ export default function DashboardClient() {
           </TouchableOpacity>
 
           {/* Tabs */}
-          <View style={styles.tabContainer}>
-            {tabs.map((tab) => (
-              <TouchableOpacity
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]}
-              >
-                <Text style={activeTab === tab ? styles.activeTabText : styles.inactiveTabText}>
-                  {tab} (0)
-                </Text>
+          <View style={styles.tabAndFilterRow}>
+            <View style={styles.tabContainer}>
+              {tabs.map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  onPress={() => setActiveTab(tab)}
+                  style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]}
+                >
+                  <Text style={activeTab === tab ? styles.activeTabText : styles.inactiveTabText}>
+                    {tab} ({activeTab === tab ? jobs.length : 0})
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Filter toggle (helpful on small screens / web) */}
+            <View style={styles.filterToggleContainer}>
+              <TouchableOpacity style={styles.filterToggleBtn} onPress={() => setShowFilters(!showFilters)}>
+                <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Show filters'}</Text>
               </TouchableOpacity>
-            ))}
+            </View>
           </View>
 
-          {/* Empty State */}
-          <View style={styles.emptyWrapper}>
-            <View style={styles.emptyIcon}>
-              <ArrowDown size={24} color="#176B51" />
+          {/* Filters */}
+          {showFilters && (
+            <View style={styles.filterRow}>
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Range</Text>
+              <View style={styles.filterPills}>
+                {[5,10,20,50].map((r)=> (
+                  <TouchableOpacity key={r} onPress={() => { setFilterRange(r); console.log('[DashboardClient] setRange', r); }} style={[styles.filterBtn, filterRange === r && styles.filterBtnActive]}>
+                    <Text style={filterRange === r ? styles.filterBtnTextActive : styles.filterBtnText}>{r} km</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
-            <Text style={styles.emptyTitle}>No open jobs</Text>
-            <Text style={styles.emptySubtitle}>
-              Post your first job to get started
-            </Text>
-            <TouchableOpacity style={styles.emptyButton}>
-              <Text style={styles.emptyButtonText}>+ Post job</Text>
-            </TouchableOpacity>
-          </View>
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Category</Text>
+              <View style={styles.filterPills}>
+                {['All','Gardening','Tutoring','Delivery','Cleaning'].map((c)=> (
+                  <TouchableOpacity key={c} onPress={() => { setFilterCategory(c); console.log('[DashboardClient] setCategory', c); }} style={[styles.filterBtn, filterCategory === c && styles.filterBtnActive]}>
+                    <Text style={filterCategory === c ? styles.filterBtnTextActive : styles.filterBtnText}>{c}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Date</Text>
+              <View style={styles.filterPills}>
+                {['Any','Today','This week','Specific'].map((d)=> (
+                  <TouchableOpacity key={d} onPress={() => { setFilterDate(d); if (d !== 'Specific') setSelectedDate(null); console.log('[DashboardClient] setDateFilter', d); }} style={[styles.filterBtn, filterDate === d && styles.filterBtnActive]}>
+                    <Text style={filterDate === d ? styles.filterBtnTextActive : styles.filterBtnText}>{d}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {filterDate === 'Specific' && (
+                <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {Platform.OS === 'web' ? (
+                    // Use native date input on web
+                    // @ts-ignore allow web input
+                    <input type="date" value={selectedDate || ''} onChange={(e: any) => setSelectedDate(e.target.value)} style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }} />
+                  ) : DateTimePickerComponent ? (
+                    <>
+                      <TouchableOpacity onPress={() => setShowDatePickerNative(true)} style={styles.datePickerBtn}>
+                        <Text style={styles.datePickerText}>{selectedDate || 'Pick a date'}</Text>
+                      </TouchableOpacity>
+                      {showDatePickerNative && (
+                        // @ts-ignore
+                        <DateTimePickerComponent value={selectedDate ? new Date(selectedDate) : new Date()} mode="date" display="default" onChange={onNativeDateChange} />
+                      )}
+                    </>
+                  ) : (
+                    <TextInput placeholder="YYYY-MM-DD" value={selectedDate || ''} onChangeText={setSelectedDate} style={styles.dateInput} />
+                  )}
+
+                  <TouchableOpacity onPress={() => { setSelectedDate(null); setFilterDate('Any'); }} style={styles.clearDateBtn}>
+                    <Text style={styles.clearDateText}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            </View>
+          )}
+
+          {/* Jobs list (sample data used here) */}
+          {loadingJobs ? (
+            <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#176B51" />
+            </View>
+          ) : (jobs.length > 0 ? (
+            <View style={{ marginBottom: 24 }}>
+              {jobs.map((job) => (
+                <View key={job.id} style={styles.jobCard}>
+                  <View>
+                    <Text style={styles.jobTitle}>{job.title}</Text>
+                    <Text style={styles.jobMeta}>{job.category} • {job.distanceKm ?? job.distance_km ?? '-'} km • {job.date}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.jobAction} onPress={() => console.log('open', job.id)}>
+                    <Text style={styles.jobActionText}>View</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyWrapper}>
+              <View style={styles.emptyIcon}>
+                <ArrowDown size={24} color="#176B51" />
+              </View>
+              <Text style={styles.emptyTitle}>{jobsError ? 'Failed to load jobs' : 'No jobs matching filters'}</Text>
+              <Text style={styles.emptySubtitle}>
+                {jobsError ? jobsError : 'Adjust range, category or date to find jobs'}
+              </Text>
+              <TouchableOpacity style={styles.emptyButton} onPress={() => router.push('/Client/CreateJob' as never)}>
+                <Text style={styles.emptyButtonText}>+ Post job</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
 
           {/* FOOTER */}
           <View style={styles.footer}>
@@ -320,6 +492,66 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 12,
   },
+
+  // Filters
+  filterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E8EEF2',
+  },
+  tabAndFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
+  filterToggleContainer: { flexShrink: 0 },
+  filterToggleBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F4F6F7', borderRadius: 8 },
+  filterToggleText: { color: '#1a2e4c', fontWeight: '600' },
+  filterGroup: { flex: 1 },
+  filterLabel: { color: '#64748B', marginBottom: 8 },
+  filterPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#F4F6F7', marginRight: 8 },
+  filterBtnActive: { backgroundColor: '#176B51' },
+  filterBtnText: { color: '#333', fontWeight: '600' },
+  filterBtnTextActive: { color: '#fff', fontWeight: '600' },
+
+  // Jobs
+  jobCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E6EEF0',
+    marginBottom: 12,
+  },
+  jobTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  jobMeta: { fontSize: 13, color: '#64748B', marginTop: 4 },
+  jobAction: { backgroundColor: '#176B51', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  jobActionText: { color: '#fff', fontWeight: '700' },
+
+  // Date input
+  dateInput: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    minWidth: 130,
+  },
+  clearDateBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+  },
+  clearDateText: { color: '#1a2e4c', fontWeight: '600' },
+  datePickerBtn: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#F4F6F7', borderRadius: 8 },
+  datePickerText: { color: '#1a2e4c', fontWeight: '600' },
 
   // Empty State
   emptyWrapper: {
