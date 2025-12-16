@@ -54,9 +54,6 @@ const Signup = () => {
       style={styles.container} 
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>QuickJob</Text>
-      </View>
       
       <View style={styles.formCard}>
         <Text style={styles.cardTitle}>
@@ -142,16 +139,7 @@ const Signup = () => {
             onPress={() => router.push('/Student/Signup')} // Correct use of expo-router
             activeOpacity={0.8}
           >
-            <Text style={styles.clientButtonText}>Maak student account</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Forgot Password Link */}
-        <View style={styles.forgotPasswordContainer}>
-          <TouchableOpacity onPress={() => handleLinkPress('/forgot-password')}>
-            <Text style={styles.forgotPasswordLink}>
-              Forgot password?
-            </Text>
+            <Text style={styles.clientButtonText}>Create student account</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -301,13 +289,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  forgotPasswordContainer: {
-    textAlign: 'center',
-    marginTop: 32,
-  },
-  forgotPasswordLink: {
-    color: '#5D6B73',
-    fontSize: 15,
-    textDecorationLine: 'none',
-  }
 });

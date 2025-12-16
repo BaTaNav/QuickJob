@@ -1,8 +1,13 @@
+import React, { useState, useEffect } from 'react';
 import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
+
+type Props = {
+  title?: string;
+};
 import { authAPI } from '../services/api';
 
-export default function Login({ title = 'Login' }) {
+export default function Login({ title = 'Login' }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -65,49 +70,15 @@ export default function Login({ title = 'Login' }) {
     boxShadow: '0 2px 8px rgba(23, 107, 81, 0.2)',
   };
 
-  const auth0ButtonStyle = {
-    width: '100%',
-    padding: '1rem 1.5rem',
-    backgroundColor: '#FFFFFF',
-    color: '#041316',
-    border: '2px solid #E1E7EB',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '600',
-    marginTop: '1rem',
-    transition: 'background-color 0.2s ease, border-color 0.2s ease',
-  };
-
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh',
       display: 'flex',
       flexDirection: 'column',
       backgroundColor: '#F8FAFB',
       backgroundImage: 'linear-gradient(135deg, #F8FAFB 0%, #EDF1F2 100%)',
     }}>
-      {/* Header */}
-      <div style={{
-        backgroundColor: '#fff',
-        borderBottom: '1px solid #E1E7EB',
-        padding: '1rem 2rem',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem'
-      }}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#176B51" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-          <polyline points="15 3 21 3 21 9" />
-          <line x1="10" y1="14" x2="21" y2="3" />
-        </svg>
-        <span style={{
-          fontSize: '1.5rem',
-          fontWeight: '700',
-          color: '#041316',
-          letterSpacing: '-0.01em'
-        }}>QuickJob</span>
-      </div>
+
 
       {/* Main Content */}
       <div style={{
@@ -144,27 +115,12 @@ export default function Login({ title = 'Login' }) {
             color: '#5D6B73',
             fontSize: '0.9375rem'
           }}>
-            Don't have an account?
-          </p>
-          <p style={{ 
-            textAlign: 'center', 
-            marginBottom: '1rem',
-            color: '#5D6B73',
-            fontSize: '0.9375rem'
-          }}>
-            <a href="/Student/Signup" style={{ 
-              color: '#176B51', 
-              fontWeight: '600',
-              textDecoration: 'none',
-              borderBottom: '1px solid #176B51',
-              marginRight: '1rem'
-            }}>Register Student</a>
-            <a href="/Client/Signup" style={{ 
+            Don't have an account? <a href="/Student/Signup" style={{ 
               color: '#176B51', 
               fontWeight: '600',
               textDecoration: 'none',
               borderBottom: '1px solid #176B51'
-            }}>Register Client</a>
+            }}>Sign up</a>
           </p>
 
           <form onSubmit={handleLogin}>
@@ -234,6 +190,16 @@ export default function Login({ title = 'Login' }) {
               {loading ? 'Signing in...' : 'Login'}
             </button>
           </form>
+
+          <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+            <a href="/Resetpassword" style={{ 
+              color: '#5D6B73', 
+              textDecoration: 'none',
+              fontSize: '0.9375rem'
+            }}>
+              Forgot password?
+            </a>
+          </div>
         </div>
       </div>
     </div>

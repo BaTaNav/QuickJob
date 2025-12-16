@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -92,24 +92,18 @@ const Signup = () => {
   // Handler for navigation links (since React Native doesn't use HTML <a> tags)
   const handleLinkPress = (url: string) => {
     if (url.startsWith('/')) {
-        router.push(url as never); // Use router for internal paths
+        router.push(url as any); 
     } else {
-        Linking.openURL(url); // Use Linking for external/forgot-password paths
+        Linking.openURL(url); 
     }
   };
 
-
   return (
-    // ScrollView replaces the web div with overflow and minHeight
     <ScrollView 
       contentContainerStyle={styles.containerContent} 
       style={styles.container} 
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>QuickJob</Text>
-      </View>
-
 
       <View style={styles.formCard}>
         <Text style={styles.cardTitle}>
@@ -238,22 +232,14 @@ const Signup = () => {
 
         <View style={styles.ctaContainer}>
           <Text style={styles.ctaText}>
-            Liever als client beginnen?
+            Start as a client instead?
           </Text>
           <TouchableOpacity
             style={styles.clientButtonStyle}
             onPress={() => router.push('/Client/Signup')}
             activeOpacity={0.8}
           >
-            <Text style={styles.clientButtonText}>Maak client account</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.forgotPasswordContainer}>
-          <TouchableOpacity onPress={() => handleLinkPress('/forgot-password')}>
-            <Text style={styles.forgotPasswordLink}>
-              Forgot password?
-            </Text>
+            <Text style={styles.clientButtonText}>Create client account</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -461,13 +447,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  forgotPasswordContainer: {
-    textAlign: 'center',
-    marginTop: 32,
-  },
-  forgotPasswordLink: {
-    color: '#5D6B73',
-    fontSize: 15,
-    textDecorationLine: 'none',
-  }
 });

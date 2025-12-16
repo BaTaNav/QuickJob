@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
+import { useRouter } from 'expo-router';
+import { RefreshCw, Plus, ArrowDown, Handshake, User } from "lucide-react-native";
 import { RefreshCw, Plus, ArrowDown, Handshake, Instagram, Linkedin, Facebook, Twitter } from "lucide-react-native";
 
 export default function DashboardClient() {
@@ -21,6 +23,8 @@ export default function DashboardClient() {
       }
     }, []);
 
+    const router = useRouter();
+
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -31,9 +35,18 @@ export default function DashboardClient() {
           <Handshake size={28} color="#176B51" strokeWidth={2.5} />
           <Text style={styles.headerTitle}>QuickJob</Text>
         </View>
-        <TouchableOpacity style={styles.iconButton}>
-          <RefreshCw size={20} color="#64748B" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={styles.iconButton} onPress={() => {
+            // Placeholder refresh action
+            console.log('Refresh client dashboard');
+          }}>
+            <RefreshCw size={20} color="#64748B" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/Client/Profile' as never)}>
+            <User size={20} color="#1B1B1B" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
