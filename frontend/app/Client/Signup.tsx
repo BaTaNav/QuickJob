@@ -145,9 +145,6 @@ const Signup = () => {
             <Text style={styles.clientButtonText}>Create student account</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Forgot Password Link */}
-
       </View>
     </ScrollView>
   );
@@ -295,13 +292,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  forgotPasswordContainer: {
-    textAlign: 'center',
-    marginTop: 32,
-  },
-  forgotPasswordLink: {
-    color: '#5D6B73',
-    fontSize: 15,
-    textDecorationLine: 'none',
-  }
 });

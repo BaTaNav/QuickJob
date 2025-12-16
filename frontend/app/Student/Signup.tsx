@@ -152,7 +152,6 @@ const Signup = () => {
             <Text style={styles.clientButtonText}>Create client account</Text>
           </TouchableOpacity>
         </View>
-
       </View>
     </ScrollView>
   );
@@ -344,13 +343,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  forgotPasswordContainer: {
-    textAlign: 'center',
-    marginTop: 32,
-  },
-  forgotPasswordLink: {
-    color: '#5D6B73',
-    fontSize: 15,
-    textDecorationLine: 'none',
-  }
 });
