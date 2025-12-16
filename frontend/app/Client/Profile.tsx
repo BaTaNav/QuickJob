@@ -2,21 +2,72 @@ import * as React from 'react';
 import { StyleSheet, Pressable, View as RNView, Switch, Image } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
-const [clientProfile, setClientProfile] = React.useState<any>(null);
 
 export default function ClientProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
   const router = useRouter();
 
-  function handleLogout() {
-    // Simple navigation for now; replace with real logout logic when available
-    router.replace('/Client/DashboardClient');
-  }
-
-  // Local settings state (demo only)
+  const [clientProfile, setClientProfile] = React.useState<any>(null);
   const [darkMode, setDarkMode] = React.useState(false);
   const [language, setLanguage] = React.useState<'EN' | 'NL' | 'FR'>('EN');
   const [notifications, setNotifications] = React.useState(true);
+
+  function handleLogout() {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('user');
+    }
+    router.replace('/Client/DashboardClient');
+  }
+
+  React.useEffect(() => {
+    async function loadProfile() {
+      try {
+        if (typeof window === 'undefined') return;
+        const userJson = localStorage.getItem('user');
+        if (!userJson) return;
+
+        const user = JSON.parse(userJson);
+        const userId = user.id;
+
+        const res = await fetch(`http://localhost:3000/clients/${userId}`);
+        if (!res.ok) throw new Error('Failed to fetch profile');
+
+        const data = await res.json();
+        setClientProfile(data.client);
+
+        setLanguage(data.client.preferred_language?.toUpperCase() || 'NL');
+      } catch (err) {
+        console.error('Error loading client profile:', err);
+      }
+    }
+    loadProfile();
+  }, []);
+
+  async function saveSettings() {
+    if (!clientProfile) return;
+
+    const updates = {
+      preferred_language: language.toLowerCase(),
+      // Voeg eventueel andere aanpassingen toe zoals phone
+    };
+
+    const res = await fetch(`http://localhost:3000/clients/${clientProfile.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+
+    if (!res.ok) {
+      console.error('Failed to update settings');
+      return;
+    }
+
+    const data = await res.json();
+    setClientProfile(data.client);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('user', JSON.stringify(data.client));
+    }
+  }
 
   return (
     <View style={styles.container}>
@@ -26,8 +77,8 @@ export default function ClientProfile() {
           <RNView style={styles.leftTopRow}>
             <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarSmall} />
             <RNView style={styles.leftIdentity}>
-              <Text style={styles.leftName}>Client Name</Text>
-              <Text style={styles.leftEmail}>Client@example.com</Text>
+              <Text style={styles.leftName}>{clientProfile?.email || 'Client Name'}</Text>
+              <Text style={styles.leftEmail}>{clientProfile?.phone || 'Client@example.com'}</Text>
             </RNView>
           </RNView>
 
@@ -54,34 +105,34 @@ export default function ClientProfile() {
           </RNView>
         </View>
 
-        {/* Right content card: shows profile info or settings depending on selection */}
+        {/* Right content card */}
         <View style={styles.rightCard}>
           {panel === 'info' ? (
             <RNView style={styles.rightContent}>
               <RNView>
                 <RNView style={styles.profileHeader}>
                   <RNView>
-                    <Text style={styles.label}>Name</Text>
-                    <Text style={styles.value}>Student Name</Text>
+                    <Text style={styles.label}>Email</Text>
+                    <Text style={styles.value}>{clientProfile?.email || ''}</Text>
                   </RNView>
 
                   <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarLarge} />
                 </RNView>
 
-                <Text style={styles.label}>Bio</Text>
-                <Text style={styles.value}>I am a dedicated student looking to help with various tasks and gain experience.</Text>
-
-                <Text style={styles.label}>Email</Text>
-                <Text style={styles.value}>student@example.com</Text>
-
                 <Text style={styles.label}>Phone</Text>
-                <Text style={styles.value}>+32 123 45 678</Text>
+                <Text style={styles.value}>{clientProfile?.phone || ''}</Text>
 
-                <Text style={styles.label}>School Name</Text>
-                <Text style={styles.value}>Example School</Text>
+                <Text style={styles.label}>Address</Text>
+                <Text style={styles.value}>{clientProfile?.address_line || ''}</Text>
 
-                <Text style={styles.label}>Field of Study</Text>
-                <Text style={styles.value}>Computer Science</Text>
+                <Text style={styles.label}>Postal Code</Text>
+                <Text style={styles.value}>{clientProfile?.postal_code || ''}</Text>
+
+                <Text style={styles.label}>City</Text>
+                <Text style={styles.value}>{clientProfile?.city || ''}</Text>
+
+                <Text style={styles.label}>Region</Text>
+                <Text style={styles.value}>{clientProfile?.region || ''}</Text>
               </RNView>
 
               <RNView style={styles.rightFooter}>
@@ -121,7 +172,11 @@ export default function ClientProfile() {
                 </RNView>
               </RNView>
 
-              <RNView style={styles.rightFooter} />
+              <RNView style={styles.rightFooter}>
+                <Pressable style={styles.editBtn} onPress={saveSettings}>
+                  <Text style={styles.editBtnText}>Save Settings</Text>
+                </Pressable>
+              </RNView>
             </RNView>
           )}
         </View>

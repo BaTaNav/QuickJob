@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
-
+import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 
 type Props = {
   title?: string;
 };
-import { authAPI } from '../services/api';
 
 export default function Login({ title = 'Login' }: Props) {
   const [email, setEmail] = useState('');
@@ -22,22 +20,40 @@ export default function Login({ title = 'Login' }: Props) {
       setLoading(true);
 
       // Login via backend
-      const result = await authAPI.login(email, password);
+      const response = await fetch('http://localhost:3000/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
       
-      console.log('Login successful:', result);
-      
-      // Redirect based on role
-      if (result.user.role === 'student') {
-        router.replace('/Student/Dashboard');
-      } else if (result.user.role === 'client') {
-        router.replace('/Client/DashboardClient');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Login successful:', data);
+        
+        // Save user data to localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          if (data.token) {
+            localStorage.setItem('token', data.token);
+          }
+        }
+        
+        // Redirect based on role
+        if (data.user?.role === 'student') {
+          router.replace('/Student/Dashboard');
+        } else if (data.user?.role === 'client') {
+          router.replace('/Client/DashboardClient');
+        } else {
+          router.replace('/');
+        }
       } else {
-        router.replace('/');
+        const error = await response.text();
+        setError(error || 'Login failed. Please check your credentials.');
       }
       
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Login failed. Please check your credentials.');
+      setError(err.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
