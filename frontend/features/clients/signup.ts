@@ -1,5 +1,6 @@
-import { apiPost } from "@/lib/api";
-import type { ClientSignupPayload, ClientSignupResponse } from "@/types/client";
+import { apiPost } from "../../lib/api";
+import type { ClientSignupPayload, ClientSignupResponse } from "../../types/client";
+
 
 export function signupClient(payload: ClientSignupPayload) {
   return apiPost<ClientSignupResponse>("/clients/signup", payload);
