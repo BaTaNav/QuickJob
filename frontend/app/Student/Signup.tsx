@@ -58,18 +58,16 @@ const Signup = () => {
 
       setLoading(true);
 
-      const response = await fetch('http://localhost:3000/students/signup', {
+      const response = await fetch('http://localhost:3000/auth/register/student', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fullName: formData.fullName,
           email: formData.email,
           password: formData.password,
           phone: formData.phone || undefined,
           school_name: formData.school_name || undefined,
           field_of_study: formData.field_of_study || undefined,
           academic_year: formData.academic_year || undefined,
-          role: 'student'
         }),
       });
 
