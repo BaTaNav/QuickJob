@@ -12,6 +12,8 @@ import {
 
 // Import Linking for external navigation (like the "Sign in" link)
 import * as Linking from 'expo-linking';
+import React, { useState } from 'react'; 
+import { signupClient, validateSignup } from "../../features/client/signup";
 
 const Signup = () => {
   // useEffect for document.title is removed as it is web-specific.
@@ -47,6 +49,46 @@ const Signup = () => {
     }
   };
 
+  const clientButtonStyle = {
+    width: '100%',
+    padding: '1rem 1.5rem',
+    backgroundColor: '#FFFFFF', 
+    color: '#176B51',
+    border: '2px solid #176B51',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontSize: '1rem',
+    fontWeight: '600',
+    transition: 'background-color 0.2s ease, color 0.2s ease',
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault(); // voorkomt reload
+
+  try {
+    // Voer validatie uit
+    validateSignup({
+      email: formData.email,
+      password: formData.password,
+      confirmPassword: formData.confirmPassword,
+    });
+
+    // API-call naar backend
+    await signupClient({
+      email: formData.email,
+      password: formData.password,
+      // optioneel: phone, preferred_language, two_factor_enabled
+    });
+
+    // Redirect naar login
+    router.push("/Login");
+  } catch (err: any) {
+    alert(err.message); // foutmelding tonen
+  }
+};
+
+
+
   return (
     // ScrollView replaces the web div with overflow and minHeight
     <ScrollView 
@@ -79,6 +121,18 @@ const Signup = () => {
           <TextInput
             style={styles.inputStyle}
             placeholder='Full Name'
+        <form onSubmit={handleSubmit}>
+          <label htmlFor="fullName" style={{ 
+            fontWeight: '600', 
+            display: 'block',
+            marginBottom: '0.5rem',
+            color: '#041316',
+            fontSize: '0.875rem'
+          }}>Full Name</label>
+          <input
+            type="text"
+            id="fullName"
+            name="fullName"
             value={formData.fullName}
             onChangeText={(value) => handleChange('fullName', value)} // Call handleChange with name and value
             accessibilityLabel="Full Name"
@@ -127,6 +181,26 @@ const Signup = () => {
             style={styles.buttonStyle} 
             onPress={handleSignup} // Submit handler
             activeOpacity={0.8}
+          <button type="submit" style={buttonStyle}>Create account</button>
+        </form>
+
+        <div style={{ 
+          marginTop: '2rem',
+          paddingTop: '2rem',
+          borderTop: '1px solid #E1E7EB'
+        }}>
+          <p style={{ 
+            marginBottom: '1rem',
+            color: '#041316',
+            fontSize: '0.9375rem',
+            fontWeight: '500',
+            textAlign: 'center'
+          }}>
+            Liever als student beginnen?
+          </p>
+          <button 
+            style={clientButtonStyle}
+            onClick={() =>router.push('/Student/Signup')}
           >
             <Text style={styles.buttonText}>Sign Up</Text>
           </TouchableOpacity>

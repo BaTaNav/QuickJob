@@ -1,11 +1,5 @@
 import React, { useState } from 'react';
-import Auth0 from 'react-native-auth0';
 import { useRouter } from 'expo-router';
-
-const auth0 = new Auth0({
-  domain: process.env.EXPO_PUBLIC_AUTH0_DOMAIN || '',
-  clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '',
-});
 
 export default function Login({ title = 'Login' }) {
   const [email, setEmail] = useState('');
@@ -13,46 +7,36 @@ export default function Login({ title = 'Login' }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleNormalLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // Normale login via jouw backend
-      const response = await fetch('http://localhost:3000/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Login successful:', data);
-        // Redirect naar dashboard
+const handleNormalLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  try {
+    const response = await fetch('http://localhost:3000/clients/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const role = data.user.role;
+
+      if (role === 'client') {
+        router.push('/Client/DashboardClient');
+      } else if (role === 'student') {
         router.push('/Student/Dashboard');
       } else {
-        const error = await response.text();
-        console.error('Login failed:', error);
-        alert('Login failed: ' + error);
+        alert('Onbekende rol, kan niet inloggen.');
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      alert('Login error. Check console for details.');
+    } else {
+      const errorData = await response.json();
+      alert('Login failed: ' + (errorData.message || 'Unknown error'));
     }
-  };
+  } catch (error) {
+    console.error('Login error:', error);
+    alert('Login error. Check console for details.');
+  }
+};
 
-  const handleAuth0Login = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // Voor web gebruik authorize zonder await - het redirected automatisch
-      auth0.webAuth.authorize({
-        scope: 'openid profile email',
-        audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE,
-        redirectUrl: 'http://localhost:8081/callback',
-      });
-      
-    } catch (error) {
-      console.error('Auth0 error:', error);
-    }
-  };
 
   const inputStyle = {
     width: '100%',
@@ -79,20 +63,6 @@ export default function Login({ title = 'Login' }) {
     marginTop: '0.5rem',
     transition: 'background-color 0.2s ease, transform 0.1s ease',
     boxShadow: '0 2px 8px rgba(23, 107, 81, 0.2)',
-  };
-
-  const auth0ButtonStyle = {
-    width: '100%',
-    padding: '1rem 1.5rem',
-    backgroundColor: '#FFFFFF',
-    color: '#041316',
-    border: '2px solid #E1E7EB',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '600',
-    marginTop: '1rem',
-    transition: 'background-color 0.2s ease, border-color 0.2s ease',
   };
 
   return (
@@ -224,34 +194,6 @@ export default function Login({ title = 'Login' }) {
               Login
             </button>
           </form>
-
-          <div style={{ 
-            textAlign: 'center', 
-            margin: '1.5rem 0',
-            color: '#5D6B73',
-            fontSize: '0.875rem',
-            position: 'relative'
-          }}>
-            <span style={{
-              backgroundColor: '#FFFFFF',
-              padding: '0 1rem',
-              position: 'relative',
-              zIndex: 1
-            }}>or</span>
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: 0,
-              right: 0,
-              height: '1px',
-              backgroundColor: '#E1E7EB',
-              zIndex: 0
-            }}></div>
-          </div>
-
-          <button onClick={handleAuth0Login} style={auth0ButtonStyle}>
-            Login with Auth0
-          </button>
 
           <div style={{ textAlign: 'center', marginTop: '2rem' }}>
             <a href="/forgot-password" style={{ 

@@ -1,25 +1,5 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ScrollView, 
-  Platform,
-  Alert // Use Alert for feedback in native environment
-} from 'react-native';
-
-import Auth0 from 'react-native-auth0'; // <-- NODIG VOOR AUTH0
-import * as Linking from 'expo-linking'; // For handling external links
-
-// Auth0 instantie (gebruikt dezelfde configuratie als Login/Callback)
-// We assume process.env variables are correctly loaded in the native environment (e.g., via babel or environment setup)
-const auth0 = new Auth0({
-  domain: process.env.EXPO_PUBLIC_AUTH0_DOMAIN || '',
-  clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '',
-});
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -35,59 +15,51 @@ const Signup = () => {
     setFormData((prevData) => ({ ...prevData, [name]: value }));
   };
 
-  // =========================================================
-  // FUNCTIE 1: EIGEN SITE REGISTRATIE (Native Call)
-  // =========================================================
-  const handleSiteSignup = () => {
-    // Geen e.preventDefault() nodig in native
-    // HIER KOMT JOUW LOGICA VOOR DE EIGEN BACKEND REGISTRATIE
+  const handleSiteSignup = (e: React.FormEvent) => {
+    e.preventDefault();
     console.log('Registratie via eigen site gestart met:', formData);
     Alert.alert("Registratie", "Jouw eigen backend registratie logica wordt hier uitgevoerd.");
     // Voer hier de POST request uit naar je /auth/signup endpoint
   };
 
-  // =========================================================
-  // FUNCTIE 2: AUTH0 REGISTRATIE (GEFIXED)
-  // =========================================================
-  const handleAuth0Signup = async () => {
-    try {
-      const authParams = {
-        scope: 'openid profile email',
-        audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE,
-        // De redirect URL moet de correcte native callback URL zijn, 
-        // vaak met het schema van je app, e.g., 'myapp://callback'
-        redirectUrl: process.env.EXPO_PUBLIC_AUTH0_REDIRECT_URI || 'http://localhost:8081/callback',
-        
-        // screen_hint voor Auth0 Universal Login, en custom rol via custom query parameter
-        screen_hint: 'signup',
-        user_role: 'student', // <--- De rol die de Auth0 Action nu leest
-      };
-
-      // De authorize methode opent een webview/browser tab.
-      // Het resultaat is een promise die de credentials teruggeeft, 
-      // of een foutmelding.
-      const credentials = await auth0.webAuth.authorize(authParams as any);
-
-      // Bij succesvolle registratie en login
-      console.log('Auth0 Signup Success:', credentials);
-      Alert.alert('Success', 'Registratie via Auth0 gelukt!');
-      // Vervolgens navigeren of tokens opslaan
-      // router.replace('/Student/Dashboard');
-
-    } catch (error) {
-      console.error('Auth0 Student Signup error:', error);
-      Alert.alert('Fout', 'Registratie via Auth0 mislukt. Controleer de console.');
-    }
+  const inputStyle = {
+    width: '100%',
+    padding: '0.875rem 1rem',
+    marginBottom: '1.25rem',
+    border: '2px solid #E1E7EB',
+    borderRadius: '10px',
+    fontSize: '0.9375rem',
+    transition: 'border-color 0.2s ease',
+    outline: 'none',
+    backgroundColor: '#FFFFFF',
   };
-  // =========================================================
 
-  // Handler for navigation links (since React Native doesn't use HTML <a> tags)
-  const handleLinkPress = (url: string) => {
-    if (url.startsWith('/')) {
-        router.push(url as never); // Use router for internal paths
-    } else {
-        Linking.openURL(url); // Use Linking for external/forgot-password paths
-    }
+  const buttonStyle = {
+    width: '100%',
+    padding: '1rem 1.5rem',
+    backgroundColor: '#176B51',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontSize: '1rem',
+    fontWeight: '600',
+    marginTop: '0.5rem',
+    transition: 'background-color 0.2s ease, transform 0.1s ease',
+    boxShadow: '0 2px 8px rgba(23, 107, 81, 0.2)',
+  };
+
+  const clientButtonStyle = {
+    width: '100%',
+    padding: '1rem 1.5rem',
+    backgroundColor: '#FFFFFF',
+    color: '#176B51',
+    border: '2px solid #176B51',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontSize: '1rem',
+    fontWeight: '600',
+    transition: 'background-color 0.2s ease, color 0.2s ease',
   };
 
 
@@ -178,25 +150,18 @@ const Signup = () => {
           </TouchableOpacity>
         </View>
 
-        {/* --- OPTIE 2: AUTH0 KNOP TOEGEVOEGD (Divider) --- */}
-        <View style={styles.dividerContainer}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>of</Text>
-        </View>
-
-        {/* Auth0 Button */}
-        <TouchableOpacity 
-          onPress={handleAuth0Signup} 
-          style={styles.auth0ButtonLinkStyle}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.auth0ButtonText}>Sign Up met Auth0</Text>
-        </TouchableOpacity>
-        {/* --- EINDE OPTIE 2 --- */}
-
-
-        <View style={styles.ctaContainer}>
-          <Text style={styles.ctaText}>
+        <div style={{
+          marginTop: '2rem',
+          paddingTop: '2rem',
+          borderTop: '1px solid #E1E7EB'
+        }}>
+          <p style={{
+            marginBottom: '1rem',
+            color: '#041316',
+            fontSize: '0.9375rem',
+            fontWeight: '500',
+            textAlign: 'center'
+          }}>
             Liever als client beginnen?
           </Text>
           <TouchableOpacity
