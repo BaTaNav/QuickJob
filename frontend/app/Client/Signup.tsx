@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react'; 
+import { signupClient, validateSignup } from "../../features/client/signup";
 
 const Signup = () => {
     const [formData, setFormData] = useState({
