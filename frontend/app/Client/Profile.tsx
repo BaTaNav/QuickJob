@@ -14,10 +14,15 @@ export default function ClientProfile() {
   const [notifications, setNotifications] = React.useState(true);
   const [email, setEmail] = React.useState('');
   const [phone, setPhone] = React.useState('');
+  const [addressLine, setAddressLine] = React.useState('');
+  const [postalCode, setPostalCode] = React.useState('');
+  const [city, setCity] = React.useState('');
+  const [region, setRegion] = React.useState('');
+  const [firstJobNeedsApproval, setFirstJobNeedsApproval] = React.useState(false);
 
   function handleLogout() {
     localStorage.removeItem('user');
-    router.replace('/Client/DashboardClient');
+    router.replace('../index');
   }
 
   // Load profile
@@ -40,6 +45,12 @@ export default function ClientProfile() {
         setEmail(data.client.email || '');
         setPhone(data.client.phone || '');
         setLanguage(data.client.preferred_language?.toUpperCase() || 'NL');
+        setAddressLine(data.client.address_line || '');
+        setPostalCode(data.client.postal_code || '');
+        setCity(data.client.city || '');
+        setRegion(data.client.region || '');
+        setFirstJobNeedsApproval(!!data.client.first_job_needs_approval);
+
       } catch (err) {
         console.error('Error loading client profile:', err);
       }
@@ -47,37 +58,41 @@ export default function ClientProfile() {
     loadProfile();
   }, []);
 
-  // Save settings
-  const handleSaveSettings = async () => {
-    if (!clientProfile) return;
-    const userId = clientProfile.id;
+ const handleSaveSettings = async () => {
+  if (!clientProfile) return;
+  const userId = clientProfile.id;
 
-    try {
-      const res = await fetch(`http://localhost:3000/clients/${userId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          phone,
-          preferred_language: language.toLowerCase(),
-          // darkMode and notifications can be stored separately if needed
-        }),
-      });
+  try {
+    const res = await fetch(`http://localhost:3000/clients/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        phone,
+        preferred_language: language.toLowerCase(),
+        address_line: addressLine,
+        postal_code: postalCode,
+        city,
+        region,
+        first_job_needs_approval: firstJobNeedsApproval,
+      }),
+    });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText || 'Failed to update profile');
-      }
-
-      const updated = await res.json();
-      setClientProfile(updated.client);
-      localStorage.setItem('user', JSON.stringify(updated.client));
-      Alert.alert('Success', 'Profile updated successfully');
-    } catch (err: any) {
-      console.error('Update profile error:', err);
-      Alert.alert('Error', err.message || 'Failed to update profile');
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText || 'Failed to update profile');
     }
-  };
+
+    const updated = await res.json();
+    setClientProfile(updated.client);
+    localStorage.setItem('user', JSON.stringify(updated.client));
+    Alert.alert('Success', 'Profile updated successfully');
+  } catch (err) {
+    console.error('Update profile error:', err);
+    Alert.alert('Error','Failed to update profile');
+  }
+};
+
 
   return (
     <View style={styles.container}>
@@ -117,37 +132,51 @@ export default function ClientProfile() {
         <View style={styles.rightCard}>
           {panel === 'info' ? (
             <RNView style={styles.rightContent}>
-              <RNView>
-                <Text style={styles.label}>Email</Text>
-                <Text style={styles.value}>{clientProfile?.email}</Text>
+              <Text style={styles.label}>Email</Text>
+              <Text style={styles.value}>{clientProfile?.email}</Text>
 
-                <Text style={styles.label}>Phone</Text>
-                <Text style={styles.value}>{clientProfile?.phone || 'N/A'}</Text>
+              <Text style={styles.label}>Phone</Text>
+              <Text style={styles.value}>{clientProfile?.phone || 'N/A'}</Text>
 
-                <Text style={styles.label}>Preferred Language</Text>
-                <Text style={styles.value}>{clientProfile?.preferred_language?.toUpperCase() || 'NL'}</Text>
-              </RNView>
+              <Text style={styles.label}>Address</Text>
+              <Text style={styles.value}>{clientProfile?.address_line || 'N/A'}</Text>
+
+              <Text style={styles.label}>Postal Code</Text>
+              <Text style={styles.value}>{clientProfile?.postal_code || 'N/A'}</Text>
+
+              <Text style={styles.label}>City</Text>
+              <Text style={styles.value}>{clientProfile?.city || 'N/A'}</Text>
+
+              <Text style={styles.label}>Region</Text>
+              <Text style={styles.value}>{clientProfile?.region || 'N/A'}</Text>
+
+              <Text style={styles.label}>First Job Needs Approval</Text>
+              <Text style={styles.value}>{clientProfile?.first_job_needs_approval ? 'Yes' : 'No'}</Text>
             </RNView>
           ) : (
             <RNView style={styles.rightContent}>
               <Text style={styles.sectionTitle}>Settings</Text>
 
               <Text style={styles.label}>Email</Text>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                style={styles.input}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
+              <TextInput value={email} onChangeText={setEmail} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
 
               <Text style={styles.label}>Phone</Text>
-              <TextInput
-                value={phone}
-                onChangeText={setPhone}
-                style={styles.input}
-                keyboardType="phone-pad"
-              />
+              <TextInput value={phone} onChangeText={setPhone} style={styles.input} keyboardType="phone-pad" />
+
+              <Text style={styles.label}>Address</Text>
+              <TextInput value={addressLine} onChangeText={setAddressLine} style={styles.input} />
+
+              <Text style={styles.label}>Postal Code</Text>
+              <TextInput value={postalCode} onChangeText={setPostalCode} style={styles.input} />
+
+              <Text style={styles.label}>City</Text>
+              <TextInput value={city} onChangeText={setCity} style={styles.input} />
+
+              <Text style={styles.label}>Region</Text>
+              <TextInput value={region} onChangeText={setRegion} style={styles.input} />
+
+              <Text style={styles.label}>First Job Needs Approval</Text>
+              <Switch value={firstJobNeedsApproval} onValueChange={setFirstJobNeedsApproval} />
 
               <Text style={styles.label}>Language</Text>
               <RNView style={styles.langRow}>
