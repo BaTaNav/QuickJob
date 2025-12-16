@@ -101,6 +101,81 @@ export default function StudentDashboard() {
         </ScrollView>
       </View>
 
+      {/* FILTERS */}
+      <View style={styles.tabFilterRow}>
+        <View />
+        <View style={styles.filterToggleContainer}>
+          <TouchableOpacity style={styles.filterToggleBtn} onPress={() => setShowFilters(!showFilters)}>
+            <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Show filters'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {showFilters && (
+        <View style={styles.filterRow}>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Range</Text>
+            <View style={styles.filterPills}>
+              {[5,10,20,50].map((r)=> (
+                <TouchableOpacity key={r} onPress={() => setFilterRange(r)} style={[styles.filterBtn, filterRange === r && styles.filterBtnActive]}>
+                  <Text style={filterRange === r ? styles.filterBtnTextActive : styles.filterBtnText}>{r} km</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Category</Text>
+            <View style={styles.filterPills}>
+              {['All','Delivery','Pet care','Promotion','Gardening','Home help','Moving'].map((c)=> (
+                <TouchableOpacity key={c} onPress={() => setFilterCategory(c)} style={[styles.filterBtn, filterCategory === c && styles.filterBtnActive]}>
+                  <Text style={filterCategory === c ? styles.filterBtnTextActive : styles.filterBtnText}>{c}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Date</Text>
+            <View style={styles.filterPills}>
+              {['Any','Today','This week','Specific'].map((d)=> (
+                <TouchableOpacity key={d} onPress={() => { setFilterDate(d); if (d !== 'Specific') setSelectedDate(null); }} style={[styles.filterBtn, filterDate === d && styles.filterBtnActive]}>
+                  <Text style={filterDate === d ? styles.filterBtnTextActive : styles.filterBtnText}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {filterDate === 'Specific' && (
+              <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {Platform.OS === 'web' ? (
+                  // @ts-ignore web input
+                  <input type="date" value={selectedDate || ''} onChange={(e: any) => setSelectedDate(e.target.value)} style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }} />
+                ) : DateTimePickerComponent ? (
+                  <>
+                    <TouchableOpacity onPress={() => setShowDatePickerNative(true)} style={styles.datePickerBtn}>
+                      <Text style={styles.datePickerText}>{selectedDate || 'Pick a date'}</Text>
+                    </TouchableOpacity>
+                    {showDatePickerNative && (
+                      // @ts-ignore render native picker component
+                      <DateTimePickerComponent value={selectedDate ? new Date(selectedDate) : new Date()} mode="date" display="default" onChange={onNativeDateChange} />
+                    )}
+                  </>
+                ) : (
+                  <TextInput placeholder="YYYY-MM-DD" value={selectedDate || ''} onChangeText={setSelectedDate} style={styles.dateInput} />
+                )}
+
+                <TouchableOpacity onPress={() => { setSelectedDate(null); setFilterDate('Any'); }} style={styles.clearDateBtn}>
+                  <Text style={styles.clearDateText}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+          </View>
+
+        </View>
+      )}
+
       {/* JOB LIST or EMPTY STATE */}
       {loading && (
         <View style={styles.loadingState}>
@@ -123,11 +198,10 @@ export default function StudentDashboard() {
       {!loading && !error && jobs.length > 0 ? (
         <View style={styles.jobsContainer}>
           <View style={styles.jobsList}>
-            {jobs.map((job: any) => (
+            {filteredJobs.map((job: any) => (
               <Pressable 
                 key={job.id} 
                 style={styles.jobCard} 
-                // Navigation correct for expo-router
                 onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
               >
                 <Text style={styles.jobTitle}>{job.title}</Text>
@@ -162,8 +236,8 @@ export default function StudentDashboard() {
 
           {tab === 'available' && !loading && !error && (
             <>
-              <Text style={styles.emptyTitle}>No available jobs</Text>
-              <Text style={styles.emptySubtitle}>Available jobs will appear here (filters coming later).</Text>
+              <Text style={styles.emptyTitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'No available jobs match your filters' : 'No available jobs'}</Text>
+              <Text style={styles.emptySubtitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'Try broadening your filters to find more jobs.' : 'Available jobs will appear here.'}</Text>
             </>
           )}
 
@@ -393,6 +467,25 @@ const styles = StyleSheet.create({
   jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
   jobDescription: { fontSize: 14, color: '#4A4A4A', marginBottom: 6 },
   jobMeta: { color: '#7A7F85', fontSize: 13 },
+
+  /* Filters */
+  tabFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  filterToggleContainer: { flexShrink: 0 },
+  filterToggleBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F4F6F7', borderRadius: 8 },
+  filterToggleText: { color: '#1a2e4c', fontWeight: '600' },
+  filterRow: { flexDirection: 'row', gap: 12, marginBottom: 16, backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E8EEF2' },
+  filterGroup: { flex: 1 },
+  filterLabel: { color: '#64748B', marginBottom: 8 },
+  filterPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#F4F6F7', marginRight: 8 },
+  filterBtnActive: { backgroundColor: '#176B51' },
+  filterBtnText: { color: '#333', fontWeight: '600' },
+  filterBtnTextActive: { color: '#fff', fontWeight: '600' },
+  dateInput: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', minWidth: 130 },
+  clearDateBtn: { paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#F3F4F6', borderRadius: 8 },
+  clearDateText: { color: '#1a2e4c', fontWeight: '600' },
+  datePickerBtn: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#F4F6F7', borderRadius: 8 },
+  datePickerText: { color: '#1a2e4c', fontWeight: '600' },
 
 
   /* EMPTY STATE */
