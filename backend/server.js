@@ -10,7 +10,6 @@ const clientsRouter = require("./clients/clients");
 const jobsRouter = require("./jobs/jobs");
 const studentsRouter = require("./students/students");
 
-const clientsRouter = require("./clients/clients"); // ⬅️ your clients file
 const app = express();
 const port = process.env.PORT || 3000;
 

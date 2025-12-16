@@ -58,7 +58,7 @@ const Signup = () => {
 
       setLoading(true);
 
-      const response = await fetch('http://localhost:3000/auth/signup', {
+      const response = await fetch('http://localhost:3000/students/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
