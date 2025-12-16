@@ -23,7 +23,8 @@ export default function ClientProfile() {
 
   function handleLogout() {
     localStorage.removeItem('user');
-    router.replace('../index');
+    localStorage.removeItem('token');
+    router.replace('/');
   }
 
   // Load profile

@@ -220,11 +220,11 @@ router.patch("/:id", async (req, res) => {
       .eq("id", id)
       .eq("role", "client")
       .select("*")
-      .single();
+      .maybeSingle();  // Verander van .single() naar .maybeSingle()
 
     if (userError) throw userError;
 
-    // Update client_profiles table
+    // Update client_profiles table or insert if not exists
     const updatesProfile = {};
     if (address_line !== undefined) updatesProfile.address_line = address_line;
     if (postal_code !== undefined) updatesProfile.postal_code = postal_code;
@@ -234,13 +234,39 @@ router.patch("/:id", async (req, res) => {
 
     let updatedProfile = null;
     if (Object.keys(updatesProfile).length > 0) {
-      const { data, error: profileError } = await supabase
+      // Controleer of het profiel bestaat
+      const { data: existingProfile, error: profileError } = await supabase
         .from("client_profiles")
-        .update(updatesProfile)
+        .select("*")
         .eq("id", id)
-        .single();
+        .maybeSingle();  // Controleer of het profiel bestaat
+
       if (profileError) throw profileError;
-      updatedProfile = data;
+
+      if (existingProfile) {
+        // Als het profiel bestaat, werk het bij
+        const { data, error: updateProfileError } = await supabase
+          .from("client_profiles")
+          .update(updatesProfile)
+          .eq("id", id)
+          .single();
+        if (updateProfileError) throw updateProfileError;
+        updatedProfile = data;
+      } else {
+        // Als het profiel niet bestaat, maak een nieuwe rij aan
+        const { data, error: insertProfileError } = await supabase
+          .from("client_profiles")
+          .insert([
+            {
+              id,
+              ...updatesProfile,
+            },
+          ])
+          .select("*")
+          .single();
+        if (insertProfileError) throw insertProfileError;
+        updatedProfile = data;
+      }
     }
 
     res.status(200).json({
