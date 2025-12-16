@@ -32,7 +32,9 @@ import {
   MapPin,
   DollarSign
 } from "lucide-react-native";
-import { getClientId } from "../../services/api";
+import { getClientId, jobsAPI } from "@/services/api";
+// Updated import path for getClientId
+// Adjusted to reflect the new directory structure
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -225,24 +227,24 @@ export default function PostJob() {
       }
 
       const payload = {
-        ...formData,
+        client_id: formData.client_id,
+        category_id: formData.category_id!,
+        title: formData.title,
+        description: formData.description || undefined,
+        area_text: formData.area_text || undefined,
+        hourly_or_fixed: formData.hourly_or_fixed,
+        hourly_rate: formData.hourly_rate,
+        fixed_price: formData.fixed_price,
         start_time: formData.start_time.toISOString(),
         end_time: finalEndTime?.toISOString(),
       };
 
-      const response = await fetch("http://localhost:3000/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) throw new Error("Server error");
+      await jobsAPI.createJob(payload);
       
-      Alert.alert("Succes!", "Je job is geplaatst.", [
-        { text: "OK", onPress: () => router.replace("/Client/DashboardClient" as never) }
-      ]);
-    } catch (err) {
-      setError("Er ging iets mis bij het plaatsen.");
+      // Direct navigatie naar dashboard na succesvolle plaatsing
+      router.replace("/Client/DashboardClient" as never);
+    } catch (err: any) {
+      setError(err?.message || "Er ging iets mis bij het plaatsen.");
     } finally {
       setLoading(false);
     }

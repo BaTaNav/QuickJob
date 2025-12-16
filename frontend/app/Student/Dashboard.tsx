@@ -1,43 +1,45 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator } from "react-native";
 import * as React from "react";
 import { useRouter } from 'expo-router';
-// Using an icon library commonly used in React Native
-import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native'; 
+import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native';
+import { jobsAPI } from '../../services/api';
 
 export default function StudentDashboard() {
-  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('today');
-  // Placeholder jobs per tab for building pages. Replace with API data later.
+  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('available');
+  const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
   const router = useRouter();
 
-  // MOCK DATA (Should be replaced with a real data fetch using a hook or Redux/Context)
   const mockJobs: Record<string, Array<any>> = {
-    today: [
-      { id: 't1', status: 'today', category: 'Delivery', title: 'Grocery pickup', description: 'Pick up groceries and deliver to client.', time: '2025-12-10 10:00', hours: '2', address: 'Rue Example 12, Leuven', location: 'Leuven', pay: '€12/hr' },
-    ],
-    upcoming: [
-      { id: 'u1', status: 'upcoming', category: 'Pet care', title: 'Dog walking', description: 'Walk the dog for 30 minutes.', time: '2025-12-11 14:00', hours: '0.5', address: 'Chaussée de Namur 5, Brussels', location: 'Brussels', pay: '€10/hr' },
-    ],
-    available: [
-      { id: 'a1', status: 'available', category: 'Promotion', title: 'Flyer distribution', description: 'Distribute flyers in the neighbourhood.', time: 'Flexible', hours: '3', address: 'Leuven Centrum', location: 'Leuven', pay: '€9/hr' },
-      { id: 'a2', status: 'available', category: 'Gardening', title: 'Lawn mowing', description: 'Mow the lawn for a client.', time: 'Flexible', hours: '2', address: 'Parkstraat 10, Antwerp', location: 'Antwerp', pay: '€11/hr' },
-    ],
-    pending: [
-      { id: 'p1', status: 'pending', category: 'Home help', title: 'Cleaning help', description: 'Help with light cleaning.', time: 'Pending - 08/12', hours: '4', address: 'Avenue Louise 45, Brussels', location: 'Brussels', pay: '€13/hr' },
-    ],
-    archive: [
-      { id: 'ar1', status: 'archive', category: 'Moving', title: 'Moved boxes', description: 'Helped move boxes last week.', time: '2025-12-03', hours: '5', address: 'Rue du Parc 2, Wavre', location: 'Wavre', pay: '€20' },
-    ],
+    today: [],
+    upcoming: [],
+    available: availableJobs,
+    pending: [],
+    archive: [],
   };
 
-  // Dynamically select the jobs based on the active tab state
   const jobs = mockJobs[tab] ?? [];
 
-  // Function to handle refresh action
+  const fetchAvailable = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await jobsAPI.getAvailableJobs('open', 50);
+      setAvailableJobs(data || []);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load jobs');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchAvailable();
+  }, [fetchAvailable]);
+
   const handleRefresh = () => {
-    // In a real native app, this would trigger a data fetching action,
-    // possibly setting a loading state.
-    console.log("Refreshing data for dashboard...");
-    // Example: fetchJobs();
+    fetchAvailable();
   };
 
 
@@ -86,7 +88,7 @@ export default function StudentDashboard() {
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'available' && styles.tabActive]} onPress={() => setTab('available')}>
-            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({mockJobs.available.length})</Text>
+            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({availableJobs.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
@@ -100,7 +102,25 @@ export default function StudentDashboard() {
       </View>
 
       {/* JOB LIST or EMPTY STATE */}
-      {jobs.length > 0 ? (
+      {loading && (
+        <View style={styles.loadingState}>
+          <ActivityIndicator color="#176B51" />
+          <Text style={styles.emptySubtitle}>Jobs ophalen...</Text>
+        </View>
+      )}
+
+      {!loading && error ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>⚠️</Text>
+          <Text style={styles.emptyTitle}>Kon jobs niet laden</Text>
+          <Text style={styles.emptySubtitle}>{error}</Text>
+          <TouchableOpacity style={styles.bannerBtn} onPress={handleRefresh}>
+            <Text style={styles.bannerBtnText}>Opnieuw proberen</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {!loading && !error && jobs.length > 0 ? (
         <View style={styles.jobsContainer}>
           <View style={styles.jobsList}>
             {jobs.map((job: any) => (
@@ -111,9 +131,12 @@ export default function StudentDashboard() {
                 onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
               >
                 <Text style={styles.jobTitle}>{job.title}</Text>
-                <Text style={styles.jobDescription}>{job.description}</Text>
+                <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
                 <Text style={styles.jobMeta}>
-                  {job.time} • {job.location} • {job.pay}
+                  {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
+                  {job.area_text ? ` • ${job.area_text}` : ''}
+                  {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
+                  {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
                 </Text>
               </Pressable>
             ))}
@@ -137,7 +160,7 @@ export default function StudentDashboard() {
             </>
           )}
 
-          {tab === 'available' && (
+          {tab === 'available' && !loading && !error && (
             <>
               <Text style={styles.emptyTitle}>No available jobs</Text>
               <Text style={styles.emptySubtitle}>Available jobs will appear here (filters coming later).</Text>
@@ -373,6 +396,16 @@ const styles = StyleSheet.create({
 
 
   /* EMPTY STATE */
+  loadingState: {
+    paddingVertical: 90,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E4E6EB",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    paddingHorizontal: 18,
+  },
   emptyState: {
     paddingVertical: 90,
     alignItems: "center",

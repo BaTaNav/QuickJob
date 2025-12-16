@@ -1,31 +1,53 @@
 import * as React from 'react';
-import { StyleSheet, ScrollView, Pressable } from 'react-native';
+import { StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { jobsAPI } from '../../../services/api';
 
 export default function JobDetail() {
   const params = useLocalSearchParams();
-  const id = params.id as string | undefined;
-
-  // Minimal inline dataset mirroring Dashboard placeholders so detail can render while API is not ready.
-  const mockJobs: Array<any> = [
-    { id: 't1', status: 'today', category: 'Delivery', title: 'Grocery pickup', description: 'Pick up groceries and deliver to client.', time: '2025-12-10 10:00', hours: '2', address: 'Rue Example 12, Leuven', pay: '€12/hr' },
-    { id: 'u1', status: 'upcoming', category: 'Pet care', title: 'Dog walking', description: 'Walk the dog for 30 minutes.', time: '2025-12-11 14:00', hours: '0.5', address: 'Chaussée de Namur 5, Brussels', pay: '€10/hr' },
-    { id: 'a1', status: 'available', category: 'Promotion', title: 'Flyer distribution', description: 'Distribute flyers in the neighbourhood.', time: 'Flexible', hours: '3', address: 'Leuven Centrum', pay: '€9/hr' },
-    { id: 'a2', status: 'available', category: 'Gardening', title: 'Lawn mowing', description: 'Mow the lawn for a client.', time: 'Flexible', hours: '2', address: 'Parkstraat 10, Antwerp', pay: '€11/hr' },
-    { id: 'p1', status: 'pending', category: 'Home help', title: 'Cleaning help', description: 'Help with light cleaning.', time: 'Pending - 08/12', hours: '4', address: 'Avenue Louise 45, Brussels', pay: '€13/hr' },
-    { id: 'ar1', status: 'archive', category: 'Moving', title: 'Moved boxes', description: 'Helped move boxes last week.', time: '2025-12-03', hours: '5', address: 'Rue du Parc 2, Wavre', pay: '€20' },
-  ];
-
-  const job = mockJobs.find((j) => j.id === id) ?? null;
-
+  const idParam = params.id as string | undefined;
   const router = useRouter();
 
-  if (!job) {
+  const [job, setJob] = React.useState<any | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
+
+  React.useEffect(() => {
+    const load = async () => {
+      if (!idParam) {
+        setError('No job id provided');
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        setError('');
+        const data = await jobsAPI.getJob(Number(idParam));
+        setJob(data);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load job');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [idParam]);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator color="#176B51" />
+        <Text style={styles.emptySubtitle}>Job laden...</Text>
+      </View>
+    );
+  }
+
+  if (error || !job) {
     return (
       <View style={styles.container}>
         <Text style={styles.pageTitle}>Job not found</Text>
-        <Text style={styles.emptySubtitle}>No job matches id {String(id)}</Text>
+        <Text style={styles.emptySubtitle}>{error || `No job matches id ${String(idParam)}`}</Text>
         <Pressable onPress={() => router.push('/Student/Dashboard')}>
           <Text style={{ color: '#176B51', marginTop: 12 }}>Back to dashboard</Text>
         </Pressable>
@@ -35,26 +57,31 @@ export default function JobDetail() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.category}>{job.category}</Text>
+      <Text style={styles.category}>{job.category?.name_nl || job.category?.name_en || 'Categorie'}</Text>
       <Text style={styles.pageTitle}>{job.title}</Text>
-      <Text style={styles.jobMeta}>{job.time} • {job.hours} hrs</Text>
+      <Text style={styles.jobMeta}>
+        {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
+        {job.area_text ? ` • ${job.area_text}` : ''}
+      </Text>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Description</Text>
-        <Text style={styles.sectionText}>{job.description}</Text>
+        <Text style={styles.sectionText}>{job.description || 'Geen beschrijving'}</Text>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Address</Text>
-        <Text style={styles.sectionText}>{job.address}</Text>
+        <Text style={styles.sectionText}>{job.area_text || 'Niet opgegeven'}</Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Pay</Text>
-        <Text style={styles.sectionText}>{job.pay}</Text>
+        <Text style={styles.sectionTitle}>Budget</Text>
+        <Text style={styles.sectionText}>
+          {job.hourly_or_fixed === 'fixed' && job.fixed_price ? `Vaste prijs: €${job.fixed_price}` : 'Uurloon' }
+        </Text>
       </View>
 
-      {job.status === 'available' && (
+      {job.status === 'open' && (
         <Pressable style={styles.applyBtn} onPress={() => { /* TODO: apply flow */ }}>
           <Text style={styles.applyBtnText}>Apply for this job</Text>
         </Pressable>

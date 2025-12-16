@@ -266,6 +266,68 @@ export const jobsAPI = {
     }
   },
 
+  // Get jobs for a specific client
+  async getClientJobs(clientId: string | number, status?: string) {
+    try {
+      let url = `${API_BASE_URL}/jobs/client/${clientId}`;
+      if (status) url += `?status=${status}`;
+      logRequest('GET', url);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[API Error]', response.status, errorText);
+        throw new Error(`Failed to fetch client jobs: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const jobs = data.jobs || data;
+      console.log('[API Success] Client jobs:', jobs?.length || 0, 'jobs');
+      return jobs;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Network error - is the backend running?');
+    }
+  },
+
+  // Create a new job
+  async createJob(jobData: {
+    client_id: string;
+    category_id: number;
+    title: string;
+    description?: string;
+    area_text?: string;
+    hourly_or_fixed: 'hourly' | 'fixed';
+    hourly_rate?: number | null;
+    fixed_price?: number | null;
+    start_time: string;
+    end_time?: string;
+  }) {
+    try {
+      const url = `${API_BASE_URL}/jobs`;
+      logRequest('POST', url);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(jobData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create job');
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Job created:', data);
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Failed to create job');
+    }
+  },
+
   // Get specific job
   async getJob(jobId: number) {
     const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`);

@@ -2,14 +2,15 @@ import * as React from 'react';
 import { StyleSheet, Pressable, View as RNView, Switch, Image } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
+import { authAPI } from '@/services/api';
 
 export default function ClientProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
   const router = useRouter();
 
   function handleLogout() {
-    // Simple navigation for now; replace with real logout logic when available
-    router.replace('/Client/DashboardClient');
+    authAPI.logout();
+    router.replace('/');
   }
 
   // Local settings state (demo only)

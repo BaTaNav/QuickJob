@@ -179,11 +179,13 @@ router.post("/", async (req, res) => {
       hourly_rate,
       fixed_price,
       start_time,
-      end_time,
     } = req.body;
 
+    const clientIdNum = parseInt(client_id, 10);
+    const categoryIdNum = parseInt(category_id, 10);
+
     // Validate required fields
-    if (!client_id || !category_id || !title || !start_time) {
+    if (!clientIdNum || !categoryIdNum || !title || !start_time) {
       return res.status(400).json({
         error: "Missing required fields: client_id, category_id, title, start_time",
       });
@@ -194,15 +196,12 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Fixed price required for fixed jobs" });
     }
 
-    // Default end_time to 2 hours after start if not provided
-    const finalEndTime = end_time || new Date(new Date(start_time).getTime() + 2 * 60 * 60 * 1000).toISOString();
-
     // Insert job
     const { data: job, error: jobError } = await supabase
       .from("jobs")
       .insert({
-        client_id,
-        category_id,
+        client_id: clientIdNum,
+        category_id: categoryIdNum,
         title,
         description: description || null,
         area_text: area_text || null,
@@ -210,7 +209,6 @@ router.post("/", async (req, res) => {
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
         start_time,
-        end_time: finalEndTime,
         status: "open",
         created_at: new Date().toISOString(),
       })
@@ -246,27 +244,23 @@ router.post("/draft", async (req, res) => {
       hourly_rate,
       fixed_price,
       start_time,
-      end_time,
     } = req.body;
 
+    const clientIdNum = parseInt(client_id, 10);
+    const categoryIdNum = parseInt(category_id, 10);
+
     // Minimal required fields for draft
-    if (!client_id || !category_id || !title) {
+    if (!clientIdNum || !categoryIdNum || !title) {
       return res.status(400).json({
         error: "Missing required fields: client_id, category_id, title",
       });
     }
 
-    // Default end_time to 2h after start if both provided
-    let finalEndTime = end_time || null;
-    if (!finalEndTime && start_time) {
-      finalEndTime = new Date(new Date(start_time).getTime() + 2 * 60 * 60 * 1000).toISOString();
-    }
-
     const { data: job, error: jobError } = await supabase
       .from("jobs")
       .insert({
-        client_id,
-        category_id,
+        client_id: clientIdNum,
+        category_id: categoryIdNum,
         title,
         description: description || null,
         area_text: area_text || null,
@@ -274,7 +268,6 @@ router.post("/draft", async (req, res) => {
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
         start_time: start_time || null,
-        end_time: finalEndTime,
         status: "draft",
         created_at: new Date().toISOString(),
       })
@@ -291,6 +284,56 @@ router.post("/draft", async (req, res) => {
   } catch (err) {
     console.error("Error saving draft:", err);
     res.status(500).json({ error: "Failed to save draft" });
+  }
+});
+
+/**
+ * GET /jobs/client/:clientId
+ * Get all jobs for a specific client
+ * Optional query: ?status=open
+ */
+router.get("/client/:clientId", async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.clientId, 10);
+    const status = req.query.status;
+
+    if (!clientId) {
+      return res.status(400).json({ error: "Invalid client ID" });
+    }
+
+    let query = supabase
+      .from("jobs")
+      .select(
+        `
+        id, client_id, category_id,
+        title, description, area_text,
+        hourly_or_fixed, hourly_rate, fixed_price,
+        start_time, status, created_at,
+        job_categories (
+          id, key, name_nl, name_fr, name_en
+        )
+      `
+      )
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false });
+
+    if (status) {
+      query = query.eq("status", status);
+    }
+
+    const { data, error } = await query.limit(100);
+
+    if (error) throw error;
+
+    const jobs = data?.map(mapJobRow) || [];
+    res.json({
+      jobs,
+      message: jobs.length === 0 ? "No jobs found for this client" : null,
+      count: jobs.length,
+    });
+  } catch (err) {
+    console.error("Error fetching client jobs:", err);
+    res.status(500).json({ error: "Failed to fetch client jobs" });
   }
 });
 

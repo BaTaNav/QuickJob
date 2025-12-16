@@ -1,16 +1,66 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator } from "react-native";
 import { useRouter } from 'expo-router';
-import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter } from "lucide-react-native";
+import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase } from "lucide-react-native";
+import { jobsAPI, getClientId } from "@/services/api";
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState("Open");
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  // Fetch jobs from backend
+  const fetchJobs = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const clientId = await getClientId();
+      if (!clientId) {
+        setError("Geen client sessie gevonden");
+        return;
+      }
+      const data = await jobsAPI.getClientJobs(clientId);
+      setJobs(data || []);
+    } catch (err: any) {
+      setError(err?.message || "Kon jobs niet laden");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
+
+  // Filter jobs by status
+  const openJobs = jobs.filter(j => j.status === 'open');
+  const plannedJobs = jobs.filter(j => j.status === 'planned' || j.status === 'assigned');
+  const completedJobs = jobs.filter(j => j.status === 'completed');
+  const todayJobs = jobs.filter(j => {
+    if (!j.start_time) return false;
+    const jobDate = new Date(j.start_time).toDateString();
+    return jobDate === new Date().toDateString() && j.status !== 'completed';
+  });
+
+  const getFilteredJobs = () => {
+    switch (activeTab) {
+      case "Open": return openJobs;
+      case "Today": return todayJobs;
+      case "Planned": return plannedJobs;
+      case "Completed": return completedJobs;
+      default: return openJobs;
+    }
+  };
+
+  const filteredJobs = getFilteredJobs();
 
   const stats = [
-    { label: "Open jobs", value: 0 },
-    { label: "Planned", value: 0 },
-    { label: "Completed", value: 0 },
-    { label: "Today", value: 0 },
+    { label: "Open jobs", value: openJobs.length },
+    { label: "Planned", value: plannedJobs.length },
+    { label: "Completed", value: completedJobs.length },
+    { label: "Today", value: todayJobs.length },
   ];
 
   const tabs = ["Open", "Today", "Planned", "Completed"];
@@ -22,7 +72,48 @@ export default function DashboardClient() {
       }
     }, []);
 
-    const router = useRouter();
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Render a single job card
+  const renderJobCard = (job: any) => (
+    <View key={job.id} style={styles.jobCard}>
+      <View style={styles.jobHeader}>
+        <Text style={styles.jobTitle}>{job.title}</Text>
+        <View style={[styles.statusBadge, job.status === 'open' ? styles.statusOpen : styles.statusOther]}>
+          <Text style={styles.statusText}>{job.status}</Text>
+        </View>
+      </View>
+      {job.category && (
+        <View style={styles.jobMeta}>
+          <Briefcase size={14} color="#64748B" />
+          <Text style={styles.jobMetaText}>{job.category.name_nl || job.category.name_en}</Text>
+        </View>
+      )}
+      {job.area_text && (
+        <View style={styles.jobMeta}>
+          <MapPin size={14} color="#64748B" />
+          <Text style={styles.jobMetaText}>{job.area_text}</Text>
+        </View>
+      )}
+      {job.start_time && (
+        <View style={styles.jobMeta}>
+          <Clock size={14} color="#64748B" />
+          <Text style={styles.jobMetaText}>{formatDate(job.start_time)}</Text>
+        </View>
+      )}
+      <View style={styles.jobFooter}>
+        <Text style={styles.jobPrice}>
+          {job.hourly_or_fixed === 'fixed' 
+            ? `€${job.fixed_price || 0}` 
+            : `€${job.hourly_rate || 0}/uur`}
+        </Text>
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.screen}>
@@ -36,8 +127,7 @@ export default function DashboardClient() {
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity style={styles.iconButton} onPress={() => {
-            // Placeholder refresh action
-            console.log('Refresh client dashboard');
+            fetchJobs();
           }}>
             <RefreshCw size={20} color="#64748B" />
           </TouchableOpacity>
@@ -80,25 +170,52 @@ export default function DashboardClient() {
                 style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]}
               >
                 <Text style={activeTab === tab ? styles.activeTabText : styles.inactiveTabText}>
-                  {tab} (0)
+                  {tab} ({tab === "Open" ? openJobs.length : tab === "Today" ? todayJobs.length : tab === "Planned" ? plannedJobs.length : completedJobs.length})
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* Empty State */}
-          <View style={styles.emptyWrapper}>
-            <View style={styles.emptyIcon}>
-              <ArrowDown size={24} color="#176B51" />
+          {/* Loading State */}
+          {loading && (
+            <View style={styles.loadingWrapper}>
+              <ActivityIndicator size="large" color="#176B51" />
+              <Text style={styles.loadingText}>Jobs laden...</Text>
             </View>
-            <Text style={styles.emptyTitle}>No open jobs</Text>
-            <Text style={styles.emptySubtitle}>
-              Post your first job to get started
-            </Text>
-            <TouchableOpacity style={styles.emptyButton}>
-              <Text style={styles.emptyButtonText}>+ Post job</Text>
-            </TouchableOpacity>
-          </View>
+          )}
+
+          {/* Error State */}
+          {!loading && error && (
+            <View style={styles.emptyWrapper}>
+              <Text style={styles.emptyTitle}>⚠️ {error}</Text>
+              <TouchableOpacity style={styles.emptyButton} onPress={fetchJobs}>
+                <Text style={styles.emptyButtonText}>Opnieuw proberen</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Job List */}
+          {!loading && !error && filteredJobs.length > 0 && (
+            <View style={styles.jobsContainer}>
+              {filteredJobs.map(renderJobCard)}
+            </View>
+          )}
+
+          {/* Empty State */}
+          {!loading && !error && filteredJobs.length === 0 && (
+            <View style={styles.emptyWrapper}>
+              <View style={styles.emptyIcon}>
+                <ArrowDown size={24} color="#176B51" />
+              </View>
+              <Text style={styles.emptyTitle}>Geen {activeTab.toLowerCase()} jobs</Text>
+              <Text style={styles.emptySubtitle}>
+                Plaats je eerste job om te beginnen
+              </Text>
+              <TouchableOpacity style={styles.emptyButton} onPress={() => router.push('/Client/PostJob' as never)}>
+                <Text style={styles.emptyButtonText}>+ Job plaatsen</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* FOOTER */}
           <View style={styles.footer}>
@@ -367,6 +484,84 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 14,
+  },
+
+  // Job Cards
+  jobsContainer: {
+    gap: 12,
+  },
+  jobCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  jobHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  jobTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1a2e4c",
+    flex: 1,
+    marginRight: 8,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  statusOpen: {
+    backgroundColor: "#DCFCE7",
+  },
+  statusOther: {
+    backgroundColor: "#F1F5F9",
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#166534",
+    textTransform: "uppercase",
+  },
+  jobMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  jobMetaText: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+  jobFooter: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  jobPrice: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#176B51",
+  },
+  loadingWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#64748B",
   },
 
   /* FOOTER */
