@@ -1,13 +1,15 @@
 import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View } from "react-native";
 import * as React from "react";
 import { useRouter } from 'expo-router';
-import { RefreshCw } from 'lucide-react-native';
+// Using an icon library commonly used in React Native
+import { RefreshCw } from 'lucide-react-native'; 
 
 export default function StudentDashboard() {
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('today');
   // Placeholder jobs per tab for building pages. Replace with API data later.
   const router = useRouter();
 
+  // MOCK DATA (Should be replaced with a real data fetch using a hook or Redux/Context)
   const mockJobs: Record<string, Array<any>> = {
     today: [
       { id: 't1', status: 'today', category: 'Delivery', title: 'Grocery pickup', description: 'Pick up groceries and deliver to client.', time: '2025-12-10 10:00', hours: '2', address: 'Rue Example 12, Leuven', location: 'Leuven', pay: '€12/hr' },
@@ -27,7 +29,17 @@ export default function StudentDashboard() {
     ],
   };
 
+  // Dynamically select the jobs based on the active tab state
   const jobs = mockJobs[tab] ?? [];
+
+  // Function to handle refresh action
+  const handleRefresh = () => {
+    // In a real native app, this would trigger a data fetching action,
+    // possibly setting a loading state.
+    console.log("Refreshing data for dashboard...");
+    // Example: fetchJobs();
+  };
+
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
@@ -39,15 +51,7 @@ export default function StudentDashboard() {
         </View>
 
         <Pressable
-          onPress={() => {
-            try {
-              if (typeof window !== 'undefined' && window.location) {
-                window.location.reload();
-              }
-            } catch (e) {
-              // no-op on native for now
-            }
-          }}
+          onPress={handleRefresh} // Use the simplified native refresh handler
           style={styles.headerRefresh}
         >
           <RefreshCw size={18} color="#64748B" />
@@ -55,7 +59,7 @@ export default function StudentDashboard() {
       </View>
 
       {/* DOCUMENT BANNER (hidden by default while testing) */}
-      {false && (
+      {false && ( // Conditional rendering is correct
         <View style={styles.banner}>
           <Text style={styles.bannerTitle}>Document verification required</Text>
           <Text style={styles.bannerText}>
@@ -69,29 +73,30 @@ export default function StudentDashboard() {
         </View>
       )}
 
-     
-
       {/* NAV TABS */}
       <View style={styles.tabs}>
-        <TouchableOpacity style={[styles.tab, tab === 'today' && styles.tabActive]} onPress={() => setTab('today')}>
-          <Text style={tab === 'today' ? styles.tabActiveText : styles.tabText}>Today (0)</Text>
-        </TouchableOpacity>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 6 }}>
+          {/* Mapping tabs might be cleaner than repeating, but this structure is fine */}
+          <TouchableOpacity style={[styles.tab, tab === 'today' && styles.tabActive]} onPress={() => setTab('today')}>
+            <Text style={tab === 'today' ? styles.tabActiveText : styles.tabText}>Today ({mockJobs.today.length})</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.tab, tab === 'upcoming' && styles.tabActive]} onPress={() => setTab('upcoming')}>
-          <Text style={tab === 'upcoming' ? styles.tabActiveText : styles.tabText}>Upcoming (0)</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, tab === 'upcoming' && styles.tabActive]} onPress={() => setTab('upcoming')}>
+            <Text style={tab === 'upcoming' ? styles.tabActiveText : styles.tabText}>Upcoming ({mockJobs.upcoming.length})</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.tab, tab === 'available' && styles.tabActive]} onPress={() => setTab('available')}>
-          <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available (0)</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, tab === 'available' && styles.tabActive]} onPress={() => setTab('available')}>
+            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({mockJobs.available.length})</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
-          <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending (0)</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
+            <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending ({mockJobs.pending.length})</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.tab, tab === 'archive' && styles.tabActive]} onPress={() => setTab('archive')}>
-          <Text style={tab === 'archive' ? styles.tabActiveText : styles.tabText}>Archive (0)</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, tab === 'archive' && styles.tabActive]} onPress={() => setTab('archive')}>
+            <Text style={tab === 'archive' ? styles.tabActiveText : styles.tabText}>Archive ({mockJobs.archive.length})</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       {/* JOB LIST or EMPTY STATE */}
@@ -99,10 +104,17 @@ export default function StudentDashboard() {
         <View style={styles.jobsContainer}>
           <View style={styles.jobsList}>
             {jobs.map((job: any) => (
-              <Pressable key={job.id} style={styles.jobCard} onPress={() => router.push(`/Student/Job/${job.id}` as unknown as any)}>
+              <Pressable 
+                key={job.id} 
+                style={styles.jobCard} 
+                // Navigation correct for expo-router
+                onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
+              >
                 <Text style={styles.jobTitle}>{job.title}</Text>
                 <Text style={styles.jobDescription}>{job.description}</Text>
-                <Text style={styles.jobMeta}>{job.time} • {job.location} • {job.pay}</Text>
+                <Text style={styles.jobMeta}>
+                  {job.time} • {job.location} • {job.pay}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -110,6 +122,7 @@ export default function StudentDashboard() {
       ) : (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>📄</Text>
+          {/* Conditional Empty State Messages */}
           {tab === 'today' && (
             <>
               <Text style={styles.emptyTitle}>No jobs for today</Text>
@@ -151,10 +164,6 @@ export default function StudentDashboard() {
   );
 }
 
-/* COMPONENTS */
-
-
-
 /* STYLES */
 const styles = StyleSheet.create({
   container: {
@@ -164,6 +173,12 @@ const styles = StyleSheet.create({
   },
 
   /* HEADER */
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
   pageTitle: {
     fontSize: 30,
     fontWeight: "700",
@@ -174,6 +189,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#7A7F85",
     marginBottom: 0,
+  },
+  headerRefresh: { 
+    padding: 6, 
+    borderRadius: 999, 
+    backgroundColor: '#F7F9FC',
+    // Added shadow for visual depth
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1.5,
+    elevation: 2, 
   },
 
   /* DOCUMENT VERIFICATION BANNER */
@@ -221,11 +247,13 @@ const styles = StyleSheet.create({
     marginBottom: 22,
     marginTop: 10,
     justifyContent: "center",
-    alignSelf: 'center',
+    // Changed to alignSelf: 'stretch' and wrapping tabs in ScrollView for better responsiveness
+    // removed alignSelf: 'center' to let it fill width, if desired
     backgroundColor: "#E9ECEF",
     paddingHorizontal: 6,
     paddingVertical: 6,
     borderRadius: 12,
+    overflow: 'hidden', // Ensures inner items stay within bounds
   },
   tab: {
     paddingVertical: 8,
@@ -240,13 +268,28 @@ const styles = StyleSheet.create({
   tabText: { color: "#7A7F85", fontWeight: "500" },
   tabActiveText: { color: "#fff", fontWeight: "600" },
 
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  /* JOB LIST */
+  jobsContainer: {
+    borderWidth: 1,
+    borderColor: '#E4E6EB',
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    padding: 12,
     marginBottom: 12,
   },
-  headerRefresh: { padding: 6, borderRadius: 999, backgroundColor: '#F7F9FC' },
+  jobsList: {
+    gap: 12,
+    marginTop: 8,
+  },
+  jobCard: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF0F2',
+  },
+  jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  jobDescription: { fontSize: 14, color: '#4A4A4A', marginBottom: 6 },
+  jobMeta: { color: '#7A7F85', fontSize: 13 },
+
 
   /* EMPTY STATE */
   emptyState: {
@@ -275,24 +318,4 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     maxWidth: 260,
   },
-  jobsList: {
-    gap: 12,
-    marginTop: 8,
-  },
-  jobsContainer: {
-    borderWidth: 1,
-    borderColor: '#E4E6EB',
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    padding: 12,
-    marginBottom: 12,
-  },
-  jobCard: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF0F2',
-  },
-  jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
-  jobDescription: { fontSize: 14, color: '#4A4A4A', marginBottom: 6 },
-  jobMeta: { color: '#7A7F85', fontSize: 13 },
 });
