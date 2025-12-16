@@ -4,11 +4,10 @@ const cors = require("cors");
 require("dotenv").config(); // Laadt .env
 
 const supabase = require("./supabaseClient");
-const clientsRouter = require("./clients/clients");
+
 const jobsRouter = require("./jobs/jobs");
 const studentsRouter = require("./students/students");
 
-const supabase = require("./supabaseClient");
 const clientsRouter = require("./clients/clients"); // ⬅️ your clients file
 const app = express();
 const port = process.env.PORT || 3000;
