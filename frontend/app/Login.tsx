@@ -36,6 +36,15 @@ export default function Login({ title = 'Login' }: Props) {
           if (data.token) {
             localStorage.setItem('token', data.token);
           }
+          
+          // Save role-specific ID for API calls
+          if (data.user?.role === 'student') {
+            localStorage.setItem('studentId', data.user.id.toString());
+            localStorage.removeItem('clientId');
+          } else if (data.user?.role === 'client') {
+            localStorage.setItem('clientId', data.user.id.toString());
+            localStorage.removeItem('studentId');
+          }
         }
         
         // Redirect based on role
