@@ -1,497 +1,217 @@
-// Clients/clients.js
 const express = require("express");
-const bcrypt = require("bcrypt");
 const supabase = require("../supabaseClient");
+require("dotenv").config(); 
+const router = express.Router();
 
-const clientsRouter = express.Router();
-const jobsRouter = express.Router();
-
-// Helper: maak mooi object uit joined rows
-function mapClientRow(row) {
+// Helper: mooi object uit row
+function mapJobRow(row) {
   return {
     id: row.id,
-    email: row.email,
-    role: row.role,
-    phone: row.phone,
-    preferred_language: row.preferred_language,
+    client_id: row.client_id,
+    category_id: row.category_id,
+    title: row.title,
+    description: row.description,
+    area_text: row.area_text,
+    hourly_or_fixed: row.hourly_or_fixed,
+    hourly_rate: row.hourly_rate,
+    fixed_price: row.fixed_price,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    status: row.status,
     created_at: row.created_at,
-    profile: row.client_profiles
+    category: row.job_categories
       ? {
-          address_line: row.client_profiles.address_line,
-          postal_code: row.client_profiles.postal_code,
-          city: row.client_profiles.city,
-          region: row.client_profiles.region,
-          first_job_needs_approval: row.client_profiles.first_job_needs_approval,
+          id: row.job_categories.id,
+          key: row.job_categories.key,
+          name_nl: row.job_categories.name_nl,
+          name_fr: row.job_categories.name_fr,
+          name_en: row.job_categories.name_en,
         }
       : null,
   };
 }
 
 /**
- * CREATE client (users + client_profiles)
- * POST /clients
+ * GET /jobs/overview?clientId=123
+ * Geeft alle blokken voor de client-dashboard:
+ * { open, planned, completed, today, counts }
  */
-clientsRouter.post("/", async (req, res) => {
-  const {
-    email,
-    password,
-    phone,
-    preferred_language,
-    address_line,
-    postal_code,
-    city,
-    region,
-  } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: "email and password are required" });
-  }
-
-  try {
-    // check of email al bestaat
-    const { data: existing, error: existingError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (existingError) throw existingError;
-    if (existing) {
-      return res.status(409).json({ error: "email already in use" });
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    // 1) new user
-    const { data: newUser, error: userError } = await supabase
-      .from("users")
-      .insert([
-        {
-          email,
-          password_hash: passwordHash,
-          role: "client",
-          phone: phone || null,
-          preferred_language: preferred_language || "nl",
-        },
-      ])
-      .select()
-      .single();
-
-    if (userError) throw userError;
-
-    // 2) client_profile
-    const { error: profileError } = await supabase
-      .from("client_profiles")
-      .insert([
-        {
-          id: newUser.id,
-          address_line: address_line || null,
-          postal_code: postal_code || null,
-          city: city || null,
-          region: region || null,
-        },
-      ]);
-
-    if (profileError) throw profileError;
-
-    // 3) joined fetch
-    const { data: fullClient, error: joinedError } = await supabase
-      .from("users")
-      .select(
-        `
-        id, email, role, phone, preferred_language, created_at,
-        client_profiles (address_line, postal_code, city, region, first_job_needs_approval)
-      `
-      )
-      .eq("id", newUser.id)
-      .eq("role", "client")
-      .single();
-
-    if (joinedError) throw joinedError;
-
-    res.status(201).json(mapClientRow(fullClient));
-  } catch (err) {
-    console.error("Error creating client:", err);
-    res.status(500).json({ error: "internal_server_error" });
-  }
-});
-
-/**
- * READ ALL clients
- * GET /clients
- */
-clientsRouter.get("/", async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from("users")
-      .select(
-        `
-        id, email, role, phone, preferred_language, created_at,
-        client_profiles (address_line, postal_code, city, region, first_job_needs_approval)
-      `
-      )
-      .eq("role", "client")
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
-    res.json(data.map(mapClientRow));
-  } catch (err) {
-    console.error("Error fetching clients:", err);
-    res.status(500).json({ error: "internal_server_error" });
-  }
-});
-
-/**
- * READ ONE client
- * GET /clients/:id
- */
-clientsRouter.get("/:id", async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: "invalid id" });
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("users")
-      .select(
-        `
-        id, email, role, phone, preferred_language, created_at,
-        client_profiles (address_line, postal_code, city, region, first_job_needs_approval)
-      `
-      )
-      .eq("role", "client")
-      .eq("id", id)
-      .single();
-
-    if (error && error.code === "PGRST116") {
-      // no rows
-      return res.status(404).json({ error: "client_not_found" });
-    }
-    if (error) throw error;
-
-    res.json(mapClientRow(data));
-  } catch (err) {
-    console.error("Error fetching client:", err);
-    res.status(500).json({ error: "internal_server_error" });
-  }
-});
-
-/**
- * UPDATE client
- * PATCH /clients/:id
- */
-clientsRouter.patch("/:id", async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: "invalid id" });
-  }
-
-  const {
-    email,
-    phone,
-    preferred_language,
-    address_line,
-    postal_code,
-    city,
-    region,
-    first_job_needs_approval,
-  } = req.body;
-
-  try {
-    // update users
-    const userUpdate = {};
-    if (email !== undefined) userUpdate.email = email;
-    if (phone !== undefined) userUpdate.phone = phone;
-    if (preferred_language !== undefined)
-      userUpdate.preferred_language = preferred_language;
-
-    if (Object.keys(userUpdate).length > 0) {
-      const { error: userError } = await supabase
-        .from("users")
-        .update(userUpdate)
-        .eq("id", id)
-        .eq("role", "client");
-      if (userError) throw userError;
-    }
-
-    // update client_profiles
-    const profileUpdate = {};
-    if (address_line !== undefined) profileUpdate.address_line = address_line;
-    if (postal_code !== undefined) profileUpdate.postal_code = postal_code;
-    if (city !== undefined) profileUpdate.city = city;
-    if (region !== undefined) profileUpdate.region = region;
-    if (first_job_needs_approval !== undefined)
-      profileUpdate.first_job_needs_approval = first_job_needs_approval;
-
-    if (Object.keys(profileUpdate).length > 0) {
-      const { error: profileError } = await supabase
-        .from("client_profiles")
-        .update(profileUpdate)
-        .eq("id", id);
-      if (profileError) throw profileError;
-    }
-
-    // get updated record
-    const { data, error } = await supabase
-      .from("users")
-      .select(
-        `
-        id, email, role, phone, preferred_language, created_at,
-        client_profiles (address_line, postal_code, city, region, first_job_needs_approval)
-      `
-      )
-      .eq("role", "client")
-      .eq("id", id)
-      .single();
-
-    if (error && error.code === "PGRST116") {
-      return res.status(404).json({ error: "client_not_found" });
-    }
-    if (error) throw error;
-
-    res.json(mapClientRow(data));
-  } catch (err) {
-    console.error("Error updating client:", err);
-    res.status(500).json({ error: "internal_server_error" });
-  }
-});
-
-/**
- * DELETE client (hard delete)
- * DELETE /clients/:id
- */
-clientsRouter.delete("/:id", async (req, res) => {
-  // Toggle activation (de)activate client if possible; otherwise fall back to hard delete
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: "invalid id" });
-  }
-
-  try {
-    // try to fetch the user to see if an `is_active` column exists
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id, is_active")
-      .eq("id", id)
-      .eq("role", "client")
-      .maybeSingle();
-
-    if (userError) throw userError;
-
-    if (!user) {
-      return res.status(404).json({ error: "client_not_found" });
-    }
-
-    // If the `is_active` column exists, toggle it
-    if (Object.prototype.hasOwnProperty.call(user, "is_active")) {
-      const newActive = !user.is_active;
-      const { data: updated, error: updateError } = await supabase
-        .from("users")
-        .update({ is_active: newActive })
-        .eq("id", id)
-        .eq("role", "client")
-        .select("id")
-        .single();
-
-      if (updateError) throw updateError;
-
-      return res.json({ message: newActive ? "client_activated" : "client_deactivated", id: updated.id });
-    }
-
-    // Fallback: no is_active column — perform hard delete (profile then user)
-    const { error: profileError } = await supabase
-      .from("client_profiles")
-      .delete()
-      .eq("id", id);
-    if (profileError) throw profileError;
-
-    const { data: deletedUser, error: delUserError } = await supabase
-      .from("users")
-      .delete()
-      .eq("id", id)
-      .eq("role", "client")
-      .select("id")
-      .single();
-
-    if (delUserError && delUserError.code === "PGRST116") {
-      return res.status(404).json({ error: "client_not_found" });
-    }
-    if (delUserError) throw delUserError;
-
-    res.json({ message: "client_deleted", id: deletedUser.id });
-  } catch (err) {
-    console.error("Error deleting/ toggling client:", err);
-    res.status(500).json({ error: "internal_server_error" });
-  }
-});
-
-
-/**
- * GET all jobs for a client
- * GET /clients/:id/jobs
- */
-clientsRouter.get("/:id/jobs", async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: "invalid id" });
+router.get("/overview", async (req, res) => {
+  const clientId = Number(req.query.clientId);
+  if (!clientId || Number.isNaN(clientId)) {
+    return res.status(400).json({ error: "clientId_required" });
   }
 
   try {
     const { data, error } = await supabase
       .from("jobs")
-      .select("*")
-      .eq("client_id", id)
-      .order("created_at", { ascending: false });
+      .select(
+        `
+        id, client_id, category_id,
+        title, description, area_text,
+        hourly_or_fixed, hourly_rate, fixed_price,
+        start_time, end_time, status, created_at,
+        job_categories (
+          id, key, name_nl, name_fr, name_en
+        )
+      `
+      )
+      .eq("client_id", clientId)
+      .order("start_time", { ascending: true });
 
     if (error) throw error;
 
-    res.json(data);
+    const jobs = data.map(mapJobRow);
+
+    const now = new Date();
+    const todayISO = now.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+
+    const open = [];
+    const planned = [];
+    const completed = [];
+    const today = [];
+
+    for (const job of jobs) {
+      const start = new Date(job.start_time);
+      const startDateISO = job.start_time.slice(0, 10); // Supabase returns ISO string
+
+      // Completed
+      if (job.status === "completed") {
+        completed.push(job);
+      }
+      // Today
+      if (startDateISO === todayISO) {
+        today.push(job);
+      }
+
+      // Open (nog niet gestart / niet gecancelled)
+      if (job.status === "open" && start >= now) {
+        open.push(job);
+      }
+
+      // Planned (toekomstig, niet cancelled of completed)
+      if (
+        startDateISO > todayISO &&
+        ["open", "planned", "locked", "in_progress"].includes(job.status)
+      ) {
+        planned.push(job);
+      }
+    }
+
+    res.json({
+      client_id: clientId,
+      counts: {
+        open: open.length,
+        planned: planned.length,
+        completed: completed.length,
+        today: today.length,
+      },
+      open,
+      planned,
+      completed,
+      today,
+    });
   } catch (err) {
-    console.error("Error fetching client jobs:", err);
+    console.error("Error fetching jobs overview:", err);
     res.status(500).json({ error: "internal_server_error" });
   }
 });
 
 /**
- * JOBS ROUTER (exported separately so server can mount at /jobs)
- * This keeps all backend route code inside the `clients` folder as requested.
+ * POST /jobs
+ * Body: { client_id, category_id, title, description, area_text, hourly_or_fixed, hourly_rate, fixed_price, start_time }
  */
+router.post("/", async (req, res) => {
+  const {
+    client_id,
+    category_id,
+    title,
+    description,
+    area_text,
+    hourly_or_fixed,
+    hourly_rate,
+    fixed_price,
+    start_time,
+  } = req.body;
 
-/**
- * POST /jobs -> create a job by a client
- * body: { client_id, title, description, location, price }
- */
-jobsRouter.post('/', async (req, res) => {
-  const { client_id, title, description, location, price } = req.body;
-
-  if (!client_id || !title) {
-    return res.status(400).json({ error: 'client_id and title are required' });
+  if (!client_id || !title || !start_time) {
+    return res.status(400).json({ error: "client_id, title, start_time required" });
   }
 
   try {
     const { data, error } = await supabase
-      .from('jobs')
+      .from("jobs")
       .insert([
         {
           client_id,
+          category_id: category_id ?? null,
           title,
-          description: description || null,
-          location: location || null,
-          price: price || null,
-          status: 'open',
-          locked: false,
+          description: description ?? null,
+          area_text: area_text ?? null,
+          hourly_or_fixed: hourly_or_fixed ?? "hourly",
+          hourly_rate: hourly_rate ?? null,
+          fixed_price: fixed_price ?? null,
+          start_time,
         },
       ])
-      .select()
+      .select(
+        `
+        id, client_id, category_id,
+        title, description, area_text,
+        hourly_or_fixed, hourly_rate, fixed_price,
+        start_time, end_time, status, created_at,
+        job_categories (
+          id, key, name_nl, name_fr, name_en
+        )
+      `
+      )
       .single();
 
     if (error) throw error;
 
-    res.status(201).json(data);
+    res.status(201).json(mapJobRow(data));
   } catch (err) {
-    console.error('Error creating job:', err);
-    res.status(500).json({ error: 'internal_server_error' });
+    console.error("Error creating job:", err);
+    res.status(500).json({ error: "internal_server_error" });
   }
 });
 
 /**
- * GET /jobs/:id -> job details
+ * GET /jobs/:id  – details van één job
  */
-jobsRouter.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' });
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: "invalid_id" });
+  }
 
   try {
     const { data, error } = await supabase
-      .from('jobs')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: 'job_not_found' });
-
-    res.json(data);
-  } catch (err) {
-    console.error('Error fetching job:', err);
-    res.status(500).json({ error: 'internal_server_error' });
-  }
-});
-
-/**
- * PATCH /jobs/:id -> update job (respect locked state)
- */
-jobsRouter.patch('/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' });
-
-  const { title, description, location, price, status, locked } = req.body;
-
-  try {
-    const { data: job, error: jobError } = await supabase
-      .from('jobs')
-      .select('id, locked')
-      .eq('id', id)
-      .maybeSingle();
-    if (jobError) throw jobError;
-    if (!job) return res.status(404).json({ error: 'job_not_found' });
-
-    if (job.locked) {
-      return res.status(409).json({ error: 'job_locked' });
-    }
-
-    const update = {};
-    if (title !== undefined) update.title = title;
-    if (description !== undefined) update.description = description;
-    if (location !== undefined) update.location = location;
-    if (price !== undefined) update.price = price;
-    if (status !== undefined) update.status = status;
-    if (locked !== undefined) update.locked = locked;
-
-    if (Object.keys(update).length === 0) {
-      return res.status(400).json({ error: 'no_fields_to_update' });
-    }
-
-    const { data: updated, error: updateError } = await supabase
-      .from('jobs')
-      .update(update)
-      .eq('id', id)
-      .select()
+      .from("jobs")
+      .select(
+        `
+        id, client_id, category_id,
+        title, description, area_text,
+        hourly_or_fixed, hourly_rate, fixed_price,
+        start_time, end_time, status, created_at,
+        job_categories (
+          id, key, name_nl, name_fr, name_en
+        )
+      `
+      )
+      .eq("id", id)
       .single();
 
-    if (updateError) throw updateError;
-
-    res.json(updated);
-  } catch (err) {
-    console.error('Error updating job:', err);
-    res.status(500).json({ error: 'internal_server_error' });
-  }
-});
-
-/**
- * DELETE /jobs/:id -> cancel job (soft cancel by setting status)
- */
-jobsRouter.delete('/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' });
-
-  try {
-    // set status to 'cancelled'
-    const { data, error } = await supabase
-      .from('jobs')
-      .update({ status: 'cancelled' })
-      .eq('id', id)
-      .select()
-      .single();
-
+    if (error && error.code === "PGRST116") {
+      return res.status(404).json({ error: "job_not_found" });
+    }
     if (error) throw error;
-    res.json({ message: 'job_cancelled', id: data.id });
+
+    res.json(mapJobRow(data));
   } catch (err) {
-    console.error('Error cancelling job:', err);
-    res.status(500).json({ error: 'internal_server_error' });
+    console.error("Error fetching job:", err);
+    res.status(500).json({ error: "internal_server_error" });
   }
 });
 
-module.exports = { clientsRouter, jobsRouter };
+module.exports = router;  // ✅ this is important
