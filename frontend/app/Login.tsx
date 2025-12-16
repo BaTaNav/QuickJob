@@ -7,31 +7,36 @@ export default function Login({ title = 'Login' }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleNormalLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // Normale login via jouw backend
-      const response = await fetch('http://localhost:3000/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Login successful:', data);
-        // Redirect naar dashboard
+const handleNormalLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  try {
+    const response = await fetch('http://localhost:3000/clients/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const role = data.user.role;
+
+      if (role === 'client') {
+        router.push('/Client/DashboardClient');
+      } else if (role === 'student') {
         router.push('/Student/Dashboard');
       } else {
-        const error = await response.text();
-        console.error('Login failed:', error);
-        alert('Login failed: ' + error);
+        alert('Onbekende rol, kan niet inloggen.');
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      alert('Login error. Check console for details.');
+    } else {
+      const errorData = await response.json();
+      alert('Login failed: ' + (errorData.message || 'Unknown error'));
     }
-  };
+  } catch (error) {
+    console.error('Login error:', error);
+    alert('Login error. Check console for details.');
+  }
+};
+
 
   const inputStyle = {
     width: '100%',
