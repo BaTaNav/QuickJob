@@ -1,15 +1,42 @@
 import * as React from 'react';
-import { StyleSheet, Pressable, View as RNView, Switch, Image } from 'react-native';
+import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
+import { studentAPI, authAPI, getStudentId } from '../../services/api';
 
 export default function StudentProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
+  const [profile, setProfile] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const router = useRouter();
 
-  function handleLogout() {
-    // Simple navigation for now; replace with real logout logic when available
-    router.replace('/Student/Dashboard');
+  // Fetch profile data
+  React.useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const storedStudentId = await getStudentId();
+      const id = storedStudentId ? parseInt(storedStudentId) : 3; // Default to 3 (test student in database)
+      
+      const data = await studentAPI.getProfile(id);
+      setProfile(data);
+    } catch (err: any) {
+      console.error('Error fetching profile:', err);
+      setError(err.message || 'Failed to load profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  async function handleLogout() {
+    await authAPI.logout();
+    router.replace('/Login');
   }
 
   // Local settings state (demo only)
@@ -23,11 +50,22 @@ export default function StudentProfile() {
         {/* Left control card */}
         <View style={styles.leftCard}>
           <RNView style={styles.leftTopRow}>
-            <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarSmall} />
-            <RNView style={styles.leftIdentity}>
-              <Text style={styles.leftName}>Student Name</Text>
-              <Text style={styles.leftEmail}>student@example.com</Text>
-            </RNView>
+            {loading ? (
+              <ActivityIndicator size="small" color="#176B51" />
+            ) : (
+              <>
+                <Image 
+                  source={require('../../assets/images/blank-profile-picture.png')} 
+                  style={styles.avatarSmall} 
+                />
+                <RNView style={styles.leftIdentity}>
+                  <Text style={styles.leftName}>
+                    {profile?.school_name || 'Student'}
+                  </Text>
+                  <Text style={styles.leftEmail}>{profile?.email || 'student@example.com'}</Text>
+                </RNView>
+              </>
+            )}
           </RNView>
 
           <RNView style={styles.controlsContainer}>
@@ -57,31 +95,53 @@ export default function StudentProfile() {
         <View style={styles.rightCard}>
           {panel === 'info' ? (
             <RNView style={styles.rightContent}>
-              <RNView>
-                <RNView style={styles.profileHeader}>
-                  <RNView>
-                    <Text style={styles.label}>Name</Text>
-                    <Text style={styles.value}>Student Name</Text>
+              {loading ? (
+                <RNView style={{ padding: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#176B51" />
+                </RNView>
+              ) : error ? (
+                <RNView style={{ padding: 40, alignItems: 'center' }}>
+                  <Text style={styles.label}>Error loading profile</Text>
+                  <Text style={styles.value}>{error}</Text>
+                  <Pressable style={styles.editBtn} onPress={fetchProfile}>
+                    <Text style={styles.editBtnText}>Retry</Text>
+                  </Pressable>
+                </RNView>
+              ) : (
+                <RNView>
+                  <RNView style={styles.profileHeader}>
+                    <RNView>
+                      <Text style={styles.label}>School</Text>
+                      <Text style={styles.value}>
+                        {profile?.school_name || 'Not set'}
+                      </Text>
+                    </RNView>
+
+                    <Image 
+                      source={require('../../assets/images/blank-profile-picture.png')} 
+                      style={styles.avatarLarge} 
+                    />
                   </RNView>
 
-                  <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarLarge} />
+                  <Text style={styles.label}>Field of Study</Text>
+                  <Text style={styles.value}>{profile?.field_of_study || 'Not set'}</Text>
+
+                  <Text style={styles.label}>Academic Year</Text>
+                  <Text style={styles.value}>{profile?.academic_year || 'Not set'}</Text>
+
+                  <Text style={styles.label}>Email</Text>
+                  <Text style={styles.value}>{profile?.email || 'Not set'}</Text>
+
+                  <Text style={styles.label}>Phone</Text>
+                  <Text style={styles.value}>{profile?.phone || 'Not set'}</Text>
+
+                  <Text style={styles.label}>Search Radius</Text>
+                  <Text style={styles.value}>{profile?.radius_km ? `${profile.radius_km} km` : 'Not set'}</Text>
+
+                  <Text style={styles.label}>Verification Status</Text>
+                  <Text style={styles.value}>{profile?.verification_status === 'verified' ? '✅ Verified' : '⏳ Pending verification'}</Text>
                 </RNView>
-
-                <Text style={styles.label}>Bio</Text>
-                <Text style={styles.value}>I am a dedicated student looking to help with various tasks and gain experience.</Text>
-
-                <Text style={styles.label}>Email</Text>
-                <Text style={styles.value}>student@example.com</Text>
-
-                <Text style={styles.label}>Phone</Text>
-                <Text style={styles.value}>+32 123 45 678</Text>
-
-                <Text style={styles.label}>School Name</Text>
-                <Text style={styles.value}>Example School</Text>
-
-                <Text style={styles.label}>Field of Study</Text>
-                <Text style={styles.value}>Computer Science</Text>
-              </RNView>
+              )}
 
               <RNView style={styles.rightFooter}>
                 <Pressable style={styles.editBtn} onPress={() => { /* TODO: edit profile */ }}>

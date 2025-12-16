@@ -17,10 +17,8 @@ function mapJobRow(row) {
     hourly_rate: row.hourly_rate,
     fixed_price: row.fixed_price,
     start_time: row.start_time,
-    end_time: row.end_time,
     status: row.status,
     created_at: row.created_at,
-    location: row.location,
     category: row.job_categories
       ? {
           id: row.job_categories.id,
@@ -48,9 +46,9 @@ router.get("/available", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text, location,
+        title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, end_time, status, created_at,
+        start_time, status, created_at,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -62,8 +60,12 @@ router.get("/available", async (req, res) => {
 
     if (error) throw error;
 
-    const jobs = data.map(mapJobRow);
-    res.json(jobs);
+    const jobs = data?.map(mapJobRow) || [];
+    res.json({
+      jobs,
+      message: jobs.length === 0 ? "No jobs available at the moment" : null,
+      count: jobs.length
+    });
   } catch (err) {
     console.error("Error fetching available jobs:", err);
     res.status(500).json({ error: "Failed to fetch jobs" });
@@ -83,22 +85,21 @@ router.get("/:id", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text, location,
+        title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, end_time, status, created_at,
+        start_time, status, created_at,
         job_categories (
           id, key, name_nl, name_fr, name_en
-        ),
-        profiles:client_id (
-          id, first_name, last_name, email
         )
       `
       )
       .eq("id", jobId)
       .single();
 
+    if (error?.code === 'PGRST116' || !data) {
+      return res.status(404).json({ error: "No job found with this ID" });
+    }
     if (error) throw error;
-    if (!data) return res.status(404).json({ error: "Job not found" });
 
     const job = mapJobRow(data);
     res.json(job);
@@ -123,9 +124,9 @@ router.get("/search", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text, location,
+        title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, end_time, status, created_at,
+        start_time, status, created_at,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -138,7 +139,7 @@ router.get("/search", async (req, res) => {
       query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
     }
     if (location) {
-      query = query.ilike("location", `%${location}%`);
+      query = query.ilike("area_text", `%${location}%`);
     }
     if (categoryId) {
       query = query.eq("category_id", parseInt(categoryId));
@@ -150,8 +151,12 @@ router.get("/search", async (req, res) => {
 
     if (error) throw error;
 
-    const jobs = data.map(mapJobRow);
-    res.json(jobs);
+    const jobs = data?.map(mapJobRow) || [];
+    res.json({
+      jobs,
+      message: jobs.length === 0 ? "No jobs match your search criteria" : null,
+      count: jobs.length
+    });
   } catch (err) {
     console.error("Error searching jobs:", err);
     res.status(500).json({ error: "Search failed" });

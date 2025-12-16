@@ -2,7 +2,7 @@ import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View } from 
 import * as React from "react";
 import { useRouter } from 'expo-router';
 // Using an icon library commonly used in React Native
-import { RefreshCw } from 'lucide-react-native'; 
+import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native'; 
 
 export default function StudentDashboard() {
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('today');
@@ -160,6 +160,87 @@ export default function StudentDashboard() {
         </View>
       )}
 
+      {/* FOOTER */}
+      <View style={styles.footer}>
+        <View style={styles.footerSection}>
+          <Text style={styles.footerTitle}>QuickJob</Text>
+          <Text style={styles.footerDescription}>
+            Connecting students with flexible job opportunities across Belgium.
+          </Text>
+        </View>
+
+        <View style={styles.footerLinks}>
+          <View style={styles.footerColumn}>
+            <Text style={styles.footerColumnTitle}>Company</Text>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>About Us</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Contact</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Careers</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.footerColumn}>
+            <Text style={styles.footerColumnTitle}>Support</Text>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Help Center</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Safety</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>FAQ</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.footerColumn}>
+            <Text style={styles.footerColumnTitle}>Legal</Text>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Terms of Service</Text>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Cookie Policy</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.footerSocial}>
+          <Text style={styles.footerSocialTitle}>Follow Us</Text>
+          <View style={styles.socialIcons}>
+            <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Instagram')}>
+              <Instagram size={20} color="#E4405F" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('LinkedIn')}>
+              <Linkedin size={20} color="#0A66C2" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Facebook')}>
+              <Facebook size={20} color="#1877F2" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Twitter')}>
+              <Twitter size={20} color="#1DA1F2" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.footerContact}>
+          <Text style={styles.footerContactText}>📧 support@quickjob.be</Text>
+          <Text style={styles.footerContactText}>📞 +32 2 123 45 67</Text>
+        </View>
+
+        <View style={styles.footerBottom}>
+          <Text style={styles.footerCopyright}>
+            © 2025 QuickJob. All rights reserved.
+          </Text>
+          <Text style={styles.footerVersion}>v1.0.0</Text>
+        </View>
+      </View>
+
     </ScrollView>
   );
 }
@@ -168,7 +249,7 @@ export default function StudentDashboard() {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    paddingBottom: 80,
+    paddingBottom: 10,
     backgroundColor: "#fff",
   },
 
@@ -317,5 +398,104 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     maxWidth: 260,
+  },
+
+  /* FOOTER */
+  footer: {
+    marginTop: 60,
+    paddingTop: 40,
+    paddingBottom: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 20,
+  },
+  footerSection: {
+    marginBottom: 24,
+  },
+  footerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#176B51",
+    marginBottom: 8,
+  },
+  footerDescription: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
+  },
+  footerLinks: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+  footerColumn: {
+    flex: 1,
+  },
+  footerColumnTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 12,
+  },
+  footerLink: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginBottom: 8,
+  },
+  footerSocial: {
+    marginBottom: 24,
+    alignItems: "center",
+  },
+  footerSocialTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 12,
+  },
+  socialIcons: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+  },
+  socialIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  socialIconText: {
+    fontSize: 20,
+  },
+  footerContact: {
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 8,
+  },
+  footerContactText: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  footerBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  footerCopyright: {
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  footerVersion: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontWeight: "500",
   },
 });

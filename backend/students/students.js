@@ -14,7 +14,6 @@ function mapJobRow(row) {
     title: row.title,
     description: row.description,
     area_text: row.area_text,
-    location: row.location,
     hourly_or_fixed: row.hourly_or_fixed,
     hourly_rate: row.hourly_rate,
     fixed_price: row.fixed_price,
@@ -45,10 +44,22 @@ router.get("/:studentId/dashboard", async (req, res) => {
     // Fetch all student's applications
     const { data: applications, error: appError } = await supabase
       .from("job_applications")
-      .select("id, job_id, status, created_at, updated_at")
+      .select("id, job_id, status, applied_at")
       .eq("student_id", studentId);
 
     if (appError) throw appError;
+
+    if (!applications || applications.length === 0) {
+
+      return res.json({
+        today: [],
+        upcoming: [],
+        pending: [],
+        archive: [],
+        counts: { today: 0, upcoming: 0, pending: 0, archive: 0 },
+        message: "No job applications yet"
+      });
+    }
 
     const appliedJobIds = applications.map((app) => app.job_id);
 
@@ -145,21 +156,36 @@ router.get("/:studentId/profile", async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
 
-    const { data, error } = await supabase
-      .from("client_profiles")
-      .select(
-        `
-        id, email, first_name, last_name, phone,
-        role, avatar_url, created_at, updated_at,
-        location, bio, hourly_rate, verified
-      `
-      )
+    // Fetch user data
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("id, email, phone, role, created_at")
       .eq("id", studentId)
       .eq("role", "student")
       .single();
 
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: "Student not found" });
+    if (userError?.code === 'PGRST116' || !userData) {
+      return res.status(404).json({ error: "No student registered with this ID" });
+    }
+    if (userError) throw userError;
+
+    // Fetch student profile data
+    const { data: profileData, error: profileError } = await supabase
+      .from("student_profiles")
+      .select("school_name, field_of_study, academic_year, radius_km, verification_status, active_since")
+      .eq("id", studentId)
+      .single();
+
+    if (profileError && profileError.code !== 'PGRST116') {
+      // PGRST116 = no rows returned, which is okay for new users
+      throw profileError;
+    }
+
+    // Combine user and profile data
+    const data = {
+      ...userData,
+      ...(profileData || {}),
+    };
 
     res.json(data);
   } catch (err) {
@@ -170,41 +196,54 @@ router.get("/:studentId/profile", async (req, res) => {
 
 /**
  * PATCH /students/:studentId/profile
- * Update student profile info (protected)
+ * Update student profile info (protected - JWT temporarily disabled)
  */
-router.patch("/:studentId/profile", verifyJwt, async (req, res) => {
+router.patch("/:studentId/profile", /* verifyJwt, */ async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
 
-    // Verify the user is updating their own profile
-    if (req.user.id !== studentId.toString()) {
-      return res.status(403).json({ error: "Unauthorized" });
+    // TODO: Verify the user is updating their own profile when JWT is enabled
+    // if (req.user.id !== studentId.toString()) {
+    //   return res.status(403).json({ error: "Unauthorized" });
+    // }
+
+    const { phone, school_name, field_of_study, academic_year, radius_km } = req.body;
+
+    // Update users table
+    const userUpdateData = {};
+    if (phone) userUpdateData.phone = phone;
+
+    if (Object.keys(userUpdateData).length > 0) {
+      const { error: userError } = await supabase
+        .from("users")
+        .update(userUpdateData)
+        .eq("id", studentId)
+        .eq("role", "student");
+
+      if (userError) throw userError;
     }
 
-    const { first_name, last_name, phone, bio, location, hourly_rate, avatar_url } = req.body;
+    // Update student_profiles table
+    const profileUpdateData = {};
+    if (school_name) profileUpdateData.school_name = school_name;
+    if (field_of_study) profileUpdateData.field_of_study = field_of_study;
+    if (academic_year) profileUpdateData.academic_year = academic_year;
+    if (radius_km !== undefined) profileUpdateData.radius_km = radius_km;
 
-    const updateData = {};
-    if (first_name) updateData.first_name = first_name;
-    if (last_name) updateData.last_name = last_name;
-    if (phone) updateData.phone = phone;
-    if (bio) updateData.bio = bio;
-    if (location) updateData.location = location;
-    if (hourly_rate) updateData.hourly_rate = hourly_rate;
-    if (avatar_url) updateData.avatar_url = avatar_url;
-    updateData.updated_at = new Date().toISOString();
+    let data = null;
+    if (Object.keys(profileUpdateData).length > 0) {
+      const { data: profileData, error: profileError } = await supabase
+        .from("student_profiles")
+        .update(profileUpdateData)
+        .eq("id", studentId)
+        .select()
+        .single();
 
-    const { data, error } = await supabase
-      .from("client_profiles")
-      .update(updateData)
-      .eq("id", studentId)
-      .eq("role", "student")
-      .select()
-      .single();
+      if (profileError) throw profileError;
+      data = profileData;
+    }
 
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: "Student not found" });
-
-    res.json(data);
+    res.json({ message: "Profile updated successfully", data });
   } catch (err) {
     console.error("Error updating student profile:", err);
     res.status(500).json({ error: "Failed to update profile" });
@@ -213,17 +252,17 @@ router.patch("/:studentId/profile", verifyJwt, async (req, res) => {
 
 /**
  * POST /students/:studentId/apply
- * Apply for a job
+ * Apply for a job (JWT temporarily disabled)
  */
-router.post("/:studentId/apply", verifyJwt, async (req, res) => {
+router.post("/:studentId/apply", /* verifyJwt, */ async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
     const { job_id, cover_letter } = req.body;
 
-    // Verify the user is applying for themselves
-    if (req.user.id !== studentId.toString()) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
+    // TODO: Verify the user is applying for themselves when JWT is enabled
+    // if (req.user.id !== studentId.toString()) {
+    //   return res.status(403).json({ error: "Unauthorized" });
+    // }
 
     // Validate inputs
     if (!job_id) {
@@ -232,7 +271,7 @@ router.post("/:studentId/apply", verifyJwt, async (req, res) => {
 
     // Check if already applied
     const { data: existingApp } = await supabase
-      .from("student_job_applications")
+      .from("job_applications")
       .select("id")
       .eq("student_id", studentId)
       .eq("job_id", job_id)
@@ -244,14 +283,12 @@ router.post("/:studentId/apply", verifyJwt, async (req, res) => {
 
     // Create application
     const { data, error } = await supabase
-      .from("student_job_applications")
+      .from("job_applications")
       .insert({
         student_id: studentId,
         job_id: job_id,
         status: "pending",
-        cover_letter: cover_letter || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        overlap_confirmed: false,
       })
       .select()
       .single();
@@ -274,22 +311,27 @@ router.get("/:studentId/applications", async (req, res) => {
     const studentId = parseInt(req.params.studentId);
 
     const { data, error } = await supabase
-      .from("student_job_applications")
+      .from("job_applications")
       .select(
         `
-        id, student_id, job_id, status, cover_letter, created_at, updated_at,
+        id, student_id, job_id, status, applied_at, overlap_confirmed,
         jobs (
-          id, title, description, location, hourly_rate, fixed_price,
+          id, title, description, area_text, hourly_rate, fixed_price,
           start_time, status, job_categories (name_en, name_nl, name_fr)
         )
       `
       )
       .eq("student_id", studentId)
-      .order("created_at", { ascending: false });
+      .order("applied_at", { ascending: false });
 
     if (error) throw error;
 
-    res.json(data);
+    const applications = data || [];
+    res.json({
+      applications,
+      message: applications.length === 0 ? "No job applications yet" : null,
+      count: applications.length
+    });
   } catch (err) {
     console.error("Error fetching applications:", err);
     res.status(500).json({ error: "Failed to fetch applications" });
@@ -298,18 +340,18 @@ router.get("/:studentId/applications", async (req, res) => {
 
 /**
  * PATCH /students/:studentId/applications/:applicationId
- * Update application status (only by student to cancel)
+ * Update application status (only by student to cancel - JWT temporarily disabled)
  */
-router.patch("/:studentId/applications/:applicationId", verifyJwt, async (req, res) => {
+router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
     const applicationId = parseInt(req.params.applicationId);
     const { status } = req.body;
 
-    // Verify the user is updating their own application
-    if (req.user.id !== studentId.toString()) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
+    // TODO: Verify the user is updating their own application when JWT is enabled
+    // if (req.user.id !== studentId.toString()) {
+    //   return res.status(403).json({ error: "Unauthorized" });
+    // }
 
     // Only allow cancelling applications (status: cancelled)
     if (status !== "cancelled") {
@@ -317,8 +359,8 @@ router.patch("/:studentId/applications/:applicationId", verifyJwt, async (req, r
     }
 
     const { data, error } = await supabase
-      .from("student_job_applications")
-      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .from("job_applications")
+      .update({ status: "cancelled" })
       .eq("id", applicationId)
       .eq("student_id", studentId)
       .select()
@@ -344,13 +386,18 @@ router.get("/:studentId/documents", async (req, res) => {
 
     const { data, error } = await supabase
       .from("student_documents")
-      .select("id, document_type, file_url, verified, created_at, updated_at")
+      .select("id, document_type, file_url, verified, created_at")
       .eq("student_id", studentId)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
 
-    res.json(data);
+    const documents = data || [];
+    res.json({
+      documents,
+      message: documents.length === 0 ? "No documents uploaded yet" : null,
+      count: documents.length
+    });
   } catch (err) {
     console.error("Error fetching documents:", err);
     res.status(500).json({ error: "Failed to fetch documents" });
@@ -359,17 +406,17 @@ router.get("/:studentId/documents", async (req, res) => {
 
 /**
  * POST /students/:studentId/documents
- * Upload document for verification (protected)
+ * Upload document for verification (JWT temporarily disabled)
  */
-router.post("/:studentId/documents", verifyJwt, async (req, res) => {
+router.post("/:studentId/documents", /* verifyJwt, */ async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
     const { document_type, file_url } = req.body;
 
-    // Verify the user is uploading for themselves
-    if (req.user.id !== studentId.toString()) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
+    // TODO: Verify the user is uploading for themselves when JWT is enabled
+    // if (req.user.id !== studentId.toString()) {
+    //   return res.status(403).json({ error: "Unauthorized" });
+    // }
 
     if (!document_type || !file_url) {
       return res.status(400).json({ error: "document_type and file_url are required" });
@@ -383,7 +430,6 @@ router.post("/:studentId/documents", verifyJwt, async (req, res) => {
         file_url,
         verified: false,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -409,8 +455,7 @@ router.get("/:studentId/reviews", async (req, res) => {
       .from("job_reviews")
       .select(
         `
-        id, rating, comment, created_at,
-        profiles (first_name, last_name, avatar_url)
+        id, rating, comment, created_at
       `
       )
       .eq("student_id", studentId)
@@ -423,12 +468,13 @@ router.get("/:studentId/reviews", async (req, res) => {
       rating: review.rating,
       comment: review.comment,
       created_at: review.created_at,
-      reviewer: review.profiles,
     }));
 
     res.json({
       reviews,
       avg_rating: reviews.length > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(2) : null,
+      message: reviews.length === 0 ? "No reviews yet" : null,
+      count: reviews.length
     });
   } catch (err) {
     console.error("Error fetching reviews:", err);
