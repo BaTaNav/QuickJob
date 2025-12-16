@@ -13,10 +13,10 @@ import {
 } from 'react-native';
 
 import * as Linking from 'expo-linking';
-import { authAPI } from '../../services/api';
 
 const Signup = () => {
   const [formData, setFormData] = useState({
+    fullName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -28,27 +28,29 @@ const Signup = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      document.title = "QuickJob | Student Signup";
+    }
+  }, []);
 
   const handleChange = (name: string, value: string) => {
     setFormData((prevData) => ({ ...prevData, [name]: value }));
-    if (error) setError(''); // Clear error when user types
+    if (error) setError('');
   };
 
   const handleSignup = async () => {
     try {
       setError('');
-      
-      // Validate inputs
+
       if (!formData.email || !formData.password) {
         setError('Email and password are required');
         return;
       }
-      
       if (formData.password !== formData.confirmPassword) {
         setError('Passwords do not match');
         return;
       }
-
       if (formData.password.length < 6) {
         setError('Password must be at least 6 characters');
         return;
@@ -56,45 +58,75 @@ const Signup = () => {
 
       setLoading(true);
 
-      // Register student
-      const result = await authAPI.registerStudent({
-        email: formData.email,
-        password: formData.password,
-        phone: formData.phone || undefined,
-        school_name: formData.school_name || undefined,
-        field_of_study: formData.field_of_study || undefined,
-        academic_year: formData.academic_year || undefined,
+      const response = await fetch('http://localhost:3000/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phone || undefined,
+          school_name: formData.school_name || undefined,
+          field_of_study: formData.field_of_study || undefined,
+          academic_year: formData.academic_year || undefined,
+          role: 'student'
+        }),
       });
 
-      console.log('Registration successful:', result);
-      
-      // Show success message and redirect to login
-      Alert.alert(
-        'Registration Successful! ✅',
-        `Welcome ${formData.email}!\n\nYour student account has been created. You can now log in with your email and password.`,
-        [
-          {
-            text: 'Go to Login',
-            onPress: () => router.replace('/Login'),
-          },
-        ]
-      );
-      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Registration successful:', data);
+        Alert.alert('Registration successful', 'You can now sign in', [
+          { text: 'OK', onPress: () => router.replace('/Login') }
+        ]);
+      } else {
+        const errText = await response.text();
+        console.error('Signup failed:', errText);
+        setError(errText || 'Registration failed');
+      }
+
     } catch (err: any) {
       console.error('Signup error:', err);
-      setError(err.message || 'Registration failed. Please try again.');
-      Alert.alert('Registration Failed', err.message || 'Please try again.');
+      setError(err?.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
 
-  // Handler for navigation links (since React Native doesn't use HTML <a> tags)
+  // Auth0 signup fallback (opens Universal Login)
+  const handleAuth0Signup = async () => {
+    const domain = process.env.EXPO_PUBLIC_AUTH0_DOMAIN;
+    const clientId = process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID;
+    const redirect = process.env.EXPO_PUBLIC_AUTH0_REDIRECT_URI || 'http://localhost:8081/callback';
+
+    if (!domain || !clientId) {
+      Alert.alert('Auth0 not configured', 'Auth0 domain or clientId is missing in environment variables.');
+      return;
+    }
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientId,
+      redirect_uri: redirect,
+      scope: 'openid profile email',
+      screen_hint: 'signup',
+    });
+
+    const url = `https://${domain}/authorize?${params.toString()}`;
+
+    try {
+      await Linking.openURL(url);
+    } catch (err) {
+      console.error('Failed to open Auth0 signup URL:', err);
+      Alert.alert('Error', 'Unable to open Auth0 signup page.');
+    }
+  };
+
   const handleLinkPress = (url: string) => {
     if (url.startsWith('/')) {
-        router.push(url as any); 
+      router.push(url as any);
     } else {
-        Linking.openURL(url); 
+      Linking.openURL(url);
     }
   };
 
@@ -121,8 +153,7 @@ const Signup = () => {
 
         {/* Form area */}
         <View>
-          {/* Email Input */}
-          <Text style={styles.label}>Email *</Text>
+          <Text style={styles.label}>Email</Text>
           <TextInput
             style={styles.inputStyle}
             placeholder='Email'
@@ -134,8 +165,7 @@ const Signup = () => {
             editable={!loading}
           />
 
-          {/* Password Input */}
-          <Text style={styles.label}>Password *</Text>
+          <Text style={styles.label}>Password</Text>
           <TextInput
             style={styles.inputStyle}
             placeholder='Password'
@@ -150,8 +180,7 @@ const Signup = () => {
             Must be at least 6 characters
           </Text>
 
-          {/* Confirm Password Input */}
-          <Text style={styles.label}>Confirm password *</Text>
+          <Text style={styles.label}>Confirm password</Text>
           <TextInput
             style={styles.inputStyle}
             placeholder='Confirm Password'
@@ -162,7 +191,7 @@ const Signup = () => {
             editable={!loading}
           />
 
-          {/* Phone Input */}
+          {/* Optional fields */}
           <Text style={styles.label}>Phone</Text>
           <TextInput
             style={styles.inputStyle}
@@ -174,7 +203,6 @@ const Signup = () => {
             editable={!loading}
           />
 
-          {/* School Name Input */}
           <Text style={styles.label}>School Name</Text>
           <TextInput
             style={styles.inputStyle}
@@ -185,7 +213,6 @@ const Signup = () => {
             editable={!loading}
           />
 
-          {/* Field of Study Input */}
           <Text style={styles.label}>Field of Study</Text>
           <TextInput
             style={styles.inputStyle}
@@ -196,7 +223,6 @@ const Signup = () => {
             editable={!loading}
           />
 
-          {/* Academic Year Input */}
           <Text style={styles.label}>Academic Year</Text>
           <TextInput
             style={styles.inputStyle}
@@ -207,14 +233,12 @@ const Signup = () => {
             editable={!loading}
           />
 
-          {/* Error Message */}
           {error ? (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           ) : null}
 
-          {/* Submit Button */}
           <TouchableOpacity 
             style={[styles.buttonStyle, loading && styles.buttonDisabled]}
             onPress={handleSignup}
@@ -224,11 +248,25 @@ const Signup = () => {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Create Student Account</Text>
+              <Text style={styles.buttonText}>Sign Up via QuickJob</Text>
             )}
           </TouchableOpacity>
+
         </View>
 
+        {/* --- Auth0 Option (divider + button) --- */}
+        <View style={styles.dividerContainer}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>of</Text>
+        </View>
+
+        <TouchableOpacity 
+          onPress={handleAuth0Signup} 
+          style={styles.auth0ButtonLinkStyle}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.auth0ButtonText}>Sign Up met Auth0</Text>
+        </TouchableOpacity>
 
         <View style={styles.ctaContainer}>
           <Text style={styles.ctaText}>
@@ -248,7 +286,6 @@ const Signup = () => {
 };
 
 export default Signup;
-
 // React Native Stylesheet
 const styles = StyleSheet.create({
   container: {

@@ -2,6 +2,8 @@ const express = require("express");
 const supabase = require("../supabaseClient");
 require("dotenv").config(); 
 const router = express.Router();
+const bcrypt = require("bcryptjs");
+
 
 // Helper: mooi object uit row
 function mapJobRow(row) {
@@ -213,5 +215,141 @@ router.get("/:id", async (req, res) => {
     res.status(500).json({ error: "internal_server_error" });
   }
 });
+
+router.post("/register-client", async (req, res) => {
+  try {
+    const {
+      email,
+      password,
+      phone = null,
+      preferred_language = "nl",
+      two_factor_enabled = false,
+    } = req.body;
+
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ message: "Email en password zijn verplicht." });
+    }
+
+    const allowedLangs = ["nl", "fr", "en"];
+    const lang = allowedLangs.includes(preferred_language)
+      ? preferred_language
+      : "nl";
+
+    // check of email al bestaat
+    const { data: existing, error: existingError } = await supabase
+      .from("users")
+      .select("id")
+      .eq("email", email);
+
+    if (existingError) {
+      console.error("Error checking existing user:", existingError);
+      return res.status(500).json({
+        message: "Interne serverfout (existing check).",
+        supabaseError: existingError,
+      });
+    }
+
+    if (existing && existing.length > 0) {
+      return res.status(409).json({ message: "Email bestaat al." });
+    }
+
+  
+    const salt = await bcrypt.genSalt(10);
+    const password_hash = await bcrypt.hash(password, salt);
+
+    const { data, error } = await supabase
+      .from("users")
+      .insert([
+        {
+          email,
+          password_hash,
+          role: "client",
+          phone,
+          preferred_language: lang,
+          two_factor_enabled,
+        },
+      ])
+      .select(
+        "id, email, role, phone, preferred_language, two_factor_enabled, created_at"
+      )
+      .single();
+
+    if (error) {
+      console.error("Error inserting user:", error);
+      return res.status(500).json({
+        message: "Interne serverfout (insert).",
+        supabaseError: error,
+      });
+    }
+
+    return res.status(201).json({
+      message: "Client succesvol geregistreerd.",
+      user: data,
+    });
+  } catch (err) {
+    console.error("Register error (catch):", err);
+    return res.status(500).json({
+      message: "Interne serverfout (catch).",
+      nodeError: String(err),
+    });
+  }
+});
+
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ message: "Email en password zijn verplicht." });
+    }
+
+    const { data: user, error } = await supabase
+      .from("users")
+      .select(
+        "id, email, password_hash, role, phone, preferred_language, two_factor_enabled, created_at"
+      )
+      .eq("email", email)
+      .single();
+
+    // user niet gevonden
+    if (error && error.code === "PGRST116") {
+      return res.status(401).json({ message: "Ongeldige email of password." });
+    }
+    if (error) {
+      console.error("Login select error:", error);
+      return res.status(500).json({ message: "Interne serverfout." });
+    }
+
+    // wachtwoord checken
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Ongeldige email of password." });
+    }
+
+    // GEEN token, GEEN password_hash teruggeven
+    return res.status(200).json({
+      message: "Succesvol ingelogd.",
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        preferred_language: user.preferred_language,
+        two_factor_enabled: user.two_factor_enabled,
+        created_at: user.created_at,
+      },
+    });
+  } catch (err) {
+    console.error("Login error (catch):", err);
+    return res.status(500).json({
+      message: "Interne serverfout.",
+    });
+  }
+});
+
 
 module.exports = router;  // ✅ this is important
