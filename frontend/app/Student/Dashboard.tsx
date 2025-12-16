@@ -1,4 +1,4 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, Platform, TextInput } from "react-native";
 import * as React from "react";
 import { useRouter } from 'expo-router';
 // Using an icon library commonly used in React Native
@@ -9,28 +9,97 @@ export default function StudentDashboard() {
   // Placeholder jobs per tab for building pages. Replace with API data later.
   const router = useRouter();
 
-  // MOCK DATA (Should be replaced with a real data fetch using a hook or Redux/Context)
+   // MOCK DATA (Should be replaced with a real data fetch using a hook or Redux/Context)
   const mockJobs: Record<string, Array<any>> = {
     today: [
-      { id: 't1', status: 'today', category: 'Delivery', title: 'Grocery pickup', description: 'Pick up groceries and deliver to client.', time: '2025-12-10 10:00', hours: '2', address: 'Rue Example 12, Leuven', location: 'Leuven', pay: '€12/hr' },
+      { id: 't1', status: 'today', category: 'Delivery', title: 'Grocery pickup', description: 'Pick up groceries and deliver to client.', time: '2025-12-10 10:00', hours: '2', address: 'Rue Example 12, Leuven', location: 'Leuven', pay: '€12/hr', distanceKm: 4 },
     ],
     upcoming: [
-      { id: 'u1', status: 'upcoming', category: 'Pet care', title: 'Dog walking', description: 'Walk the dog for 30 minutes.', time: '2025-12-11 14:00', hours: '0.5', address: 'Chaussée de Namur 5, Brussels', location: 'Brussels', pay: '€10/hr' },
+      { id: 'u1', status: 'upcoming', category: 'Pet care', title: 'Dog walking', description: 'Walk the dog for 30 minutes.', time: '2025-12-11 14:00', hours: '0.5', address: 'Chaussée de Namur 5, Brussels', location: 'Brussels', pay: '€10/hr', distanceKm: 22 },
     ],
     available: [
-      { id: 'a1', status: 'available', category: 'Promotion', title: 'Flyer distribution', description: 'Distribute flyers in the neighbourhood.', time: 'Flexible', hours: '3', address: 'Leuven Centrum', location: 'Leuven', pay: '€9/hr' },
-      { id: 'a2', status: 'available', category: 'Gardening', title: 'Lawn mowing', description: 'Mow the lawn for a client.', time: 'Flexible', hours: '2', address: 'Parkstraat 10, Antwerp', location: 'Antwerp', pay: '€11/hr' },
+      { id: 'a1', status: 'available', category: 'Promotion', title: 'Flyer distribution', description: 'Distribute flyers in the neighbourhood.', time: 'Flexible', hours: '3', address: 'Leuven Centrum', location: 'Leuven', pay: '€9/hr', distanceKm: 5 },
+      { id: 'a2', status: 'available', category: 'Gardening', title: 'Lawn mowing', description: 'Mow the lawn for a client.', time: 'Flexible', hours: '2', address: 'Parkstraat 10, Antwerp', location: 'Antwerp', pay: '€11/hr', distanceKm: 48 },
     ],
     pending: [
-      { id: 'p1', status: 'pending', category: 'Home help', title: 'Cleaning help', description: 'Help with light cleaning.', time: 'Pending - 08/12', hours: '4', address: 'Avenue Louise 45, Brussels', location: 'Brussels', pay: '€13/hr' },
+      { id: 'p1', status: 'pending', category: 'Home help', title: 'Cleaning help', description: 'Help with light cleaning.', time: 'Pending - 08/12', hours: '4', address: 'Avenue Louise 45, Brussels', location: 'Brussels', pay: '€13/hr', distanceKm: 18 },
     ],
     archive: [
-      { id: 'ar1', status: 'archive', category: 'Moving', title: 'Moved boxes', description: 'Helped move boxes last week.', time: '2025-12-03', hours: '5', address: 'Rue du Parc 2, Wavre', location: 'Wavre', pay: '€20' },
+      { id: 'ar1', status: 'archive', category: 'Moving', title: 'Moved boxes', description: 'Helped move boxes last week.', time: '2025-12-03', hours: '5', address: 'Rue du Parc 2, Wavre', location: 'Wavre', pay: '€20', distanceKm: 36 },
     ],
   };
 
   // Dynamically select the jobs based on the active tab state
   const jobs = mockJobs[tab] ?? [];
+
+  // --- Filter state (range km, category, date) ---
+  const [filterRange, setFilterRange] = React.useState<number>(20);
+  const [filterCategory, setFilterCategory] = React.useState<string>('All');
+  const [filterDate, setFilterDate] = React.useState<string>('Any');
+  const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
+  const [showFilters, setShowFilters] = React.useState<boolean>(Platform.OS === 'web');
+
+  // Native date picker integration (dynamically required so web build doesn't fail if package not installed)
+  const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
+  const [DateTimePickerComponent, setDateTimePickerComponent] = React.useState<any | null>(null);
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') {
+      try {
+        // Use runtime require to avoid bundler errors when package is not installed
+        // The module name is 'react-native-datetimepicker/datetimepicker'
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const mod = require('react-native-datetimepicker/datetimepicker');
+        setDateTimePickerComponent(mod?.default || mod);
+      } catch (err) {
+        console.warn('Native DateTimePicker not installed. Run `npm i react-native-datetimepicker/datetimepicker` to enable it.');
+      }
+    }
+  }, []);
+
+  const onNativeDateChange = (_event: any, date?: Date) => {
+    setShowDatePickerNative(false);
+    if (date) {
+      const iso = date.toISOString().slice(0,10);
+      setSelectedDate(iso);
+      setFilterDate('Specific');
+    }
+  };
+
+  // Helper: parse date (YYYY-MM-DD) from job.time if present
+  const parseJobDate = (time?: string) => {
+    if (!time) return null;
+    const m = time.match(/(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : null;
+  };
+
+  // Derived filtered jobs according to selected filters
+  const filteredJobs = (jobs || []).filter((job: any) => {
+    // Range filter (if job has distanceKm)
+    if (typeof job.distanceKm === 'number' && job.distanceKm > filterRange) return false;
+
+    // Category
+    if (filterCategory !== 'All' && job.category !== filterCategory) return false;
+
+    // Date options
+    const jobDate = parseJobDate(job.time);
+    if (filterDate === 'Today') {
+      const today = new Date().toISOString().slice(0,10);
+      if (!jobDate || jobDate !== today) return false;
+    } else if (filterDate === 'This week') {
+      if (!jobDate) return false;
+      const now = new Date();
+      const start = new Date(now.setHours(0,0,0,0));
+      const d = new Date(jobDate);
+      const diffDays = Math.floor((d.getTime() - start.getTime()) / (1000*60*60*24));
+      if (diffDays < 0 || diffDays > 7) return false;
+    } else if (filterDate === 'Specific') {
+      if (!selectedDate) return false;
+      if (!jobDate || jobDate !== selectedDate) return false;
+    }
+
+    return true;
+  });
 
   // Function to handle refresh action
   const handleRefresh = () => {
@@ -99,15 +168,89 @@ export default function StudentDashboard() {
         </ScrollView>
       </View>
 
+      {/* FILTERS */}
+      <View style={styles.tabFilterRow}>
+        <View />
+        <View style={styles.filterToggleContainer}>
+          <TouchableOpacity style={styles.filterToggleBtn} onPress={() => setShowFilters(!showFilters)}>
+            <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Show filters'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {showFilters && (
+        <View style={styles.filterRow}>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Range</Text>
+            <View style={styles.filterPills}>
+              {[5,10,20,50].map((r)=> (
+                <TouchableOpacity key={r} onPress={() => setFilterRange(r)} style={[styles.filterBtn, filterRange === r && styles.filterBtnActive]}>
+                  <Text style={filterRange === r ? styles.filterBtnTextActive : styles.filterBtnText}>{r} km</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Category</Text>
+            <View style={styles.filterPills}>
+              {['All','Delivery','Pet care','Promotion','Gardening','Home help','Moving'].map((c)=> (
+                <TouchableOpacity key={c} onPress={() => setFilterCategory(c)} style={[styles.filterBtn, filterCategory === c && styles.filterBtnActive]}>
+                  <Text style={filterCategory === c ? styles.filterBtnTextActive : styles.filterBtnText}>{c}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Date</Text>
+            <View style={styles.filterPills}>
+              {['Any','Today','This week','Specific'].map((d)=> (
+                <TouchableOpacity key={d} onPress={() => { setFilterDate(d); if (d !== 'Specific') setSelectedDate(null); }} style={[styles.filterBtn, filterDate === d && styles.filterBtnActive]}>
+                  <Text style={filterDate === d ? styles.filterBtnTextActive : styles.filterBtnText}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {filterDate === 'Specific' && (
+              <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {Platform.OS === 'web' ? (
+                  // @ts-ignore web input
+                  <input type="date" value={selectedDate || ''} onChange={(e: any) => setSelectedDate(e.target.value)} style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }} />
+                ) : DateTimePickerComponent ? (
+                  <>
+                    <TouchableOpacity onPress={() => setShowDatePickerNative(true)} style={styles.datePickerBtn}>
+                      <Text style={styles.datePickerText}>{selectedDate || 'Pick a date'}</Text>
+                    </TouchableOpacity>
+                    {showDatePickerNative && (
+                      // @ts-ignore render native picker component
+                      <DateTimePickerComponent value={selectedDate ? new Date(selectedDate) : new Date()} mode="date" display="default" onChange={onNativeDateChange} />
+                    )}
+                  </>
+                ) : (
+                  <TextInput placeholder="YYYY-MM-DD" value={selectedDate || ''} onChangeText={setSelectedDate} style={styles.dateInput} />
+                )}
+
+                <TouchableOpacity onPress={() => { setSelectedDate(null); setFilterDate('Any'); }} style={styles.clearDateBtn}>
+                  <Text style={styles.clearDateText}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+          </View>
+
+        </View>
+      )}
+
       {/* JOB LIST or EMPTY STATE */}
-      {jobs.length > 0 ? (
+      {filteredJobs.length > 0 ? (
         <View style={styles.jobsContainer}>
           <View style={styles.jobsList}>
-            {jobs.map((job: any) => (
+            {filteredJobs.map((job: any) => (
               <Pressable 
                 key={job.id} 
                 style={styles.jobCard} 
-                // Navigation correct for expo-router
                 onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
               >
                 <Text style={styles.jobTitle}>{job.title}</Text>
@@ -139,8 +282,8 @@ export default function StudentDashboard() {
 
           {tab === 'available' && (
             <>
-              <Text style={styles.emptyTitle}>No available jobs</Text>
-              <Text style={styles.emptySubtitle}>Available jobs will appear here (filters coming later).</Text>
+              <Text style={styles.emptyTitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'No available jobs match your filters' : 'No available jobs'}</Text>
+              <Text style={styles.emptySubtitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'Try broadening your filters to find more jobs.' : 'Available jobs will appear here.'}</Text>
             </>
           )}
 
@@ -370,6 +513,25 @@ const styles = StyleSheet.create({
   jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
   jobDescription: { fontSize: 14, color: '#4A4A4A', marginBottom: 6 },
   jobMeta: { color: '#7A7F85', fontSize: 13 },
+
+  /* Filters */
+  tabFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  filterToggleContainer: { flexShrink: 0 },
+  filterToggleBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F4F6F7', borderRadius: 8 },
+  filterToggleText: { color: '#1a2e4c', fontWeight: '600' },
+  filterRow: { flexDirection: 'row', gap: 12, marginBottom: 16, backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E8EEF2' },
+  filterGroup: { flex: 1 },
+  filterLabel: { color: '#64748B', marginBottom: 8 },
+  filterPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#F4F6F7', marginRight: 8 },
+  filterBtnActive: { backgroundColor: '#176B51' },
+  filterBtnText: { color: '#333', fontWeight: '600' },
+  filterBtnTextActive: { color: '#fff', fontWeight: '600' },
+  dateInput: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', minWidth: 130 },
+  clearDateBtn: { paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#F3F4F6', borderRadius: 8 },
+  clearDateText: { color: '#1a2e4c', fontWeight: '600' },
+  datePickerBtn: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#F4F6F7', borderRadius: 8 },
+  datePickerText: { color: '#1a2e4c', fontWeight: '600' },
 
 
   /* EMPTY STATE */
