@@ -2,6 +2,8 @@ const express = require("express");
 const supabase = require("../supabaseClient");
 require("dotenv").config(); 
 const router = express.Router();
+const bcrypt = require("bcryptjs");
+
 
 // Helper: mooi object uit row
 function mapJobRow(row) {
@@ -253,7 +255,7 @@ router.post("/register-client", async (req, res) => {
       return res.status(409).json({ message: "Email bestaat al." });
     }
 
-    const bcrypt = require("bcryptjs"); // desnoods hier, om zeker te zijn
+  
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
