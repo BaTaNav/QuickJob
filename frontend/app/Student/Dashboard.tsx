@@ -1,4 +1,4 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator, Platform, TextInput } from "react-native";
 import * as React from "react";
 import { useRouter } from 'expo-router';
 import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native';
@@ -9,17 +9,13 @@ export default function StudentDashboard() {
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [showFilters, setShowFilters] = React.useState(false);
+  const [filterRange, setFilterRange] = React.useState(20);
+  const [filterCategory, setFilterCategory] = React.useState('All');
+  const [filterDate, setFilterDate] = React.useState('Any');
+  const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
+  const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
   const router = useRouter();
-
-  const mockJobs: Record<string, Array<any>> = {
-    today: [],
-    upcoming: [],
-    available: availableJobs,
-    pending: [],
-    archive: [],
-  };
-
-  const jobs = mockJobs[tab] ?? [];
 
   const fetchAvailable = React.useCallback(async () => {
     try {
@@ -27,8 +23,9 @@ export default function StudentDashboard() {
       setError('');
       const data = await jobsAPI.getAvailableJobs('open', 50);
       setAvailableJobs(data || []);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load jobs');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load jobs';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -41,6 +38,48 @@ export default function StudentDashboard() {
   const handleRefresh = () => {
     fetchAvailable();
   };
+
+  // Filter jobs based on selected filters
+  const filteredJobs = React.useMemo(() => {
+    let filtered = availableJobs;
+    
+    if (filterCategory !== 'All') {
+      filtered = filtered.filter(job => job.category === filterCategory);
+    }
+    
+    if (filterDate === 'Today') {
+      const today = new Date().toDateString();
+      filtered = filtered.filter(job => {
+        if (!job.start_time) return false;
+        return new Date(job.start_time).toDateString() === today;
+      });
+    } else if (filterDate === 'This week') {
+      const weekFromNow = new Date();
+      weekFromNow.setDate(weekFromNow.getDate() + 7);
+      filtered = filtered.filter(job => {
+        if (!job.start_time) return false;
+        const jobDate = new Date(job.start_time);
+        return jobDate <= weekFromNow;
+      });
+    } else if (filterDate === 'Specific' && selectedDate) {
+      filtered = filtered.filter(job => {
+        if (!job.start_time) return false;
+        return new Date(job.start_time).toDateString() === new Date(selectedDate).toDateString();
+      });
+    }
+    
+    return filtered;
+  }, [availableJobs, filterCategory, filterDate, selectedDate]);
+
+  const mockJobs: Record<string, Array<any>> = {
+    today: [],
+    upcoming: [],
+    available: availableJobs,
+    pending: [],
+    archive: [],
+  };
+
+  const jobs = mockJobs[tab] ?? [];
 
 
   return (
@@ -113,24 +152,16 @@ export default function StudentDashboard() {
 
       {showFilters && (
         <View style={styles.filterRow}>
-
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Range</Text>
-            <View style={styles.filterPills}>
-              {[5,10,20,50].map((r)=> (
-                <TouchableOpacity key={r} onPress={() => setFilterRange(r)} style={[styles.filterBtn, filterRange === r && styles.filterBtnActive]}>
-                  <Text style={filterRange === r ? styles.filterBtnTextActive : styles.filterBtnText}>{r} km</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Category</Text>
             <View style={styles.filterPills}>
-              {['All','Delivery','Pet care','Promotion','Gardening','Home help','Moving'].map((c)=> (
-                <TouchableOpacity key={c} onPress={() => setFilterCategory(c)} style={[styles.filterBtn, filterCategory === c && styles.filterBtnActive]}>
-                  <Text style={filterCategory === c ? styles.filterBtnTextActive : styles.filterBtnText}>{c}</Text>
+              {['All', 'Hospitality', 'Retail', 'Office', 'Event', 'Other'].map((cat) => (
+                <TouchableOpacity 
+                  key={cat} 
+                  style={[styles.filterBtn, filterCategory === cat && styles.filterBtnActive]} 
+                  onPress={() => setFilterCategory(cat)}
+                >
+                  <Text style={filterCategory === cat ? styles.filterBtnTextActive : styles.filterBtnText}>{cat}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -139,9 +170,13 @@ export default function StudentDashboard() {
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Date</Text>
             <View style={styles.filterPills}>
-              {['Any','Today','This week','Specific'].map((d)=> (
-                <TouchableOpacity key={d} onPress={() => { setFilterDate(d); if (d !== 'Specific') setSelectedDate(null); }} style={[styles.filterBtn, filterDate === d && styles.filterBtnActive]}>
-                  <Text style={filterDate === d ? styles.filterBtnTextActive : styles.filterBtnText}>{d}</Text>
+              {['Any', 'Today', 'This week', 'Specific'].map((dateOpt) => (
+                <TouchableOpacity 
+                  key={dateOpt} 
+                  style={[styles.filterBtn, filterDate === dateOpt && styles.filterBtnActive]} 
+                  onPress={() => setFilterDate(dateOpt)}
+                >
+                  <Text style={filterDate === dateOpt ? styles.filterBtnTextActive : styles.filterBtnText}>{dateOpt}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -149,20 +184,19 @@ export default function StudentDashboard() {
             {filterDate === 'Specific' && (
               <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 {Platform.OS === 'web' ? (
-                  // @ts-ignore web input
-                  <input type="date" value={selectedDate || ''} onChange={(e: any) => setSelectedDate(e.target.value)} style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }} />
-                ) : DateTimePickerComponent ? (
-                  <>
-                    <TouchableOpacity onPress={() => setShowDatePickerNative(true)} style={styles.datePickerBtn}>
-                      <Text style={styles.datePickerText}>{selectedDate || 'Pick a date'}</Text>
-                    </TouchableOpacity>
-                    {showDatePickerNative && (
-                      // @ts-ignore render native picker component
-                      <DateTimePickerComponent value={selectedDate ? new Date(selectedDate) : new Date()} mode="date" display="default" onChange={onNativeDateChange} />
-                    )}
-                  </>
+                  <input 
+                    type="date" 
+                    value={selectedDate || ''} 
+                    onChange={(e: any) => setSelectedDate(e.target.value)} 
+                    style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }} 
+                  />
                 ) : (
-                  <TextInput placeholder="YYYY-MM-DD" value={selectedDate || ''} onChangeText={setSelectedDate} style={styles.dateInput} />
+                  <TextInput 
+                    placeholder="YYYY-MM-DD" 
+                    value={selectedDate || ''} 
+                    onChangeText={setSelectedDate} 
+                    style={styles.dateInput} 
+                  />
                 )}
 
                 <TouchableOpacity onPress={() => { setSelectedDate(null); setFilterDate('Any'); }} style={styles.clearDateBtn}>
@@ -170,9 +204,7 @@ export default function StudentDashboard() {
                 </TouchableOpacity>
               </View>
             )}
-
           </View>
-
         </View>
       )}
 

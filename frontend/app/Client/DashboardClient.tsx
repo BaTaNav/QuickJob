@@ -477,7 +477,6 @@ const styles = StyleSheet.create({
     borderColor: '#E6EEF0',
     marginBottom: 12,
   },
-  jobTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
   jobMeta: { fontSize: 13, color: '#64748B', marginTop: 4 },
   jobAction: { backgroundColor: '#176B51', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   jobActionText: { color: '#fff', fontWeight: '700' },
@@ -550,18 +549,6 @@ const styles = StyleSheet.create({
   jobsContainer: {
     gap: 12,
   },
-  jobCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
   jobHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -591,12 +578,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#166534",
     textTransform: "uppercase",
-  },
-  jobMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
   },
   jobMetaText: {
     fontSize: 13,
