@@ -4,8 +4,7 @@ const cors = require("cors");
 require("dotenv").config(); // Laadt .env
 
 const supabase = require("./supabaseClient");
-const clientsRouter = require("./clients/clients"); // your clients file
-//const jobsRouter = require("./jobs/jobs");           //jobs ook mounten
+const clientsRouter = require("./clients/clients"); // ⬅️ your clients file
 const app = express();
 const port = 3000;
 
