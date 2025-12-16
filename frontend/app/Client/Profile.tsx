@@ -2,6 +2,7 @@ import * as React from 'react';
 import { StyleSheet, Pressable, View as RNView, Switch, Image } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
+const [clientProfile, setClientProfile] = React.useState<any>(null);
 
 export default function ClientProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
