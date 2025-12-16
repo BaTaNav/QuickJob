@@ -248,25 +248,14 @@ const Signup = () => {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Sign Up via QuickJob</Text>
+              <Text style={styles.buttonText}>Create a student profile</Text>
             )}
           </TouchableOpacity>
 
         </View>
 
-        {/* --- Auth0 Option (divider + button) --- */}
-        <View style={styles.dividerContainer}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>of</Text>
-        </View>
 
-        <TouchableOpacity 
-          onPress={handleAuth0Signup} 
-          style={styles.auth0ButtonLinkStyle}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.auth0ButtonText}>Sign Up met Auth0</Text>
-        </TouchableOpacity>
+
 
         <View style={styles.ctaContainer}>
           <Text style={styles.ctaText}>
