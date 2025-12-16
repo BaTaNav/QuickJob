@@ -63,7 +63,10 @@ export default function DashboardClient() {
           </View>
 
           {/* Primary Action */}
-          <TouchableOpacity style={styles.createJobBtn}>
+          <TouchableOpacity
+            style={styles.createJobBtn}
+            onPress={() => router.push('/Client/PostJob' as never)}
+          >
             <Plus size={24} color="#FFF" />
             <Text style={styles.createJobText}>Create job</Text>
           </TouchableOpacity>
