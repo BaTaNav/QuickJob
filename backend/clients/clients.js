@@ -2,7 +2,7 @@ const express = require("express");
 const supabase = require("../supabaseClient");
 require("dotenv").config(); 
 const router = express.Router();
-const bcrypt = require("bcryptjs");
+const bcrypt = require("bcrypt");
 
 
 // Helper: mooi object uit row
