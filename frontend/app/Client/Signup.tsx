@@ -52,9 +52,8 @@ const Signup = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('Client registration successful:', data);
-        Alert.alert('Registration successful', 'You can now sign in', [
-          { text: 'OK', onPress: () => router.replace('/Login') }
-        ]);
+        // Direct redirect to login page after successful registration
+        router.replace('/Login');
       } else {
         const errText = await response.text();
         console.error('Signup failed:', errText);
