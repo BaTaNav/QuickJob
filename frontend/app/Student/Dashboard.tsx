@@ -9,7 +9,7 @@ export default function StudentDashboard() {
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
 
   // Keep the original default categories, but augment with categories discovered from jobs
-  const DEFAULT_CATEGORIES = ['Hospitality', 'Retail', 'Office', 'Event', 'Other', 'Gardening', 'Pet care'];
+  const DEFAULT_CATEGORIES = [ 'Event', 'Gardening', 'Pet care','Other'];
   const categoryOptions = React.useMemo(() => {
     const discovered = new Set<string>();
     availableJobs.forEach((job) => {
@@ -17,7 +17,6 @@ export default function StudentDashboard() {
       discovered.add(name);
     });
 
-    // Start with 'All' and the default categories (preserve order), then append any additional discovered names
     const merged: string[] = ['All', ...DEFAULT_CATEGORIES];
     discovered.forEach((name) => {
       if (!merged.includes(name)) merged.push(name);
