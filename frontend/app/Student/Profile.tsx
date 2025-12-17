@@ -36,6 +36,8 @@ export default function StudentProfile() {
 
   async function handleLogout() {
     await authAPI.logout();
+        localStorage.removeItem('user');
+    localStorage.removeItem('token');    
     router.replace('/'); // Go to home page instead of login
   }
 
