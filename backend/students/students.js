@@ -341,6 +341,7 @@ router.get("/:studentId/applications", async (req, res) => {
 /**
  * PATCH /students/:studentId/applications/:applicationId
  * Update application status (only by student to cancel - JWT temporarily disabled)
+ * Can only cancel if status is 'pending' - accepted applications cannot be cancelled
  */
 router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (req, res) => {
   try {
@@ -358,6 +359,28 @@ router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (
       return res.status(400).json({ error: "Only cancellation is allowed from student side" });
     }
 
+    // First check if the application exists and its current status
+    const { data: existingApp, error: fetchError } = await supabase
+      .from("job_applications")
+      .select("id, status")
+      .eq("id", applicationId)
+      .eq("student_id", studentId)
+      .single();
+
+    if (fetchError || !existingApp) {
+      return res.status(404).json({ error: "Application not found" });
+    }
+
+    // Only allow cancelling if status is 'pending'
+    if (existingApp.status !== "pending") {
+      return res.status(400).json({ 
+        error: "Cannot cancel this application", 
+        message: existingApp.status === "accepted" 
+          ? "Accepted applications cannot be cancelled" 
+          : `Application is already ${existingApp.status}`
+      });
+    }
+
     const { data, error } = await supabase
       .from("job_applications")
       .update({ status: "cancelled" })
@@ -367,7 +390,6 @@ router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (
       .single();
 
     if (error) throw error;
-    if (!data) return res.status(404).json({ error: "Application not found" });
 
     res.json(data);
   } catch (err) {

@@ -1,12 +1,13 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator, Platform, TextInput } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
 import * as React from "react";
 import { useRouter } from 'expo-router';
 import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native';
-import { jobsAPI } from '../../services/api';
+import { jobsAPI, studentAPI, getStudentId } from '@/services/api';
 
 export default function StudentDashboard() {
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('available');
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
+  const [dashboardData, setDashboardData] = React.useState<any>({ today: [], upcoming: [], pending: [], archive: [] });
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [showFilters, setShowFilters] = React.useState(false);
@@ -15,7 +16,17 @@ export default function StudentDashboard() {
   const [filterDate, setFilterDate] = React.useState('Any');
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
   const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
+  const [studentId, setStudentId] = React.useState<string | null>(null);
   const router = useRouter();
+
+  // Load student ID on mount
+  React.useEffect(() => {
+    const loadStudentId = async () => {
+      const id = await getStudentId();
+      setStudentId(id);
+    };
+    loadStudentId();
+  }, []);
 
   const fetchAvailable = React.useCallback(async () => {
     try {
@@ -31,12 +42,58 @@ export default function StudentDashboard() {
     }
   }, []);
 
+  // Fetch student dashboard data (pending, upcoming, etc.)
+  const fetchDashboard = React.useCallback(async () => {
+    if (!studentId) return;
+    try {
+      const data = await studentAPI.getDashboard(Number(studentId));
+      setDashboardData(data);
+    } catch (err) {
+      console.log('Could not fetch dashboard data:', err);
+    }
+  }, [studentId]);
+
   React.useEffect(() => {
     fetchAvailable();
   }, [fetchAvailable]);
 
+  React.useEffect(() => {
+    if (studentId) {
+      fetchDashboard();
+    }
+  }, [studentId, fetchDashboard]);
+
   const handleRefresh = () => {
     fetchAvailable();
+    if (studentId) {
+      fetchDashboard();
+    }
+  };
+
+  // Cancel application handler
+  const handleCancelApplication = async (applicationId: number) => {
+    if (!studentId) return;
+    
+    Alert.alert(
+      'Sollicitatie annuleren',
+      'Weet je zeker dat je je sollicitatie wilt annuleren?',
+      [
+        { text: 'Nee', style: 'cancel' },
+        {
+          text: 'Ja, annuleer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await studentAPI.cancelApplication(Number(studentId), applicationId);
+              Alert.alert('Geannuleerd', 'Je sollicitatie is geannuleerd.');
+              fetchDashboard(); // Refresh the dashboard
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Kon niet annuleren');
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Filter jobs based on selected filters
@@ -71,15 +128,24 @@ export default function StudentDashboard() {
     return filtered;
   }, [availableJobs, filterCategory, filterDate, selectedDate]);
 
-  const mockJobs: Record<string, Array<any>> = {
-    today: [],
-    upcoming: [],
-    available: availableJobs,
-    pending: [],
-    archive: [],
+  // Get jobs for current tab
+  const getJobsForTab = () => {
+    switch (tab) {
+      case 'today':
+        return dashboardData.today || [];
+      case 'upcoming':
+        return dashboardData.upcoming || [];
+      case 'pending':
+        return dashboardData.pending || [];
+      case 'archive':
+        return dashboardData.archive || [];
+      case 'available':
+      default:
+        return filteredJobs; // Use filtered jobs for available tab
+    }
   };
 
-  const jobs = mockJobs[tab] ?? [];
+  const jobs = getJobsForTab();
 
 
   return (
@@ -119,11 +185,11 @@ export default function StudentDashboard() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 6 }}>
           {/* Mapping tabs might be cleaner than repeating, but this structure is fine */}
           <TouchableOpacity style={[styles.tab, tab === 'today' && styles.tabActive]} onPress={() => setTab('today')}>
-            <Text style={tab === 'today' ? styles.tabActiveText : styles.tabText}>Today ({mockJobs.today.length})</Text>
+            <Text style={tab === 'today' ? styles.tabActiveText : styles.tabText}>Today ({dashboardData.today?.length || 0})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'upcoming' && styles.tabActive]} onPress={() => setTab('upcoming')}>
-            <Text style={tab === 'upcoming' ? styles.tabActiveText : styles.tabText}>Upcoming ({mockJobs.upcoming.length})</Text>
+            <Text style={tab === 'upcoming' ? styles.tabActiveText : styles.tabText}>Upcoming ({dashboardData.upcoming?.length || 0})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'available' && styles.tabActive]} onPress={() => setTab('available')}>
@@ -131,11 +197,11 @@ export default function StudentDashboard() {
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
-            <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending ({mockJobs.pending.length})</Text>
+            <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending ({dashboardData.pending?.length || 0})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'archive' && styles.tabActive]} onPress={() => setTab('archive')}>
-            <Text style={tab === 'archive' ? styles.tabActiveText : styles.tabText}>Archive ({mockJobs.archive.length})</Text>
+            <Text style={tab === 'archive' ? styles.tabActiveText : styles.tabText}>Archive ({dashboardData.archive?.length || 0})</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -230,7 +296,7 @@ export default function StudentDashboard() {
       {!loading && !error && jobs.length > 0 ? (
         <View style={styles.jobsContainer}>
           <View style={styles.jobsList}>
-            {filteredJobs.map((job: any) => (
+            {jobs.map((job: any) => (
               <Pressable 
                 key={job.id} 
                 style={styles.jobCard} 
@@ -244,6 +310,34 @@ export default function StudentDashboard() {
                   {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
                   {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
                 </Text>
+                {/* Show application status badge for pending/upcoming jobs */}
+                {job.application_status && (
+                  <View style={[
+                    styles.statusBadge,
+                    job.application_status === 'pending' && styles.pendingBadge,
+                    job.application_status === 'accepted' && styles.acceptedBadge,
+                  ]}>
+                    <Text style={[
+                      styles.statusBadgeText,
+                      job.application_status === 'pending' && styles.pendingText,
+                      job.application_status === 'accepted' && styles.acceptedText,
+                    ]}>
+                      {job.application_status === 'pending' ? '⏳ In afwachting' : '✅ Geaccepteerd'}
+                    </Text>
+                  </View>
+                )}
+                {/* Show cancel button for pending applications */}
+                {tab === 'pending' && job.application_id && (
+                  <TouchableOpacity 
+                    style={styles.cancelBtn}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleCancelApplication(job.application_id);
+                    }}
+                  >
+                    <Text style={styles.cancelBtnText}>Annuleren</Text>
+                  </TouchableOpacity>
+                )}
               </Pressable>
             ))}
           </View>
@@ -556,6 +650,44 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     maxWidth: 260,
+  },
+
+  /* STATUS BADGES */
+  statusBadge: {
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  pendingBadge: {
+    backgroundColor: '#FEF3C7',
+  },
+  acceptedBadge: {
+    backgroundColor: '#D1FAE5',
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pendingText: {
+    color: '#92400E',
+  },
+  acceptedText: {
+    color: '#065F46',
+  },
+  cancelBtn: {
+    marginTop: 10,
+    backgroundColor: '#DC2626',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  cancelBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
   },
 
   /* FOOTER */
