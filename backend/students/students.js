@@ -1,5 +1,5 @@
 const express = require("express");
-const supabase = require("../supabaseClient");
+const { supabase } = require("../supabaseClient");
 const verifyJwt = require("../auth/verifyJwt");
 const router = express.Router();
 
@@ -169,10 +169,10 @@ router.get("/:studentId/profile", async (req, res) => {
     }
     if (userError) throw userError;
 
-    // Fetch student profile data
+    // Fetch student profile data - avatar_url toegevoegd!
     const { data: profileData, error: profileError } = await supabase
       .from("student_profiles")
-      .select("school_name, field_of_study, academic_year, radius_km, verification_status, active_since")
+      .select("school_name, field_of_study, academic_year, radius_km, verification_status, active_since, avatar_url")
       .eq("id", studentId)
       .single();
 

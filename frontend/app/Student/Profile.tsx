@@ -3,6 +3,8 @@ import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { studentAPI, authAPI, getStudentId } from '@/services/api';
+import * as ImagePicker from 'expo-image-picker';
+
 
 export default function StudentProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
@@ -35,8 +37,8 @@ export default function StudentProfile() {
 
   async function handleLogout() {
     await authAPI.logout();
-        localStorage.removeItem('user');
-    localStorage.removeItem('token');    
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
     router.replace('/'); // Go to home page instead of login
   }
 
@@ -68,6 +70,72 @@ export default function StudentProfile() {
     }
   };
 
+  const uploadAvatar = async () => {
+    const studentId = await getStudentId();
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      const localUri = result.assets[0].uri;
+      
+      // Determine proper file extension
+      const getExtensionFromUri = (uri: string): string => {
+        // Try to get extension from URI
+        const uriParts = uri.split('.');
+        const lastPart = uriParts[uriParts.length - 1].toLowerCase();
+        
+        // Check if it's a valid image extension
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(lastPart.split('?')[0])) {
+          return lastPart.split('?')[0];
+        }
+        // Default to jpg for web blob/data URIs
+        return 'jpg';
+      };
+
+      const ext = getExtensionFromUri(localUri);
+      const filename = `avatar.${ext}`;
+
+      const formData = new FormData();
+
+      // Check if running in web browser or native
+      if (typeof window !== 'undefined' && (localUri.startsWith('data:') || localUri.startsWith('blob:'))) {
+        // Web: convert data/blob URI to blob
+        const response = await fetch(localUri);
+        const blob = await response.blob();
+        
+        // Use the correct extension based on blob type
+        const blobExt = blob.type.split('/')[1] || 'jpg';
+        const properFilename = `avatar.${blobExt === 'jpeg' ? 'jpg' : blobExt}`;
+        
+        formData.append('avatar', blob, properFilename);
+      } else {
+        // React Native: use the object format
+        formData.append('avatar', {
+          uri: localUri,
+          name: filename,
+          type: 'image/jpeg',
+        } as any);
+      }
+
+      const uploadResponse = await fetch(
+        `http://localhost:3000/students/${studentId}/avatar`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      const data = await uploadResponse.json();
+      if (data.avatar_url) {
+        setProfile((prev: any) => ({ ...prev, avatar_url: data.avatar_url }));
+      }
+    }
+  };
+
   const [darkMode, setDarkMode] = React.useState(false);
   const [language, setLanguage] = React.useState<'EN' | 'NL' | 'FR'>('EN');
   const [notifications, setNotifications] = React.useState(true);
@@ -84,7 +152,10 @@ export default function StudentProfile() {
               <ActivityIndicator size="small" color="#176B51" />
             ) : (
               <>
-                <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarSmall} />
+                <Image
+                  source={profile?.avatar_url ? { uri: profile.avatar_url } : require('../../assets/images/blank-profile-picture.png')}
+                  style={styles.avatarSmall}
+                />
                 <RNView style={styles.leftIdentity}>
                   <Text style={styles.leftName}>{profile?.school_name || 'Student'}</Text>
                   <Text style={styles.leftEmail}>{profile?.email || 'student@example.com'}</Text>
@@ -145,8 +216,15 @@ export default function StudentProfile() {
                         <Text style={styles.value}>{profile?.school_name || 'Not set'}</Text>
                       )}
                     </RNView>
-                    <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarLarge} />
+
+                    <Pressable onPress={uploadAvatar}>
+                      <Image
+                        source={profile?.avatar_url ? { uri: profile.avatar_url } : require('../../assets/images/blank-profile-picture.png')}
+                        style={styles.avatarLarge}
+                      />
+                    </Pressable>
                   </RNView>
+
 
                   <Text style={styles.label}>Field of Study</Text>
                   {editing ? (
