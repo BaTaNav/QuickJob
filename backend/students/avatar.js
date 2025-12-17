@@ -1,36 +1,35 @@
-// backend/students/avatar.js
-import express from 'express'
-import multer from 'multer'
-import { supabase } from '../../supabaseClient.js'
+const express = require('express');
+const multer = require('multer');
+const { supabaseService } = require('../../supabaseClient.js');
 
-const router = express.Router()
-const upload = multer({ storage: multer.memoryStorage() })
+const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.post('/:userId/avatar', upload.single('avatar'), async (req, res) => {
-  const { userId } = req.params
-  const file = req.file
+  const { userId } = req.params;
+  const file = req.file;
 
-  if (!file) return res.status(400).send('No file uploaded')
+  if (!file) return res.status(400).send('No file uploaded');
 
-  const fileExt = file.originalname.split('.').pop()
-  const filePath = `student_avatars/${userId}.${fileExt}`
+  const fileExt = file.originalname.split('.').pop();
+  const filePath = `student_avatars/${userId}.${fileExt}`;
 
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await supabaseService.storage
     .from('avatars')
-    .upload(filePath, file.buffer, { upsert: true })
+    .upload(filePath, file.buffer, { upsert: true });
 
-  if (uploadError) return res.status(500).send(uploadError.message)
+  if (uploadError) return res.status(500).send(uploadError.message);
 
-  const { publicURL } = supabase.storage.from('avatars').getPublicUrl(filePath)
+  const { publicURL } = supabaseService.storage.from('avatars').getPublicUrl(filePath);
 
-  const { error: dbError } = await supabase
+  const { error: dbError } = await supabaseService
     .from('student_profiles')
     .update({ avatar_url: publicURL })
-    .eq('user_id', userId)
+    .eq('user_id', userId);
 
-  if (dbError) return res.status(500).send(dbError.message)
+  if (dbError) return res.status(500).send(dbError.message);
 
-  res.json({ avatar_url: publicURL })
-})
+  res.json({ avatar_url: publicURL });
+});
 
-export default router
+module.exports = router;
