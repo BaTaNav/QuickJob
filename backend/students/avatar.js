@@ -54,5 +54,25 @@ router.post('/:studentId/avatar', upload.single('avatar'), async (req, res) => {
   }
 });
 
+router.get('/:studentId/avatar', async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.studentId, 10);
+
+    const { data: profile, error } = await supabase
+      .from('student_profiles')
+      .select('avatar_url')
+      .eq('id', studentId)
+      .single();
+
+    if (error || !profile) return res.status(404).json({ error: 'Avatar not found' });
+
+    res.json({ avatar_url: profile.avatar_url });
+  } catch (err) {
+    console.error('Error fetching avatar:', err);
+    res.status(500).json({ error: 'Failed to fetch avatar' });
+  }
+});
+
+
 
 module.exports = router;
