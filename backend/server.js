@@ -8,6 +8,7 @@ const authRouter = require("./auth/auth");
 const clientsRouter = require("./clients/clients");
 const jobsRouter = require("./jobs/jobs");
 const studentsRouter = require("./students/students");
+const studentAvatarRouter = require("./students/avatar");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -30,6 +31,7 @@ app.use("/auth", authRouter);
 app.use("/clients", clientsRouter);
 app.use("/jobs", jobsRouter);
 app.use("/students", studentsRouter);
+app.use("/students", studentAvatarRouter);
 
 // 404 handler
 app.use((req, res) => {
