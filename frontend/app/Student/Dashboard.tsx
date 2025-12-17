@@ -8,11 +8,40 @@ export default function StudentDashboard() {
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('available');
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
   const [dashboardData, setDashboardData] = React.useState<any>({ today: [], upcoming: [], pending: [], archive: [] });
+
+  // Keep the original default categories, but augment with categories discovered from jobs
+  const DEFAULT_CATEGORIES = ['Hospitality', 'Retail', 'Office', 'Event', 'Other', 'Gardening', 'Pet care'];
+  const categoryOptions = React.useMemo(() => {
+    const map = new Map<string, { id: number | null; name: string }>();
+
+    // 'All' option
+    map.set('All', { id: null, name: 'All' });
+
+    // start with defaults (no id)
+    DEFAULT_CATEGORIES.forEach((name) => map.set(name, { id: null, name }));
+
+    // merge discovered categories from jobs; prefer attaching id when available
+    availableJobs.forEach((job) => {
+      const cat = job?.category;
+      const name = cat?.name_en || 'Other';
+      const id = cat?.id ?? null;
+      const existing = map.get(name);
+      if (existing) {
+        // if existing has no id and we discovered an id, update it
+        if (!existing.id && id) map.set(name, { id, name });
+      } else {
+        map.set(name, { id, name });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [availableJobs]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [showFilters, setShowFilters] = React.useState(false);
   const [filterRange, setFilterRange] = React.useState(20);
-  const [filterCategory, setFilterCategory] = React.useState('All');
+  // selected category stored as either 'All' or an object { id: number|null, name: string }
+  const [filterCategory, setFilterCategory] = React.useState<{ id: number | null; name: string } | 'All'>('All');
   const [filterDate, setFilterDate] = React.useState('Any');
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
   const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
@@ -101,7 +130,15 @@ export default function StudentDashboard() {
     let filtered = availableJobs;
     
     if (filterCategory !== 'All') {
-      filtered = filtered.filter(job => job.category === filterCategory);
+      // If we have an id for the selected category, filter by id for robustness
+      if ((filterCategory as any).id) {
+        const selId = (filterCategory as { id: number | null; name: string }).id;
+        filtered = filtered.filter(job => job?.category?.id === selId);
+      } else {
+        // Fall back to comparing by English name when no id is available (defaults)
+        const selName = (filterCategory as { id: number | null; name: string }).name;
+        filtered = filtered.filter(job => (job?.category?.name_en || 'Other') === selName);
+      }
     }
     
     if (filterDate === 'Today') {
@@ -221,15 +258,18 @@ export default function StudentDashboard() {
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Category</Text>
             <View style={styles.filterPills}>
-              {['All', 'Hospitality', 'Retail', 'Office', 'Event', 'Other'].map((cat) => (
-                <TouchableOpacity 
-                  key={cat} 
-                  style={[styles.filterBtn, filterCategory === cat && styles.filterBtnActive]} 
-                  onPress={() => setFilterCategory(cat)}
-                >
-                  <Text style={filterCategory === cat ? styles.filterBtnTextActive : styles.filterBtnText}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
+              {categoryOptions.map((cat) => {
+                const isActive = filterCategory !== 'All' ? (filterCategory as { id: number | null; name: string }).name === cat.name : cat.name === 'All';
+                return (
+                  <TouchableOpacity 
+                    key={cat.name} 
+                    style={[styles.filterBtn, isActive && styles.filterBtnActive]} 
+                    onPress={() => setFilterCategory(cat.name === 'All' ? 'All' : cat)}
+                  >
+                    <Text style={isActive ? styles.filterBtnTextActive : styles.filterBtnText}>{cat.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 

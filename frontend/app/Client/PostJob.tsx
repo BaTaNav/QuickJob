@@ -59,6 +59,7 @@ const JOB_CATEGORIES = [
   { id: 3, key: "repair", icon: Wrench, name_nl: "Reparatie", name_fr: "Réparation", name_en: "Repair" },
   { id: 4, key: "moving", icon: Truck, name_nl: "Verhuizing", name_fr: "Déménagement", name_en: "Moving" },
   { id: 5, key: "handyman", icon: Briefcase, name_nl: "Klusjeswerk", name_fr: "Bricolage", name_en: "Handyman" },
+  { id: 6, key: "petcare", icon: Home, name_nl: "Dierenverzorging", name_fr: "Soins pour animaux", name_en: "Pet care" },
 ];
 
 const TITLE_SUGGESTIONS: Record<string, string[]> = {
@@ -67,6 +68,7 @@ const TITLE_SUGGESTIONS: Record<string, string[]> = {
   repair: ["Lekkage repareren", "Elektra herstellen", "Deur reparatie", "Verstopping"],
   moving: ["Hulp bij inpakken", "Meubels verplaatsen", "Volledige verhuizing", "Vervoer"],
   handyman: ["Kader ophangen", "IKEA meubel", "Lamp vervangen", "Kleine klusjes"],
+  petcare: ["Hond uitlaten", "Huisdieren voederen", "Kat verzorgen", "Huisdier oppas"],
 };
 
 const DESCRIPTION_TEMPLATES = [
