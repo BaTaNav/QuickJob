@@ -1,4 +1,4 @@
-const supabase = require("../supabaseClient");
+const { supabase } = require("../supabaseClient");
 
 /**
  * Middleware to verify JWT token and extract user info
