@@ -7,6 +7,24 @@ import { jobsAPI } from '../../services/api';
 export default function StudentDashboard() {
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('available');
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
+
+  // Keep the original default categories, but augment with categories discovered from jobs
+  const DEFAULT_CATEGORIES = ['Hospitality', 'Retail', 'Office', 'Event', 'Other', 'Gardening', 'Pet care'];
+  const categoryOptions = React.useMemo(() => {
+    const discovered = new Set<string>();
+    availableJobs.forEach((job) => {
+      const name = job?.category?.name_en || 'Other';
+      discovered.add(name);
+    });
+
+    // Start with 'All' and the default categories (preserve order), then append any additional discovered names
+    const merged: string[] = ['All', ...DEFAULT_CATEGORIES];
+    discovered.forEach((name) => {
+      if (!merged.includes(name)) merged.push(name);
+    });
+    return merged;
+  }, [availableJobs]);
+
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [showFilters, setShowFilters] = React.useState(false);
@@ -44,7 +62,10 @@ export default function StudentDashboard() {
     let filtered = availableJobs;
     
     if (filterCategory !== 'All') {
-      filtered = filtered.filter(job => job.category === filterCategory);
+      filtered = filtered.filter(job => {
+        const name = job?.category?.name_en || 'Other';
+        return name === filterCategory;
+      });
     }
     
     if (filterDate === 'Today') {
@@ -155,7 +176,7 @@ export default function StudentDashboard() {
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Category</Text>
             <View style={styles.filterPills}>
-              {['All', 'Hospitality', 'Retail', 'Office', 'Event', 'Other'].map((cat) => (
+              {categoryOptions.map((cat) => (
                 <TouchableOpacity 
                   key={cat} 
                   style={[styles.filterBtn, filterCategory === cat && styles.filterBtnActive]} 
