@@ -1,35 +1,58 @@
 const express = require('express');
 const multer = require('multer');
-const { supabaseService } = require('../../supabaseClient.js');
+const { supabase, supabaseService } = require('../supabaseClient.js');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-router.post('/:userId/avatar', upload.single('avatar'), async (req, res) => {
-  const { userId } = req.params;
-  const file = req.file;
+router.post('/:studentId/avatar', upload.single('avatar'), async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.studentId, 10);
+    console.log('studentId type:', typeof studentId, 'value:', studentId);
 
-  if (!file) return res.status(400).send('No file uploaded');
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
-  const fileExt = file.originalname.split('.').pop();
-  const filePath = `student_avatars/${userId}.${fileExt}`;
+    const fileExt = file.originalname.split('.').pop();
+    const filePath = `student_avatars/${studentId}.${fileExt}`;
 
-  const { error: uploadError } = await supabaseService.storage
-    .from('avatars')
-    .upload(filePath, file.buffer, { upsert: true });
+    // Upload naar Supabase Storage
+    const { error: uploadError } = await supabaseService.storage
+      .from('avatars')
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true
+      });
+    if (uploadError) throw uploadError;
 
-  if (uploadError) return res.status(500).send(uploadError.message);
+    const { data: { publicUrl } } = supabaseService.storage.from('avatars').getPublicUrl(filePath);
 
-  const { publicURL } = supabaseService.storage.from('avatars').getPublicUrl(filePath);
+    // test log
+    const { data: testData, error: testError } = await supabase
+      .from('student_profiles')
+      .select('*')
+      .eq('id', studentId);
+    console.log('Test select:', testData, testError);
 
-  const { error: dbError } = await supabaseService
-    .from('student_profiles')
-    .update({ avatar_url: publicURL })
-    .eq('user_id', userId);
+    // Update student_profiles tabel
+    const { data: updatedRows, error: dbError } = await supabase
+      .from('student_profiles')
+      .upsert(
+        { id: studentId, avatar_url: publicUrl }
+      )
+      .select();
 
-  if (dbError) return res.status(500).send(dbError.message);
+    if (dbError) throw dbError;
 
-  res.json({ avatar_url: publicURL });
+    console.log('Updated row:', updatedRows?.[0]);
+    res.json({ avatar_url: publicUrl });
+
+
+  } catch (err) {
+    console.error('Error uploading avatar:', err);
+    res.status(500).json({ error: 'Failed to upload avatar' });
+  }
 });
+
 
 module.exports = router;
