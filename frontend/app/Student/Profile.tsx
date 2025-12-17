@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator } from 'react-native';
+import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator, TextInput, ScrollView } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { studentAPI, authAPI, getStudentId } from '@/services/api';
@@ -9,9 +9,10 @@ export default function StudentProfile() {
   const [profile, setProfile] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [editing, setEditing] = React.useState(false);
+  const [formData, setFormData] = React.useState<any>({});
   const router = useRouter();
 
-  // Fetch profile data
   React.useEffect(() => {
     fetchProfile();
   }, []);
@@ -20,10 +21,8 @@ export default function StudentProfile() {
     try {
       setLoading(true);
       setError(null);
-      
       const storedStudentId = await getStudentId();
-      const id = storedStudentId ? parseInt(storedStudentId) : 3; // Default to 3 (test student in database)
-      
+      const id = storedStudentId ? parseInt(storedStudentId) : 3;
       const data = await studentAPI.getProfile(id);
       setProfile(data);
     } catch (err: any) {
@@ -41,7 +40,34 @@ export default function StudentProfile() {
     router.replace('/'); // Go to home page instead of login
   }
 
-  // Local settings state (demo only)
+  const startEdit = () => {
+    setFormData({
+      phone: profile?.phone || '',
+      school_name: profile?.school_name || '',
+      field_of_study: profile?.field_of_study || '',
+      academic_year: profile?.academic_year || '',
+      radius_km: profile?.radius_km || '',
+    });
+    setEditing(true);
+  };
+
+  const cancelEdit = () => setEditing(false);
+
+  const handleChange = (key: string, value: string | number) => {
+    setFormData((prev: any) => ({ ...prev, [key]: value }));
+  };
+
+  const submitProfileUpdate = async () => {
+    try {
+      const studentId = await getStudentId();
+      const updated = await studentAPI.updateProfile(parseInt(studentId!), formData);
+      setProfile(updated.data || updated);
+      setEditing(false);
+    } catch (err: any) {
+      console.error('Failed to update profile:', err);
+    }
+  };
+
   const [darkMode, setDarkMode] = React.useState(false);
   const [language, setLanguage] = React.useState<'EN' | 'NL' | 'FR'>('EN');
   const [notifications, setNotifications] = React.useState(true);
@@ -49,7 +75,6 @@ export default function StudentProfile() {
   return (
     <View style={styles.container}>
       <RNView style={styles.layoutRow}>
-        {/* Left control card */}
         <View style={styles.leftCard}>
           <Pressable onPress={() => router.push('/Student/Dashboard')} style={{ marginBottom: 12 }}>
             <Text style={{ color: '#176B51', fontWeight: '600', fontSize: 12 }}>← Dashboard</Text>
@@ -59,14 +84,9 @@ export default function StudentProfile() {
               <ActivityIndicator size="small" color="#176B51" />
             ) : (
               <>
-                <Image 
-                  source={require('../../assets/images/blank-profile-picture.png')} 
-                  style={styles.avatarSmall} 
-                />
+                <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarSmall} />
                 <RNView style={styles.leftIdentity}>
-                  <Text style={styles.leftName}>
-                    {profile?.school_name || 'Student'}
-                  </Text>
+                  <Text style={styles.leftName}>{profile?.school_name || 'Student'}</Text>
                   <Text style={styles.leftEmail}>{profile?.email || 'student@example.com'}</Text>
                 </RNView>
               </>
@@ -80,7 +100,6 @@ export default function StudentProfile() {
             >
               <Text style={panel === 'info' ? styles.controlBtnTextActive : styles.controlBtnText}>My Profile</Text>
             </Pressable>
-
             <Pressable
               style={[styles.controlBtn, panel === 'settings' && styles.controlBtnActive]}
               onPress={() => setPanel('settings')}
@@ -96,10 +115,9 @@ export default function StudentProfile() {
           </RNView>
         </View>
 
-        {/* Right content card: shows profile info or settings depending on selection */}
         <View style={styles.rightCard}>
           {panel === 'info' ? (
-            <RNView style={styles.rightContent}>
+            <ScrollView contentContainerStyle={styles.rightContent}>
               {loading ? (
                 <RNView style={{ padding: 40, alignItems: 'center' }}>
                   <ActivityIndicator size="large" color="#176B51" />
@@ -117,43 +135,89 @@ export default function StudentProfile() {
                   <RNView style={styles.profileHeader}>
                     <RNView>
                       <Text style={styles.label}>School</Text>
-                      <Text style={styles.value}>
-                        {profile?.school_name || 'Not set'}
-                      </Text>
+                      {editing ? (
+                        <TextInput
+                          style={styles.input}
+                          value={formData.school_name}
+                          onChangeText={(val) => handleChange('school_name', val)}
+                        />
+                      ) : (
+                        <Text style={styles.value}>{profile?.school_name || 'Not set'}</Text>
+                      )}
                     </RNView>
-
-                    <Image 
-                      source={require('../../assets/images/blank-profile-picture.png')} 
-                      style={styles.avatarLarge} 
-                    />
+                    <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarLarge} />
                   </RNView>
 
                   <Text style={styles.label}>Field of Study</Text>
-                  <Text style={styles.value}>{profile?.field_of_study || 'Not set'}</Text>
+                  {editing ? (
+                    <TextInput
+                      style={styles.input}
+                      value={formData.field_of_study}
+                      onChangeText={(val) => handleChange('field_of_study', val)}
+                    />
+                  ) : (
+                    <Text style={styles.value}>{profile?.field_of_study || 'Not set'}</Text>
+                  )}
 
                   <Text style={styles.label}>Academic Year</Text>
-                  <Text style={styles.value}>{profile?.academic_year || 'Not set'}</Text>
-
-                  <Text style={styles.label}>Email</Text>
-                  <Text style={styles.value}>{profile?.email || 'Not set'}</Text>
+                  {editing ? (
+                    <TextInput
+                      style={styles.input}
+                      value={formData.academic_year}
+                      onChangeText={(val) => handleChange('academic_year', val)}
+                    />
+                  ) : (
+                    <Text style={styles.value}>{profile?.academic_year || 'Not set'}</Text>
+                  )}
 
                   <Text style={styles.label}>Phone</Text>
-                  <Text style={styles.value}>{profile?.phone || 'Not set'}</Text>
+                  {editing ? (
+                    <TextInput
+                      style={styles.input}
+                      value={formData.phone}
+                      onChangeText={(val) => handleChange('phone', val)}
+                      keyboardType="phone-pad"
+                    />
+                  ) : (
+                    <Text style={styles.value}>{profile?.phone || 'Not set'}</Text>
+                  )}
 
                   <Text style={styles.label}>Search Radius</Text>
-                  <Text style={styles.value}>{profile?.radius_km ? `${profile.radius_km} km` : 'Not set'}</Text>
+                  {editing ? (
+                    <TextInput
+                      style={styles.input}
+                      value={String(formData.radius_km)}
+                      onChangeText={(val) => handleChange('radius_km', Number(val))}
+                      keyboardType="numeric"
+                    />
+                  ) : (
+                    <Text style={styles.value}>{profile?.radius_km ? `${profile.radius_km} km` : 'Not set'}</Text>
+                  )}
 
                   <Text style={styles.label}>Verification Status</Text>
-                  <Text style={styles.value}>{profile?.verification_status === 'verified' ? '✅ Verified' : '⏳ Pending verification'}</Text>
+                  <Text style={styles.value}>
+                    {profile?.verification_status === 'verified' ? '✅ Verified' : '⏳ Pending verification'}
+                  </Text>
+
+                  <RNView style={styles.rightFooter}>
+                    {editing ? (
+                      <RNView>
+                        <Pressable style={styles.editBtn} onPress={submitProfileUpdate}>
+                          <Text style={styles.editBtnText}>Save changes</Text>
+                        </Pressable>
+                        <Pressable style={[styles.editBtn, { backgroundColor: '#B00020' }]} onPress={cancelEdit}>
+                          <Text style={styles.editBtnText}>Cancel</Text>
+                        </Pressable>
+                      </RNView>
+                    ) : (
+                      <Pressable style={styles.editBtn} onPress={startEdit}>
+                        <Text style={styles.editBtnText}>Edit profile</Text>
+                      </Pressable>
+                    )}
+                  </RNView>
                 </RNView>
               )}
-
-              <RNView style={styles.rightFooter}>
-                <Pressable style={styles.editBtn} onPress={() => { /* TODO: edit profile */ }}>
-                  <Text style={styles.editBtnText}>Edit profile</Text>
-                </Pressable>
-              </RNView>
-            </RNView>
+            </ScrollView>
           ) : (
             <RNView style={styles.rightContent}>
               <RNView>
@@ -184,7 +248,6 @@ export default function StudentProfile() {
                   <Text style={styles.value}>{notifications ? 'On' : 'Off'}</Text>
                 </RNView>
               </RNView>
-
               <RNView style={styles.rightFooter} />
             </RNView>
           )}
@@ -204,7 +267,7 @@ const styles = StyleSheet.create({
   controlBtnActive: { backgroundColor: '#176B51' },
   controlBtnText: { color: '#333', fontWeight: '600' },
   controlBtnTextActive: { color: '#fff', fontWeight: '600' },
-  
+
   label: { color: '#7A7F85', marginTop: 12, fontWeight: '600' },
   value: { fontSize: 16, marginTop: 4 },
   editBtn: { marginTop: 16, backgroundColor: '#176B51', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
@@ -216,7 +279,7 @@ const styles = StyleSheet.create({
   langBtnText: { color: '#333', fontWeight: '600' },
   langBtnTextActive: { color: '#fff', fontWeight: '600' },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
-  rightContent: { flex: 1, justifyContent: 'space-between' },
+  rightContent: { flexGrow: 1, justifyContent: 'space-between' },
   rightFooter: { marginTop: 12 },
   avatarSmall: { width: 100, height: 100, borderRadius: 50, marginBottom: 0 },
   avatarLarge: { width: 120, height: 120, borderRadius: 60 },
@@ -226,4 +289,5 @@ const styles = StyleSheet.create({
   leftEmail: { color: '#7A7F85', marginTop: 4 },
   rightCard: { flex: 1, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 12, backgroundColor: '#fff', minHeight: 560 },
   profileHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  input: { borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginTop: 4, fontSize: 16 },
 });
