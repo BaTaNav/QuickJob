@@ -3,6 +3,7 @@ import { StyleSheet, Pressable, View as RNView, Switch, Image, TextInput, Alert 
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { authAPI } from '@/services/api';
+import * as ImagePicker from 'expo-image-picker';  // <-- toevoegen
 
 export default function ClientProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
@@ -41,6 +42,12 @@ export default function ClientProfile() {
         if (!res.ok) throw new Error('Failed to fetch profile');
 
         const data = await res.json();
+        
+        // Add cache-busting timestamp to avatar URL
+        if (data.client?.avatar_url) {
+          data.client.avatar_url = `${data.client.avatar_url}?t=${Date.now()}`;
+        }
+        
         setClientProfile(data.client);
 
         // Pre-fill settings form
@@ -60,48 +67,113 @@ export default function ClientProfile() {
     loadProfile();
   }, []);
 
- const handleSaveSettings = async () => {
-  if (!clientProfile) return;
-  const userId = clientProfile.id;
+  // Avatar upload functie
+  const uploadAvatar = async () => {
+    if (!clientProfile?.id) return;
 
-  try {
-    const res = await fetch(`http://localhost:3000/clients/${userId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        phone,
-        preferred_language: language.toLowerCase(),
-        address_line: addressLine,
-        postal_code: postalCode,
-        city,
-        region,
-        first_job_needs_approval: firstJobNeedsApproval,
-      }),
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
     });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(errText || 'Failed to update profile');
+    if (!result.canceled) {
+      const localUri = result.assets[0].uri;
+
+      const formData = new FormData();
+
+      // Check if running in web browser or native
+      if (typeof window !== 'undefined' && (localUri.startsWith('data:') || localUri.startsWith('blob:'))) {
+        // Web: convert data/blob URI to blob
+        const response = await fetch(localUri);
+        const blob = await response.blob();
+        
+        // Use the correct extension based on blob type
+        const blobExt = blob.type.split('/')[1] || 'jpg';
+        const properFilename = `avatar.${blobExt === 'jpeg' ? 'jpg' : blobExt}`;
+        
+        formData.append('avatar', blob, properFilename);
+      } else {
+        // React Native: use the object format
+        const filename = localUri.split('/').pop() || 'avatar.jpg';
+        formData.append('avatar', {
+          uri: localUri,
+          name: filename,
+          type: 'image/jpeg',
+        } as any);
+      }
+
+      try {
+        const uploadResponse = await fetch(
+          `http://localhost:3000/clients/${clientProfile.id}/avatar`,
+          {
+            method: 'POST',
+            body: formData,
+          }
+        );
+
+        const data = await uploadResponse.json();
+        if (data.avatar_url) {
+          // Add cache-busting timestamp
+          const avatarWithTimestamp = `${data.avatar_url}?t=${Date.now()}`;
+          setClientProfile((prev: any) => ({ ...prev, avatar_url: avatarWithTimestamp }));
+        }
+      } catch (err) {
+        console.error('Error uploading avatar:', err);
+        Alert.alert('Error', 'Failed to upload avatar');
+      }
     }
+  };
 
-    const updated = await res.json();
-    setClientProfile(updated.client);
-    localStorage.setItem('user', JSON.stringify(updated.client));
-    Alert.alert('Success', 'Profile updated successfully');
-  } catch (err) {
-    console.error('Update profile error:', err);
-    Alert.alert('Error','Failed to update profile');
-  }
-};
+  const handleSaveSettings = async () => {
+    if (!clientProfile) return;
+    const userId = clientProfile.id;
 
+    try {
+      const res = await fetch(`http://localhost:3000/clients/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          phone,
+          preferred_language: language.toLowerCase(),
+          address_line: addressLine,
+          postal_code: postalCode,
+          city,
+          region,
+          first_job_needs_approval: firstJobNeedsApproval,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || 'Failed to update profile');
+      }
+
+      const updated = await res.json();
+      setClientProfile(updated.client);
+      localStorage.setItem('user', JSON.stringify(updated.client));
+      Alert.alert('Success', 'Profile updated successfully');
+    } catch (err) {
+      console.error('Update profile error:', err);
+      Alert.alert('Error', 'Failed to update profile');
+    }
+  };
 
   return (
     <View style={styles.container}>
       <RNView style={styles.layoutRow}>
         <View style={styles.leftCard}>
           <RNView style={styles.leftTopRow}>
-            <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarSmall} />
+            <Pressable onPress={uploadAvatar}>
+              <Image 
+                source={clientProfile?.avatar_url 
+                  ? { uri: clientProfile.avatar_url } 
+                  : require('../../assets/images/blank-profile-picture.png')} 
+                style={styles.avatarSmall} 
+              />
+            </Pressable>
             <RNView style={styles.leftIdentity}>
               <Text style={styles.leftName}>{clientProfile?.email || 'Client Name'}</Text>
               <Text style={styles.leftEmail}>{clientProfile?.email || 'client@example.com'}</Text>
@@ -134,8 +206,21 @@ export default function ClientProfile() {
         <View style={styles.rightCard}>
           {panel === 'info' ? (
             <RNView style={styles.rightContent}>
-              <Text style={styles.label}>Email</Text>
-              <Text style={styles.value}>{clientProfile?.email}</Text>
+              {/* Avatar groot in info panel */}
+              <RNView style={styles.profileHeader}>
+                <RNView>
+                  <Text style={styles.label}>Email</Text>
+                  <Text style={styles.value}>{clientProfile?.email}</Text>
+                </RNView>
+                <Pressable onPress={uploadAvatar}>
+                  <Image 
+                    source={clientProfile?.avatar_url 
+                      ? { uri: clientProfile.avatar_url } 
+                      : require('../../assets/images/blank-profile-picture.png')} 
+                    style={styles.avatarLarge} 
+                  />
+                </Pressable>
+              </RNView>
 
               <Text style={styles.label}>Phone</Text>
               <Text style={styles.value}>{clientProfile?.phone || 'N/A'}</Text>
@@ -236,11 +321,13 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
   rightContent: { flex: 1, justifyContent: 'flex-start' },
   avatarSmall: { width: 100, height: 100, borderRadius: 50 },
+  avatarLarge: { width: 120, height: 120, borderRadius: 60 },
   leftTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 0 },
   leftIdentity: { marginLeft: 8 },
   leftName: { fontWeight: '700', fontSize: 16 },
   leftEmail: { color: '#7A7F85', marginTop: 4 },
   rightCard: { flex: 1, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 12, backgroundColor: '#fff', minHeight: 560 },
+  profileHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   input: { borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 8, padding: 8, marginTop: 4 },
   editBtn: { marginTop: 16, backgroundColor: '#176B51', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   editBtnText: { color: '#fff', fontWeight: '700' },
