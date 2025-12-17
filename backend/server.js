@@ -9,6 +9,7 @@ const clientsRouter = require("./clients/clients");
 const jobsRouter = require("./jobs/jobs");
 const studentsRouter = require("./students/students");
 const studentAvatarRouter = require("./students/avatar");
+const clientAvatarRouter = require("./clients/avatar");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -29,6 +30,7 @@ app.get("/health", (req, res) => {
 // Mount routers
 app.use("/auth", authRouter);
 app.use("/clients", clientsRouter);
+app.use("/clients", clientAvatarRouter);
 app.use("/jobs", jobsRouter);
 app.use("/students", studentsRouter);
 app.use("/students", studentAvatarRouter);

@@ -164,7 +164,7 @@ router.get("/:id", async (req, res) => {
     // Fetch client profile
     const { data: profile, error: profileError } = await supabase
       .from("client_profiles")
-      .select("address_line, postal_code, city, region, first_job_needs_approval")
+      .select("address_line, postal_code, city, region, first_job_needs_approval, avatar_url")
       .eq("id", id)
       .single();
 
