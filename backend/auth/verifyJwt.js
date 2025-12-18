@@ -1,31 +1,21 @@
-const { supabase } = require("../supabaseClient");
+const jwt = require("jsonwebtoken");
 
-/**
- * Middleware to verify JWT token and extract user info
- * Expects: Authorization: Bearer <token>
- */
-const verifyJwt = async (req, res, next) => {
+const verifyJwt = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing or invalid Authorization header" });
+  }
+
+  const token = authHeader.slice(7);
+
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Missing or invalid Authorization header" });
-    }
-
-    const token = authHeader.slice(7); // Remove "Bearer "
-
-    // Verify token with Supabase
-    const { data, error } = await supabase.auth.getUser(token);
-
-    if (error || !data.user) {
-      return res.status(401).json({ error: "Invalid token" });
-    }
-
-    // Attach user to request
-    req.user = data.user;
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    // payload: { sub, role, email, iat, exp }
+    req.user = payload;
     next();
   } catch (err) {
-    console.error("JWT verification error:", err);
-    res.status(500).json({ error: "Authentication failed" });
+    return res.status(401).json({ error: "Invalid or expired token" });
   }
 };
 
