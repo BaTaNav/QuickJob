@@ -1,5 +1,5 @@
 const express = require("express");
-const supabase = require("../supabaseClient");
+const { supabase } = require("../supabaseClient");
 const router = express.Router();
 
 /**
@@ -34,14 +34,33 @@ function mapJobRow(row) {
 /**
  * GET /jobs/available
  * Get all available jobs (not filtered by location yet)
- * Optional query: ?status=open&limit=20
+ * Optional query: ?status=open&limit=20&studentId=123
+ * If studentId is provided, excludes jobs the student has already applied to
  */
 router.get("/available", async (req, res) => {
   try {
     const status = req.query.status || "open";
     const limit = parseInt(req.query.limit) || 50;
+    const studentId = req.query.studentId ? parseInt(req.query.studentId) : null;
 
-    const { data, error } = await supabase
+    // If studentId provided, get job IDs the student has ACTIVE applications for (pending/accepted)
+    // Withdrawn/rejected applications should NOT exclude the job from available
+    let excludeJobIds = [];
+    if (studentId) {
+      const { data: applications, error: appError } = await supabase
+        .from("job_applications")
+        .select("job_id")
+        .eq("student_id", studentId)
+        .in("status", ["pending", "accepted"]); // Only exclude active applications
+      
+      if (appError) {
+        console.error("Error fetching student applications:", appError);
+      } else if (applications && applications.length > 0) {
+        excludeJobIds = applications.map(app => app.job_id);
+      }
+    }
+
+    let query = supabase
       .from("jobs")
       .select(
         `
@@ -57,6 +76,13 @@ router.get("/available", async (req, res) => {
       .eq("status", status)
       .order("start_time", { ascending: true })
       .limit(limit);
+
+    // Exclude jobs the student has already applied to
+    if (excludeJobIds.length > 0) {
+      query = query.not("id", "in", `(${excludeJobIds.join(",")})`);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -325,7 +351,34 @@ router.get("/client/:clientId", async (req, res) => {
 
     if (error) throw error;
 
-    const jobs = data?.map(mapJobRow) || [];
+    // Get applicant counts for each job
+    const jobIds = data?.map(job => job.id) || [];
+    let applicantCounts = {};
+    
+    if (jobIds.length > 0) {
+      const { data: applications, error: appError } = await supabase
+        .from("job_applications")
+        .select("job_id, status")
+        .in("job_id", jobIds)
+        .in("status", ["pending", "accepted"]); // Only count active applications
+      
+      if (!appError && applications) {
+        applications.forEach(app => {
+          if (!applicantCounts[app.job_id]) {
+            applicantCounts[app.job_id] = { pending: 0, accepted: 0 };
+          }
+          applicantCounts[app.job_id][app.status]++;
+        });
+      }
+    }
+
+    const jobs = data?.map(job => ({
+      ...mapJobRow(job),
+      applicant_count: (applicantCounts[job.id]?.pending || 0) + (applicantCounts[job.id]?.accepted || 0),
+      pending_applicants: applicantCounts[job.id]?.pending || 0,
+      accepted_applicants: applicantCounts[job.id]?.accepted || 0,
+    })) || [];
+
     res.json({
       jobs,
       message: jobs.length === 0 ? "No jobs found for this client" : null,
@@ -334,6 +387,215 @@ router.get("/client/:clientId", async (req, res) => {
   } catch (err) {
     console.error("Error fetching client jobs:", err);
     res.status(500).json({ error: "Failed to fetch client jobs" });
+  }
+});
+
+/**
+ * GET /jobs/:jobId/applicants
+ * Get all applicants for a specific job (for client to view)
+ */
+router.get("/:jobId/applicants", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId, 10);
+
+    if (!jobId) {
+      return res.status(400).json({ error: "Invalid job ID" });
+    }
+
+    // Get the job to verify it exists
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .select("id, client_id, title")
+      .eq("id", jobId)
+      .single();
+
+    if (jobError || !job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    // Get all applications for this job with student info
+    const { data: applications, error: appError } = await supabase
+      .from("job_applications")
+      .select(`
+        id, status, applied_at,
+        student_profiles (
+          id,
+          school_name,
+          field_of_study,
+          academic_year,
+          avatar_url,
+          verification_status
+        ),
+        users:student_id (
+          id,
+          email,
+          phone
+        )
+      `)
+      .eq("job_id", jobId)
+      .in("status", ["pending", "accepted"])
+      .order("applied_at", { ascending: false });
+
+    if (appError) throw appError;
+
+    const applicants = applications?.map(app => ({
+      application_id: app.id,
+      status: app.status,
+      applied_at: app.applied_at,
+      student: {
+        id: app.users?.id,
+        email: app.users?.email,
+        phone: app.users?.phone,
+        school_name: app.student_profiles?.school_name,
+        field_of_study: app.student_profiles?.field_of_study,
+        academic_year: app.student_profiles?.academic_year,
+        avatar_url: app.student_profiles?.avatar_url,
+        verification_status: app.student_profiles?.verification_status,
+      }
+    })) || [];
+
+    res.json({
+      job_id: jobId,
+      job_title: job.title,
+      applicants,
+      count: applicants.length,
+    });
+  } catch (err) {
+    console.error("Error fetching applicants:", err);
+    res.status(500).json({ error: "Failed to fetch applicants" });
+  }
+});
+
+/**
+ * PATCH /jobs/:jobId/applicants/:applicationId
+ * Accept or reject an applicant
+ */
+router.patch("/:jobId/applicants/:applicationId", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId, 10);
+    const applicationId = parseInt(req.params.applicationId, 10);
+    const { status } = req.body; // 'accepted' or 'rejected'
+
+    if (!jobId || !applicationId) {
+      return res.status(400).json({ error: "Invalid job or application ID" });
+    }
+
+    if (!['accepted', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: "Status must be 'accepted' or 'rejected'" });
+    }
+
+    // Verify the application exists and belongs to this job
+    const { data: existingApp, error: fetchError } = await supabase
+      .from("job_applications")
+      .select("id, job_id, status")
+      .eq("id", applicationId)
+      .eq("job_id", jobId)
+      .single();
+
+    if (fetchError || !existingApp) {
+      return res.status(404).json({ error: "Application not found" });
+    }
+
+    if (existingApp.status !== "pending") {
+      return res.status(400).json({ error: `Cannot update application - already ${existingApp.status}` });
+    }
+
+    // Update the application status
+    const { data: updatedApp, error: updateError } = await supabase
+      .from("job_applications")
+      .update({ status })
+      .eq("id", applicationId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    // If accepting, update job status to 'pending' (assigned but not started)
+    if (status === 'accepted') {
+      await supabase
+        .from("jobs")
+        .update({ status: "pending" })
+        .eq("id", jobId);
+    }
+
+    res.json({
+      message: `Applicant ${status}`,
+      application: updatedApp,
+    });
+  } catch (err) {
+    console.error("Error updating applicant:", err);
+    res.status(500).json({ error: "Failed to update applicant" });
+  }
+});
+
+/**
+ * DELETE /jobs/:jobId
+ * Delete a job (only by the client who owns it)
+ */
+router.delete("/:jobId", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId, 10);
+    const { client_id } = req.body; // Client ID to verify ownership
+
+    if (!jobId) {
+      return res.status(400).json({ error: "Invalid job ID" });
+    }
+
+    // First verify the job exists and belongs to this client
+    const { data: job, error: fetchError } = await supabase
+      .from("jobs")
+      .select("id, client_id, title, status")
+      .eq("id", jobId)
+      .single();
+
+    if (fetchError || !job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    // Verify ownership if client_id provided
+    if (client_id && job.client_id !== parseInt(client_id, 10)) {
+      return res.status(403).json({ error: "You can only delete your own jobs" });
+    }
+
+    // Check if there are accepted applications - don't allow deletion
+    const { data: acceptedApps, error: appError } = await supabase
+      .from("job_applications")
+      .select("id")
+      .eq("job_id", jobId)
+      .eq("status", "accepted");
+
+    if (!appError && acceptedApps && acceptedApps.length > 0) {
+      return res.status(400).json({ 
+        error: "Cannot delete job with accepted applicants",
+        message: "Je kunt geen job verwijderen waarvoor al een student geaccepteerd is."
+      });
+    }
+
+    // Delete ALL applications for this job (pending, rejected, withdrawn)
+    const { error: deleteAppsError } = await supabase
+      .from("job_applications")
+      .delete()
+      .eq("job_id", jobId);
+
+    if (deleteAppsError) {
+      console.error("Error deleting applications:", deleteAppsError);
+    }
+
+    // Delete the job
+    const { error: deleteError } = await supabase
+      .from("jobs")
+      .delete()
+      .eq("id", jobId);
+
+    if (deleteError) throw deleteError;
+
+    res.json({
+      message: "Job deleted successfully",
+      deleted_job: { id: jobId, title: job.title }
+    });
+  } catch (err) {
+    console.error("Error deleting job:", err);
+    res.status(500).json({ error: "Failed to delete job" });
   }
 });
 
