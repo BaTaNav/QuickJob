@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Platform } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { jobsAPI } from '../../../services/api';
@@ -33,6 +33,85 @@ export default function JobDetail() {
     };
     load();
   }, [idParam]);
+
+  const handleApply = async () => {
+    if (!studentId || !idParam) {
+      if (Platform.OS === 'web') {
+        window.alert('Je moet ingelogd zijn om te solliciteren');
+      } else {
+        Alert.alert('Error', 'Je moet ingelogd zijn om te solliciteren');
+      }
+      return;
+    }
+    try {
+      setApplying(true);
+      await studentAPI.applyForJob(Number(studentId), Number(idParam));
+      setApplicationStatus('pending');
+      if (Platform.OS === 'web') {
+        window.alert('Succes! Je sollicitatie is verstuurd. Je vindt deze terug bij Pending.');
+        router.replace('/Student/Dashboard?tab=pending');
+      } else {
+        Alert.alert('Succes!', 'Je sollicitatie is verstuurd. Je vindt deze terug bij Pending.', [
+          { text: 'OK', onPress: () => router.replace('/Student/Dashboard?tab=pending') }
+        ]);
+      }
+    } catch (err: any) {
+      if (Platform.OS === 'web') {
+        window.alert(err?.message || 'Kon niet solliciteren');
+      } else {
+        Alert.alert('Error', err?.message || 'Kon niet solliciteren');
+      }
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!studentId || !applicationId) return;
+    
+    const doCancel = async () => {
+      try {
+        setCancelling(true);
+        await studentAPI.cancelApplication(Number(studentId), applicationId);
+        setApplicationStatus('withdrawn');
+        if (Platform.OS === 'web') {
+          window.alert('Je sollicitatie is geannuleerd.');
+          router.push('/Student/Dashboard');
+        } else {
+          Alert.alert('Geannuleerd', 'Je sollicitatie is geannuleerd.', [
+            { text: 'OK', onPress: () => router.push('/Student/Dashboard') }
+          ]);
+        }
+      } catch (err: any) {
+        if (Platform.OS === 'web') {
+          window.alert(err?.message || 'Kon niet annuleren');
+        } else {
+          Alert.alert('Error', err?.message || 'Kon niet annuleren');
+        }
+      } finally {
+        setCancelling(false);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Weet je zeker dat je je sollicitatie wilt annuleren?')) {
+        doCancel();
+      }
+    } else {
+      Alert.alert(
+        'Sollicitatie annuleren',
+        'Weet je zeker dat je je sollicitatie wilt annuleren?',
+        [
+          { text: 'Nee', style: 'cancel' },
+          {
+            text: 'Ja, annuleer',
+            style: 'destructive',
+            onPress: doCancel,
+          },
+        ]
+      );
+    }
+  };
 
   if (loading) {
     return (
@@ -86,6 +165,48 @@ export default function JobDetail() {
           <Text style={styles.applyBtnText}>Apply for this job</Text>
         </Pressable>
       )}
+
+      {/* Pending status - can cancel */}
+      {applicationStatus === 'pending' && (
+        <View style={styles.statusContainer}>
+          <View style={styles.pendingBadge}>
+            <Text style={styles.pendingText}>⏳ Sollicitatie in afwachting</Text>
+          </View>
+          <Pressable 
+            style={[styles.cancelBtn, cancelling && styles.cancelBtnDisabled]} 
+            onPress={handleCancel}
+            disabled={cancelling}
+          >
+            <Text style={styles.cancelBtnText}>
+              {cancelling ? 'Annuleren...' : 'Sollicitatie annuleren'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Accepted status - cannot cancel */}
+      {applicationStatus === 'accepted' && (
+        <View style={styles.statusContainer}>
+          <View style={styles.acceptedBadge}>
+            <Text style={styles.acceptedText}>✅ Geaccepteerd! Je bent aangenomen voor deze job.</Text>
+          </View>
+          <Text style={styles.noCancel}>Je kunt een geaccepteerde job niet meer annuleren.</Text>
+        </View>
+      )}
+
+      {/* Withdrawn status */}
+      {applicationStatus === 'withdrawn' && (
+        <View style={styles.statusContainer}>
+          <View style={styles.cancelledBadge}>
+            <Text style={styles.cancelledText}>❌ Sollicitatie geannuleerd</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Back to dashboard */}
+      <Pressable style={styles.backBtn} onPress={() => router.push('/Student/Dashboard')}>
+        <Text style={styles.backBtnText}>← Terug naar dashboard</Text>
+      </Pressable>
     </ScrollView>
   );
 }

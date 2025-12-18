@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Linking from 'expo-linking';
 
 const Signup = () => {
@@ -79,11 +80,12 @@ const Signup = () => {
   };
 
   return (
-    <ScrollView 
-      contentContainerStyle={styles.containerContent} 
-      style={styles.container} 
-      keyboardShouldPersistTaps="handled"
-    >
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <ScrollView 
+        contentContainerStyle={styles.containerContent} 
+        style={styles.container} 
+        keyboardShouldPersistTaps="handled"
+      >
       <View style={styles.headerContainer}>
         <Text style={styles.headerTitle}>QuickJob</Text>
       </View>
@@ -187,6 +189,7 @@ const Signup = () => {
         </View>
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -195,6 +198,10 @@ export default Signup;
 
 // React Native Stylesheet
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F5F7FA',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F8FAFB',

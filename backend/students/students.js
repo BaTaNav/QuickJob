@@ -71,7 +71,7 @@ router.get("/:studentId/dashboard", async (req, res) => {
         id, client_id, category_id,
         title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, end_time, status, created_at,
+        start_time, status, created_at,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -112,8 +112,8 @@ router.get("/:studentId/dashboard", async (req, res) => {
       const startDateISO = job.start_time.slice(0, 10);
       const appStatus = job.application_status;
 
-      // Archive: completed or rejected or cancelled
-      if (appStatus === "completed" || appStatus === "rejected" || appStatus === "cancelled") {
+      // Archive: rejected or withdrawn
+      if (appStatus === "rejected" || appStatus === "withdrawn") {
         archive.push(job);
       }
       // Pending: awaiting response
@@ -269,17 +269,28 @@ router.post("/:studentId/apply", /* verifyJwt, */ async (req, res) => {
       return res.status(400).json({ error: "job_id is required" });
     }
 
-    // Check if already applied
+    // Check if already has an ACTIVE application (pending or accepted) or was rejected
+    // Students can only re-apply if their previous application was withdrawn
     const { data: existingApp } = await supabase
       .from("job_applications")
-      .select("id")
+      .select("id, status")
       .eq("student_id", studentId)
       .eq("job_id", job_id)
+      .in("status", ["pending", "accepted", "rejected"])
       .single();
 
     if (existingApp) {
       return res.status(409).json({ error: "Already applied to this job" });
     }
+
+    // Delete any previous withdrawn applications for this job
+    // so the student can create a fresh application
+    await supabase
+      .from("job_applications")
+      .delete()
+      .eq("student_id", studentId)
+      .eq("job_id", job_id)
+      .eq("status", "withdrawn");
 
     // Create application
     const { data, error } = await supabase
@@ -294,6 +305,18 @@ router.post("/:studentId/apply", /* verifyJwt, */ async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    // Update job status from "open" to "pending"
+    const { error: jobUpdateError } = await supabase
+      .from("jobs")
+      .update({ status: "pending" })
+      .eq("id", job_id)
+      .eq("status", "open"); // Only update if currently open
+
+    if (jobUpdateError) {
+      console.error("Error updating job status:", jobUpdateError);
+      // Don't fail the application if job status update fails
+    }
 
     res.status(201).json(data);
   } catch (err) {
@@ -353,14 +376,14 @@ router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (
     //   return res.status(403).json({ error: "Unauthorized" });
     // }
 
-    // Only allow cancelling applications (status: cancelled)
-    if (status !== "cancelled") {
+    // Only allow cancelling applications (status: withdrawn)
+    if (status !== "withdrawn") {
       return res.status(400).json({ error: "Only cancellation is allowed from student side" });
     }
 
     const { data, error } = await supabase
       .from("job_applications")
-      .update({ status: "cancelled" })
+      .update({ status: "withdrawn" })
       .eq("id", applicationId)
       .eq("student_id", studentId)
       .select()
@@ -369,12 +392,33 @@ router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (
     if (error) throw error;
     if (!data) return res.status(404).json({ error: "Application not found" });
 
+    // Check if there are any other pending applications for this job
+    const { data: otherApps, error: otherAppsError } = await supabase
+      .from("job_applications")
+      .select("id")
+      .eq("job_id", existingApp.job_id)
+      .eq("status", "pending");
+
+    if (!otherAppsError && (!otherApps || otherApps.length === 0)) {
+      // No other pending applications, set job back to "open"
+      const { error: jobUpdateError } = await supabase
+        .from("jobs")
+        .update({ status: "open" })
+        .eq("id", existingApp.job_id)
+        .eq("status", "pending"); // Only update if currently pending
+
+      if (jobUpdateError) {
+        console.error("Error updating job status:", jobUpdateError);
+      }
+    }
+
     res.json(data);
   } catch (err) {
     console.error("Error updating application:", err);
     res.status(500).json({ error: "Failed to update application" });
   }
 });
+
 
 /**
  * GET /students/:studentId/documents

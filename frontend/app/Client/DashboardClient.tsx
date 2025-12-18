@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from 'expo-router';
-import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase } from "lucide-react-native";
+import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, Users } from "lucide-react-native";
 import { jobsAPI, getClientId } from "@/services/api";
 
 export default function DashboardClient() {
@@ -10,6 +11,7 @@ export default function DashboardClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   // Fetch jobs from backend
   const fetchJobs = useCallback(async () => {
@@ -33,6 +35,11 @@ export default function DashboardClient() {
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
+
+  // Navigate to job detail page
+  const openJobDetail = (job: any) => {
+    router.push(`/Client/Job/${job.id}` as never);
+  };
 
   // Filter jobs by status
   const openJobs = jobs.filter(j => j.status === 'open');
@@ -80,39 +87,50 @@ export default function DashboardClient() {
 
   // Render a single job card
   const renderJobCard = (job: any) => (
-    <View key={job.id} style={styles.jobCard}>
-      <View style={styles.jobHeader}>
-        <Text style={styles.jobTitle}>{job.title}</Text>
-        <View style={[styles.statusBadge, job.status === 'open' ? styles.statusOpen : styles.statusOther]}>
-          <Text style={styles.statusText}>{job.status}</Text>
+    <TouchableOpacity key={job.id} onPress={() => openJobDetail(job)} activeOpacity={0.7}>
+      <View style={styles.jobCard}>
+        <View style={styles.jobHeader}>
+          <Text style={styles.jobTitle}>{job.title}</Text>
+          <View style={[styles.statusBadge, job.status === 'open' ? styles.statusOpen : styles.statusOther]}>
+            <Text style={styles.statusText}>{job.status}</Text>
+          </View>
+        </View>
+        {job.category && (
+          <View style={styles.jobMeta}>
+            <Briefcase size={14} color="#64748B" />
+            <Text style={styles.jobMetaText}>{job.category.name_nl || job.category.name_en}</Text>
+          </View>
+        )}
+        {job.area_text && (
+          <View style={styles.jobMeta}>
+            <MapPin size={14} color="#64748B" />
+            <Text style={styles.jobMetaText}>{job.area_text}</Text>
+          </View>
+        )}
+        {job.start_time && (
+          <View style={styles.jobMeta}>
+            <Clock size={14} color="#64748B" />
+            <Text style={styles.jobMetaText}>{formatDate(job.start_time)}</Text>
+          </View>
+        )}
+        <View style={styles.jobFooter}>
+          <Text style={styles.jobPrice}>
+            {job.hourly_or_fixed === 'fixed' 
+              ? `€${job.fixed_price || 0}` 
+              : `€${job.hourly_rate || 0}/uur`}
+          </Text>
+          {/* Applicant count badge */}
+          {(job.applicant_count > 0 || job.pending_applicants > 0) && (
+            <View style={styles.applicantBadge}>
+              <Users size={14} color="#fff" />
+              <Text style={styles.applicantBadgeText}>
+                {job.pending_applicants || job.applicant_count} sollicitant{(job.pending_applicants || job.applicant_count) !== 1 ? 'en' : ''}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
-      {job.category && (
-        <View style={styles.jobMeta}>
-          <Briefcase size={14} color="#64748B" />
-          <Text style={styles.jobMetaText}>{job.category.name_nl || job.category.name_en}</Text>
-        </View>
-      )}
-      {job.area_text && (
-        <View style={styles.jobMeta}>
-          <MapPin size={14} color="#64748B" />
-          <Text style={styles.jobMetaText}>{job.area_text}</Text>
-        </View>
-      )}
-      {job.start_time && (
-        <View style={styles.jobMeta}>
-          <Clock size={14} color="#64748B" />
-          <Text style={styles.jobMetaText}>{formatDate(job.start_time)}</Text>
-        </View>
-      )}
-      <View style={styles.jobFooter}>
-        <Text style={styles.jobPrice}>
-          {job.hourly_or_fixed === 'fixed' 
-            ? `€${job.fixed_price || 0}` 
-            : `€${job.hourly_rate || 0}/uur`}
-        </Text>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -120,7 +138,7 @@ export default function DashboardClient() {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 8 }]}>
         <View style={styles.headerLeft}>
           <Handshake size={28} color="#176B51" strokeWidth={2.5} />
           <Text style={styles.headerTitle}>QuickJob</Text>
@@ -323,7 +341,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: "#EFF0F6",
-    paddingTop: Platform.OS === 'android' ? 48 : 56,
   },
   headerLeft: {
     flexDirection: "row",
@@ -699,5 +716,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "500",
+  },
+
+  // Applicant Badge on Job Card
+  applicantBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#176B51",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    marginTop: 8,
+  },
+  applicantBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

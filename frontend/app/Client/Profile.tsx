@@ -1,13 +1,22 @@
 import * as React from 'react';
-import { StyleSheet, Pressable, View as RNView, Switch, Image, TextInput, Alert } from 'react-native';
+import { StyleSheet, Pressable, View as RNView, Switch, Image, TextInput, Alert, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
-import { authAPI } from '@/services/api';
+import { authAPI, getClientId } from '@/services/api';
+import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// API URL - use localhost for web, IP address for mobile
+const API_BASE_URL = Platform.OS === 'web' 
+  ? 'http://localhost:3000' 
+  : 'http://10.2.88.141:3000';
 
 export default function ClientProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
   const router = useRouter();
   const [clientProfile, setClientProfile] = React.useState<any>(null);
+  const insets = useSafeAreaInsets();
 
   // Local settings state (demo only)
   const [darkMode, setDarkMode] = React.useState(false);
@@ -21,9 +30,9 @@ export default function ClientProfile() {
   const [region, setRegion] = React.useState('');
   const [firstJobNeedsApproval, setFirstJobNeedsApproval] = React.useState(false);
 
-  function handleLogout() {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+  async function handleLogout() {
+    const { authAPI } = await import('@/services/api');
+    await authAPI.logout();
     router.replace('/');
   }
 
@@ -31,13 +40,31 @@ export default function ClientProfile() {
   React.useEffect(() => {
     async function loadProfile() {
       try {
-        const userJson = localStorage.getItem('user');
-        if (!userJson) return;
+        let userJson: string | null = null;
+        let userId: number | null = null;
+        
+        if (Platform.OS === 'web') {
+          userJson = localStorage.getItem('user');
+          if (userJson) {
+            const user = JSON.parse(userJson);
+            userId = user.id;
+          }
+        } else {
+          // Mobile - use AsyncStorage
+          userJson = await AsyncStorage.getItem('user');
+          if (userJson) {
+            const user = JSON.parse(userJson);
+            userId = user.id;
+          } else {
+            // Fallback to clientId
+            const clientId = await getClientId();
+            if (clientId) userId = parseInt(clientId);
+          }
+        }
+        
+        if (!userId) return;
 
-        const user = JSON.parse(userJson);
-        const userId = user.id;
-
-        const res = await fetch(`http://localhost:3000/clients/${userId}`);
+        const res = await fetch(`${API_BASE_URL}/clients/${userId}`);
         if (!res.ok) throw new Error('Failed to fetch profile');
 
         const data = await res.json();
@@ -97,7 +124,7 @@ export default function ClientProfile() {
 
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) + 12 }]}>
       <RNView style={styles.layoutRow}>
         <View style={styles.leftCard}>
           <RNView style={styles.leftTopRow}>
@@ -217,7 +244,7 @@ export default function ClientProfile() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 28, backgroundColor: '#fff', paddingBottom: 60 },
+  container: { padding: 28, backgroundColor: '#fff', paddingBottom: 60, flex: 1 },
   layoutRow: { flexDirection: 'row', gap: 24 },
   leftCard: { width: 300, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 14, backgroundColor: '#fff', height: 560, justifyContent: 'space-between', flexShrink: 0 },
   controlBtn: { paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#F4F6F7', marginBottom: 8, alignItems: 'flex-start', width: '100%' },

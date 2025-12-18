@@ -1,7 +1,12 @@
 // API Service for QuickJob Backend
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 // For web: http://localhost:3000
-// For mobile simulator: Use your computer's IP address (e.g., http://192.168.1.x:3000)
-const API_BASE_URL = 'http://localhost:3000';
+// For mobile simulator: Use your computer's IP address
+const API_BASE_URL = Platform.OS === 'web' 
+  ? 'http://localhost:3000' 
+  : 'http://10.2.88.141:3000';
 
 // Add logging for debugging
 const logRequest = (method: string, url: string) => {
@@ -11,12 +16,14 @@ const logRequest = (method: string, url: string) => {
 // Helper function to get auth token from storage
 const getAuthToken = async () => {
   try {
-    // In a real app, you'd get this from AsyncStorage or SecureStore
-    // For now, we'll use a placeholder
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('authToken');
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return localStorage.getItem('authToken');
+      }
+      return null;
+    } else {
+      return await AsyncStorage.getItem('authToken');
     }
-    return null;
   } catch (error) {
     console.error('Error getting auth token:', error);
     return null;
@@ -26,8 +33,12 @@ const getAuthToken = async () => {
 // Helper function to save auth token
 export const saveAuthToken = async (token: string) => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem('authToken', token);
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('authToken', token);
+      }
+    } else {
+      await AsyncStorage.setItem('authToken', token);
     }
   } catch (error) {
     console.error('Error saving auth token:', error);
@@ -37,8 +48,12 @@ export const saveAuthToken = async (token: string) => {
 // Helper function to save student ID
 export const saveStudentId = async (studentId: string) => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem('studentId', studentId);
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('studentId', studentId);
+      }
+    } else {
+      await AsyncStorage.setItem('studentId', studentId);
     }
   } catch (error) {
     console.error('Error saving student ID:', error);
@@ -48,10 +63,14 @@ export const saveStudentId = async (studentId: string) => {
 // Helper function to get student ID
 export const getStudentId = async () => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('studentId');
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return localStorage.getItem('studentId');
+      }
+      return null;
+    } else {
+      return await AsyncStorage.getItem('studentId');
     }
-    return null;
   } catch (error) {
     console.error('Error getting student ID:', error);
     return null;
@@ -61,8 +80,12 @@ export const getStudentId = async () => {
 // Helper function to save client ID
 export const saveClientId = async (clientId: string) => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem('clientId', clientId);
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('clientId', clientId);
+      }
+    } else {
+      await AsyncStorage.setItem('clientId', clientId);
     }
   } catch (error) {
     console.error('Error saving client ID:', error);
@@ -72,10 +95,14 @@ export const saveClientId = async (clientId: string) => {
 // Helper function to get client ID
 export const getClientId = async () => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('clientId');
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return localStorage.getItem('clientId');
+      }
+      return null;
+    } else {
+      return await AsyncStorage.getItem('clientId');
     }
-    return null;
   } catch (error) {
     console.error('Error getting client ID:', error);
     return null;
@@ -185,18 +212,27 @@ export const studentAPI = {
   // Cancel an application
   async cancelApplication(studentId: number, applicationId: number) {
     const token = await getAuthToken();
-    const response = await fetch(`${API_BASE_URL}/students/${studentId}/applications/${applicationId}`, {
+    const url = `${API_BASE_URL}/students/${studentId}/applications/${applicationId}`;
+    console.log('[API] PATCH', url, { studentId, applicationId });
+    
+    const response = await fetch(url, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ status: 'cancelled' }),
+      body: JSON.stringify({ status: 'withdrawn' }),
     });
+    
     if (!response.ok) {
-      throw new Error('Failed to cancel application');
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[API Error] Cancel application failed:', response.status, errorData);
+      throw new Error(errorData.error || errorData.message || 'Failed to cancel application');
     }
-    return response.json();
+    
+    const data = await response.json();
+    console.log('[API Success] Application withdrawn:', data);
+    return data;
   },
 
   // Get student documents
@@ -241,10 +277,13 @@ export const studentAPI = {
 
 // Jobs API Endpoints
 export const jobsAPI = {
-  // Get available jobs
-  async getAvailableJobs(status = 'open', limit = 50) {
+  // Get available jobs (optionally exclude jobs student has applied to)
+  async getAvailableJobs(status = 'open', limit = 50, studentId?: string | number | null) {
     try {
-      const url = `${API_BASE_URL}/jobs/available?status=${status}&limit=${limit}`;
+      let url = `${API_BASE_URL}/jobs/available?status=${status}&limit=${limit}`;
+      if (studentId) {
+        url += `&studentId=${studentId}`;
+      }
       logRequest('GET', url);
       
       const response = await fetch(url);
@@ -353,6 +392,81 @@ export const jobsAPI = {
     // Backend now returns {jobs: [], message: string, count: number}
     return data.jobs || data;
   },
+
+  // Get applicants for a job
+  async getJobApplicants(jobId: number) {
+    try {
+      const url = `${API_BASE_URL}/jobs/${jobId}/applicants`;
+      logRequest('GET', url);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[API Error]', response.status, errorText);
+        throw new Error(`Failed to fetch applicants: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Applicants:', data?.count || 0, 'applicants');
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Network error');
+    }
+  },
+
+  // Accept or reject an applicant
+  async updateApplicantStatus(jobId: number, applicationId: number, status: 'accepted' | 'rejected') {
+    try {
+      const url = `${API_BASE_URL}/jobs/${jobId}/applicants/${applicationId}`;
+      logRequest('PATCH', url);
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update applicant');
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Applicant updated:', data);
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Failed to update applicant');
+    }
+  },
+
+  // Delete a job
+  async deleteJob(jobId: number, clientId?: string | number) {
+    try {
+      const url = `${API_BASE_URL}/jobs/${jobId}`;
+      logRequest('DELETE', url);
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || errorData.error || 'Failed to delete job');
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Job deleted:', data);
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Failed to delete job');
+    }
+  },
 };
 
 // Auth API
@@ -434,10 +548,16 @@ export const authAPI = {
   },
 
   async logout() {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('studentId');
-      localStorage.removeItem('clientId');
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('clientId');
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+      }
+    } else {
+      await AsyncStorage.multiRemove(['authToken', 'studentId', 'clientId', 'user', 'token']);
     }
   },
 };
