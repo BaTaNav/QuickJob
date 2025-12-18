@@ -4,10 +4,10 @@ const cors = require("cors");
 require("dotenv").config();
 
 const supabase = require("./supabaseClient");
-const authRouter = require("./auth/auth");
 const clientsRouter = require("./clients/clients");
 const jobsRouter = require("./jobs/jobs");
 const studentsRouter = require("./students/students");
+const adminRouter = require("./Admin/Admin");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -26,11 +26,10 @@ app.get("/health", (req, res) => {
 });
 
 // Mount routers
-app.use("/auth", authRouter);
 app.use("/clients", clientsRouter);
 app.use("/jobs", jobsRouter);
 app.use("/students", studentsRouter);
-
+app.use("/admin", adminRouter);
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
