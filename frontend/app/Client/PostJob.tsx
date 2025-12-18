@@ -30,7 +30,8 @@ import {
   Home,
   ChevronRight,
   MapPin,
-  DollarSign
+  DollarSign,
+  Dog,
 } from "lucide-react-native";
 import { getClientId, jobsAPI } from "@/services/api";
 // Updated import path for getClientId
@@ -59,7 +60,7 @@ const JOB_CATEGORIES = [
   { id: 3, key: "repair", icon: Wrench, name_nl: "Reparatie", name_fr: "Réparation", name_en: "Repair" },
   { id: 4, key: "moving", icon: Truck, name_nl: "Verhuizing", name_fr: "Déménagement", name_en: "Moving" },
   { id: 5, key: "handyman", icon: Briefcase, name_nl: "Klusjeswerk", name_fr: "Bricolage", name_en: "Handyman" },
-  { id: 6, key: "petcare", icon: Home, name_nl: "Dierenverzorging", name_fr: "Soins pour animaux", name_en: "Pet care" },
+  { id: 6, key: "petcare", icon: Dog, name_nl: "Dierenverzorging", name_fr: "Soins pour animaux", name_en: "Pet care" },
 ];
 
 const TITLE_SUGGESTIONS: Record<string, string[]> = {
@@ -330,7 +331,7 @@ export default function PostJob() {
                         accessibilityState={{ selected: isSelected }}
                         accessibilityLabel={(cat as any)[`name_${language}`]}
                       >
-                        <Icon size={28} color={isSelected ? "#fff" : "#176B51"} />
+                        <Icon size={28} color={isSelected ? "#000000ff" : "#176B51"} />
                         <Text style={[styles.gridText, isSelected && styles.gridTextActive]}>
                           {(cat as any)[`name_${language}`]}
                         </Text>
