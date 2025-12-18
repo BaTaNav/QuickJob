@@ -41,6 +41,24 @@ router.get("/available", async (req, res) => {
   try {
     const status = req.query.status || "open";
     const limit = parseInt(req.query.limit) || 50;
+    const studentId = req.query.studentId ? parseInt(req.query.studentId) : null;
+
+    // If studentId provided, get job IDs the student has ACTIVE applications for (pending/accepted)
+    // Withdrawn/rejected applications should NOT exclude the job from available
+    let excludeJobIds = [];
+    if (studentId) {
+      const { data: applications, error: appError } = await supabase
+        .from("job_applications")
+        .select("job_id")
+        .eq("student_id", studentId)
+        .in("status", ["pending", "accepted"]); // Only exclude active applications
+      
+      if (appError) {
+        console.error("Error fetching student applications:", appError);
+      } else if (applications && applications.length > 0) {
+        excludeJobIds = applications.map(app => app.job_id);
+      }
+    }
 
     let query = supabase
       .from("jobs")
@@ -58,6 +76,11 @@ router.get("/available", async (req, res) => {
       .eq("status", status)
       .order("start_time", { ascending: true })
       .limit(limit);
+
+    // Exclude jobs the student has already applied to
+    if (excludeJobIds.length > 0) {
+      query = query.not("id", "in", `(${excludeJobIds.join(",")})`);
+    }
 
     const { data, error } = await query;
 

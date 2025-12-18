@@ -1,6 +1,5 @@
 import { StyleSheet, TouchableOpacity, ScrollView, Platform, StatusBar } from "react-native";
 import { Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useState, useEffect } from "react"; // Added useEffect
 import { useRouter, Stack } from "expo-router";
 
@@ -15,8 +14,7 @@ export default function TabOneScreen() {
     }}, []);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
       
       {/* Sets Native Navigation Header Title (Mobile) */}
       <Stack.Screen options={{ title: "QuickJob", headerShown: false }} />
@@ -120,7 +118,7 @@ export default function TabOneScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
-    </SafeAreaView>
+    
   );
 }
 
@@ -150,10 +148,6 @@ function Step({ num, title, text }: any) {
 
 /* STYLES */
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
   container: {
     paddingBottom: 40,
     backgroundColor: "#FFFFFF",
