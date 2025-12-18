@@ -3,8 +3,10 @@ import * as React from "react";
 import { useRouter } from 'expo-router';
 import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native';
 import { jobsAPI, studentAPI, getStudentId } from '@/services/api';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function StudentDashboard() {
+  const { darkMode } = useTheme();
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('available');
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
   const [dashboardData, setDashboardData] = React.useState<any>({ today: [], upcoming: [], pending: [], archive: [] });
@@ -186,17 +188,17 @@ export default function StudentDashboard() {
 
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
+    <ScrollView style={[{ flex: 1 }, darkMode && { backgroundColor: '#0f172a' }]} contentContainerStyle={[styles.container, darkMode && styles.containerDark]}>
       {/* HEADER */}
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.pageTitle}>Student Dashboard</Text>
-          <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
+          <Text style={[styles.pageTitle, darkMode && styles.pageTitleDark]}>Student Dashboard</Text>
+          <Text style={[styles.pageSubtitle, darkMode && styles.pageSubtitleDark]}>Find jobs and start earning</Text>
         </View>
 
         <Pressable
           onPress={handleRefresh} // Use the simplified native refresh handler
-          style={styles.headerRefresh}
+          style={[styles.headerRefresh, darkMode && styles.headerRefreshDark]}
         >
           <RefreshCw size={18} color="#64748B" />
         </Pressable>
@@ -218,27 +220,27 @@ export default function StudentDashboard() {
       )}
 
       {/* NAV TABS */}
-      <View style={styles.tabs}>
+      <View style={[styles.tabs, darkMode && styles.tabsDark]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 6 }}>
           {/* Mapping tabs might be cleaner than repeating, but this structure is fine */}
           <TouchableOpacity style={[styles.tab, tab === 'today' && styles.tabActive]} onPress={() => setTab('today')}>
-            <Text style={tab === 'today' ? styles.tabActiveText : styles.tabText}>Today ({dashboardData.today?.length || 0})</Text>
+            <Text style={tab === 'today' ? styles.tabActiveText : (darkMode ? styles.tabTextDark : styles.tabText)}>Today ({dashboardData.today?.length || 0})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'upcoming' && styles.tabActive]} onPress={() => setTab('upcoming')}>
-            <Text style={tab === 'upcoming' ? styles.tabActiveText : styles.tabText}>Upcoming ({dashboardData.upcoming?.length || 0})</Text>
+            <Text style={tab === 'upcoming' ? styles.tabActiveText : (darkMode ? styles.tabTextDark : styles.tabText)}>Upcoming ({dashboardData.upcoming?.length || 0})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'available' && styles.tabActive]} onPress={() => setTab('available')}>
-            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({availableJobs.length})</Text>
+            <Text style={tab === 'available' ? styles.tabActiveText : (darkMode ? styles.tabTextDark : styles.tabText)}>Available ({availableJobs.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
-            <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending ({dashboardData.pending?.length || 0})</Text>
+            <Text style={tab === 'pending' ? styles.tabActiveText : (darkMode ? styles.tabTextDark : styles.tabText)}>Pending ({dashboardData.pending?.length || 0})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'archive' && styles.tabActive]} onPress={() => setTab('archive')}>
-            <Text style={tab === 'archive' ? styles.tabActiveText : styles.tabText}>Archive ({dashboardData.archive?.length || 0})</Text>
+            <Text style={tab === 'archive' ? styles.tabActiveText : (darkMode ? styles.tabTextDark : styles.tabText)}>Archive ({dashboardData.archive?.length || 0})</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -247,14 +249,14 @@ export default function StudentDashboard() {
       <View style={styles.tabFilterRow}>
         <View />
         <View style={styles.filterToggleContainer}>
-          <TouchableOpacity style={styles.filterToggleBtn} onPress={() => setShowFilters(!showFilters)}>
-            <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Show filters'}</Text>
+          <TouchableOpacity style={[styles.filterToggleBtn, darkMode && styles.filterToggleBtnDark]} onPress={() => setShowFilters(!showFilters)}>
+            <Text style={[styles.filterToggleText, darkMode && styles.filterToggleTextDark]}>{showFilters ? 'Hide filters' : 'Show filters'}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {showFilters && (
-        <View style={styles.filterRow}>
+        <View style={[styles.filterRow, darkMode && styles.filterRowDark]}>
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Category</Text>
             <View style={styles.filterPills}>
@@ -316,17 +318,17 @@ export default function StudentDashboard() {
 
       {/* JOB LIST or EMPTY STATE */}
       {loading && (
-        <View style={styles.loadingState}>
+        <View style={[styles.loadingState, darkMode && styles.loadingStateDark]}>
           <ActivityIndicator color="#176B51" />
-          <Text style={styles.emptySubtitle}>Jobs ophalen...</Text>
+          <Text style={[styles.emptySubtitle, darkMode && styles.emptySubtitleDark]}>Jobs ophalen...</Text>
         </View>
       )}
 
       {!loading && error ? (
-        <View style={styles.emptyState}>
+        <View style={[styles.emptyState, darkMode && styles.emptyStateDark]}>
           <Text style={styles.emptyIcon}>⚠️</Text>
-          <Text style={styles.emptyTitle}>Kon jobs niet laden</Text>
-          <Text style={styles.emptySubtitle}>{error}</Text>
+          <Text style={[styles.emptyTitle, darkMode && styles.emptyTitleDark]}>Kon jobs niet laden</Text>
+          <Text style={[styles.emptySubtitle, darkMode && styles.emptySubtitleDark]}>{error}</Text>
           <TouchableOpacity style={styles.bannerBtn} onPress={handleRefresh}>
             <Text style={styles.bannerBtnText}>Opnieuw proberen</Text>
           </TouchableOpacity>
@@ -334,17 +336,17 @@ export default function StudentDashboard() {
       ) : null}
 
       {!loading && !error && jobs.length > 0 ? (
-        <View style={styles.jobsContainer}>
+        <View style={[styles.jobsContainer, darkMode && styles.jobsContainerDark]}>
           <View style={styles.jobsList}>
             {jobs.map((job: any) => (
               <Pressable 
                 key={job.id} 
-                style={styles.jobCard} 
+                style={[styles.jobCard, darkMode && styles.jobCardDark]} 
                 onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
               >
-                <Text style={styles.jobTitle}>{job.title}</Text>
-                <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
-                <Text style={styles.jobMeta}>
+                <Text style={[styles.jobTitle, darkMode && styles.jobTitleDark]}>{job.title}</Text>
+                <Text style={[styles.jobDescription, darkMode && styles.jobDescriptionDark]}>{job.description || 'Geen beschrijving'}</Text>
+                <Text style={[styles.jobMeta, darkMode && styles.jobMetaDark]}>
                   {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
                   {job.area_text ? ` • ${job.area_text}` : ''}
                   {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
@@ -827,5 +829,66 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "500",
+  },
+
+  // Dark mode styles
+  containerDark: {
+    backgroundColor: "#0f172a",
+  },
+  pageTitleDark: {
+    color: "#f1f5f9",
+  },
+  pageSubtitleDark: {
+    color: "#94a3b8",
+  },
+  headerRefreshDark: {
+    backgroundColor: "#334155",
+  },
+  tabsDark: {
+    backgroundColor: "#1e293b",
+  },
+  tabTextDark: {
+    color: "#94a3b8",
+  },
+  filterToggleBtnDark: {
+    backgroundColor: "#334155",
+  },
+  filterToggleTextDark: {
+    color: "#e2e8f0",
+  },
+  filterRowDark: {
+    backgroundColor: "#1e293b",
+    borderColor: "#334155",
+  },
+  loadingStateDark: {
+    backgroundColor: "#1e293b",
+    borderColor: "#334155",
+  },
+  emptyStateDark: {
+    backgroundColor: "#1e293b",
+    borderColor: "#334155",
+  },
+  emptyTitleDark: {
+    color: "#f1f5f9",
+  },
+  emptySubtitleDark: {
+    color: "#94a3b8",
+  },
+  jobsContainerDark: {
+    backgroundColor: "#1e293b",
+    borderColor: "#334155",
+  },
+  jobCardDark: {
+    backgroundColor: "#1e293b",
+    borderColor: "#334155",
+  },
+  jobTitleDark: {
+    color: "#f1f5f9",
+  },
+  jobDescriptionDark: {
+    color: "#94a3b8",
+  },
+  jobMetaDark: {
+    color: "#94a3b8",
   },
 });
