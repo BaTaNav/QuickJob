@@ -3,7 +3,7 @@ import { StyleSheet, Pressable, View as RNView, Switch, Image, TextInput, Alert 
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { authAPI } from '@/services/api';
-import * as ImagePicker from 'expo-image-picker';  // <-- toevoegen
+import * as ImagePicker from 'expo-image-picker';
 
 export default function ClientProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
