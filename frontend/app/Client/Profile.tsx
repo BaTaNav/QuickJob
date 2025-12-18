@@ -161,6 +161,20 @@ export default function ClientProfile() {
     }
   };
 
+  // Bij mount: lees dark mode uit localStorage
+  React.useEffect(() => {
+    const savedDarkMode = localStorage.getItem('darkMode');
+    if (savedDarkMode !== null) {
+      setDarkMode(savedDarkMode === 'true');
+    }
+  }, []);
+
+  // Wanneer dark mode wijzigt, sla op in localStorage
+  const handleDarkModeToggle = (value: boolean) => {
+    setDarkMode(value);
+    localStorage.setItem('darkMode', value.toString());
+  };
+
   return (
     <View style={styles.container}>
       <RNView style={styles.layoutRow}>
@@ -280,7 +294,7 @@ export default function ClientProfile() {
 
               <Text style={styles.label}>Dark mode</Text>
               <RNView style={styles.switchRow}>
-                <Switch value={darkMode} onValueChange={setDarkMode} />
+                <Switch value={darkMode} onValueChange={handleDarkModeToggle} />
                 <Text style={styles.value}>{darkMode ? 'On' : 'Off'}</Text>
               </RNView>
 
