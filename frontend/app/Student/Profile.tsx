@@ -4,9 +4,11 @@ import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { studentAPI, authAPI, getStudentId } from '@/services/api';
 import * as ImagePicker from 'expo-image-picker';
+import { useTheme } from '@/contexts/ThemeContext';
 
 
 export default function StudentProfile() {
+  const { darkMode, toggleDarkMode } = useTheme();
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
   const [profile, setProfile] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
@@ -136,14 +138,27 @@ export default function StudentProfile() {
     }
   };
 
-  const [darkMode, setDarkMode] = React.useState(false);
   const [language, setLanguage] = React.useState<'EN' | 'NL' | 'FR'>('EN');
   const [notifications, setNotifications] = React.useState(true);
 
+  const themedStyles = React.useMemo(() => ({
+    container: { ...styles.container, backgroundColor: darkMode ? '#0f172a' : '#fff' },
+    leftCard: { ...styles.leftCard, backgroundColor: darkMode ? '#1e293b' : '#fff', borderColor: darkMode ? '#334155' : '#E4E6EB' },
+    rightCard: { ...styles.rightCard, backgroundColor: darkMode ? '#1e293b' : '#fff', borderColor: darkMode ? '#334155' : '#E4E6EB' },
+    controlBtn: { ...styles.controlBtn, backgroundColor: darkMode ? '#334155' : '#F4F6F7' },
+    controlBtnText: { ...styles.controlBtnText, color: darkMode ? '#e2e8f0' : '#333' },
+    input: { ...styles.input, backgroundColor: darkMode ? '#334155' : '#fff', borderColor: darkMode ? '#475569' : '#E4E6EB', color: darkMode ? '#e2e8f0' : '#000' },
+    label: { ...styles.label, color: darkMode ? '#94a3b8' : '#7A7F85' },
+    value: { ...styles.value, color: darkMode ? '#e2e8f0' : '#000' },
+    sectionTitle: { ...styles.sectionTitle, color: darkMode ? '#f1f5f9' : '#000' },
+    leftName: { ...styles.leftName, color: darkMode ? '#f1f5f9' : '#000' },
+    leftEmail: { ...styles.leftEmail, color: darkMode ? '#94a3b8' : '#7A7F85' },
+  }), [darkMode]);
+
   return (
-    <View style={styles.container}>
+    <RNView style={themedStyles.container}>
       <RNView style={styles.layoutRow}>
-        <View style={styles.leftCard}>
+        <RNView style={themedStyles.leftCard}>
           <Pressable onPress={() => router.push('/Student/Dashboard')} style={{ marginBottom: 12 }}>
             <Text style={{ color: '#176B51', fontWeight: '600', fontSize: 12 }}>← Dashboard</Text>
           </Pressable>
@@ -157,8 +172,8 @@ export default function StudentProfile() {
                   style={styles.avatarSmall}
                 />
                 <RNView style={styles.leftIdentity}>
-                  <Text style={styles.leftName}>{profile?.school_name || 'Student'}</Text>
-                  <Text style={styles.leftEmail}>{profile?.email || 'student@example.com'}</Text>
+                  <Text style={themedStyles.leftName}>{profile?.school_name || 'Student'}</Text>
+                  <Text style={themedStyles.leftEmail}>{profile?.email || 'student@example.com'}</Text>
                 </RNView>
               </>
             )}
@@ -166,16 +181,16 @@ export default function StudentProfile() {
 
           <RNView style={styles.controlsContainer}>
             <Pressable
-              style={[styles.controlBtn, panel === 'info' && styles.controlBtnActive]}
+              style={[themedStyles.controlBtn, panel === 'info' && styles.controlBtnActive]}
               onPress={() => setPanel('info')}
             >
-              <Text style={panel === 'info' ? styles.controlBtnTextActive : styles.controlBtnText}>My Profile</Text>
+              <Text style={panel === 'info' ? styles.controlBtnTextActive : themedStyles.controlBtnText}>My Profile</Text>
             </Pressable>
             <Pressable
-              style={[styles.controlBtn, panel === 'settings' && styles.controlBtnActive]}
+              style={[themedStyles.controlBtn, panel === 'settings' && styles.controlBtnActive]}
               onPress={() => setPanel('settings')}
             >
-              <Text style={panel === 'settings' ? styles.controlBtnTextActive : styles.controlBtnText}>Settings</Text>
+              <Text style={panel === 'settings' ? styles.controlBtnTextActive : themedStyles.controlBtnText}>Settings</Text>
             </Pressable>
           </RNView>
 
@@ -184,9 +199,9 @@ export default function StudentProfile() {
               <Text style={styles.editBtnText}>Log out</Text>
             </Pressable>
           </RNView>
-        </View>
+        </RNView>
 
-        <View style={styles.rightCard}>
+        <RNView style={themedStyles.rightCard}>
           {panel === 'info' ? (
             <ScrollView contentContainerStyle={styles.rightContent}>
               {loading ? (
@@ -195,8 +210,8 @@ export default function StudentProfile() {
                 </RNView>
               ) : error ? (
                 <RNView style={{ padding: 40, alignItems: 'center' }}>
-                  <Text style={styles.label}>Error loading profile</Text>
-                  <Text style={styles.value}>{error}</Text>
+                  <Text style={themedStyles.label}>Error loading profile</Text>
+                  <Text style={themedStyles.value}>{error}</Text>
                   <Pressable style={styles.editBtn} onPress={fetchProfile}>
                     <Text style={styles.editBtnText}>Retry</Text>
                   </Pressable>
@@ -205,15 +220,16 @@ export default function StudentProfile() {
                 <RNView>
                   <RNView style={styles.profileHeader}>
                     <RNView>
-                      <Text style={styles.label}>School</Text>
+                      <Text style={themedStyles.label}>School</Text>
                       {editing ? (
                         <TextInput
-                          style={styles.input}
+                          style={themedStyles.input}
                           value={formData.school_name}
                           onChangeText={(val) => handleChange('school_name', val)}
+                          placeholderTextColor={darkMode ? '#64748b' : '#999'}
                         />
                       ) : (
-                        <Text style={styles.value}>{profile?.school_name || 'Not set'}</Text>
+                        <Text style={themedStyles.value}>{profile?.school_name || 'Not set'}</Text>
                       )}
                     </RNView>
 
@@ -226,54 +242,58 @@ export default function StudentProfile() {
                   </RNView>
 
 
-                  <Text style={styles.label}>Field of Study</Text>
+                  <Text style={themedStyles.label}>Field of Study</Text>
                   {editing ? (
                     <TextInput
-                      style={styles.input}
+                      style={themedStyles.input}
                       value={formData.field_of_study}
                       onChangeText={(val) => handleChange('field_of_study', val)}
+                      placeholderTextColor={darkMode ? '#64748b' : '#999'}
                     />
                   ) : (
-                    <Text style={styles.value}>{profile?.field_of_study || 'Not set'}</Text>
+                    <Text style={themedStyles.value}>{profile?.field_of_study || 'Not set'}</Text>
                   )}
 
-                  <Text style={styles.label}>Academic Year</Text>
+                  <Text style={themedStyles.label}>Academic Year</Text>
                   {editing ? (
                     <TextInput
-                      style={styles.input}
+                      style={themedStyles.input}
                       value={formData.academic_year}
                       onChangeText={(val) => handleChange('academic_year', val)}
+                      placeholderTextColor={darkMode ? '#64748b' : '#999'}
                     />
                   ) : (
-                    <Text style={styles.value}>{profile?.academic_year || 'Not set'}</Text>
+                    <Text style={themedStyles.value}>{profile?.academic_year || 'Not set'}</Text>
                   )}
 
-                  <Text style={styles.label}>Phone</Text>
+                  <Text style={themedStyles.label}>Phone</Text>
                   {editing ? (
                     <TextInput
-                      style={styles.input}
+                      style={themedStyles.input}
                       value={formData.phone}
                       onChangeText={(val) => handleChange('phone', val)}
                       keyboardType="phone-pad"
+                      placeholderTextColor={darkMode ? '#64748b' : '#999'}
                     />
                   ) : (
-                    <Text style={styles.value}>{profile?.phone || 'Not set'}</Text>
+                    <Text style={themedStyles.value}>{profile?.phone || 'Not set'}</Text>
                   )}
 
-                  <Text style={styles.label}>Search Radius</Text>
+                  <Text style={themedStyles.label}>Search Radius</Text>
                   {editing ? (
                     <TextInput
-                      style={styles.input}
+                      style={themedStyles.input}
                       value={String(formData.radius_km)}
                       onChangeText={(val) => handleChange('radius_km', Number(val))}
                       keyboardType="numeric"
+                      placeholderTextColor={darkMode ? '#64748b' : '#999'}
                     />
                   ) : (
-                    <Text style={styles.value}>{profile?.radius_km ? `${profile.radius_km} km` : 'Not set'}</Text>
+                    <Text style={themedStyles.value}>{profile?.radius_km ? `${profile.radius_km} km` : 'Not set'}</Text>
                   )}
 
-                  <Text style={styles.label}>Verification Status</Text>
-                  <Text style={styles.value}>
+                  <Text style={themedStyles.label}>Verification Status</Text>
+                  <Text style={themedStyles.value}>
                     {profile?.verification_status === 'verified' ? '✅ Verified' : '⏳ Pending verification'}
                   </Text>
 
@@ -299,39 +319,39 @@ export default function StudentProfile() {
           ) : (
             <RNView style={styles.rightContent}>
               <RNView>
-                <Text style={styles.sectionTitle}>Settings</Text>
+                <Text style={themedStyles.sectionTitle}>Settings</Text>
 
-                <Text style={styles.label}>Language</Text>
+                <Text style={themedStyles.label}>Language</Text>
                 <RNView style={styles.langRow}>
                   {(['EN', 'NL', 'FR'] as const).map((lang) => (
                     <Pressable
                       key={lang}
-                      style={[styles.langBtn, language === lang && styles.langBtnActive]}
+                      style={[darkMode ? styles.langBtnDark : styles.langBtn, language === lang && styles.langBtnActive]}
                       onPress={() => setLanguage(lang)}
                     >
-                      <Text style={language === lang ? styles.langBtnTextActive : styles.langBtnText}>{lang}</Text>
+                      <Text style={language === lang ? styles.langBtnTextActive : (darkMode ? styles.langBtnTextDark : styles.langBtnText)}>{lang}</Text>
                     </Pressable>
                   ))}
                 </RNView>
 
-                <Text style={styles.label}>Dark mode</Text>
+                <Text style={themedStyles.label}>Dark mode</Text>
                 <RNView style={styles.switchRow}>
-                  <Switch value={darkMode} onValueChange={setDarkMode} />
-                  <Text style={styles.value}>{darkMode ? 'On' : 'Off'}</Text>
+                  <Switch value={darkMode} onValueChange={toggleDarkMode} />
+                  <Text style={themedStyles.value}>{darkMode ? 'On' : 'Off'}</Text>
                 </RNView>
 
-                <Text style={styles.label}>Notifications</Text>
+                <Text style={themedStyles.label}>Notifications</Text>
                 <RNView style={styles.switchRow}>
                   <Switch value={notifications} onValueChange={setNotifications} />
-                  <Text style={styles.value}>{notifications ? 'On' : 'Off'}</Text>
+                  <Text style={themedStyles.value}>{notifications ? 'On' : 'Off'}</Text>
                 </RNView>
               </RNView>
               <RNView style={styles.rightFooter} />
             </RNView>
           )}
-        </View>
+        </RNView>
       </RNView>
-    </View>
+    </RNView>
   );
 }
 
@@ -368,4 +388,8 @@ const styles = StyleSheet.create({
   rightCard: { flex: 1, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 12, backgroundColor: '#fff', minHeight: 560 },
   profileHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   input: { borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginTop: 4, fontSize: 16 },
+
+  // Dark mode styles
+  langBtnDark: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#334155' },
+  langBtnTextDark: { color: '#e2e8f0', fontWeight: '600' },
 });
