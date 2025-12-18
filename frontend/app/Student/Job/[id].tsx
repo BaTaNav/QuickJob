@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Platform } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { jobsAPI, studentAPI, getStudentId } from '@/services/api';
@@ -68,16 +68,31 @@ export default function JobDetail() {
 
   const handleApply = async () => {
     if (!studentId || !idParam) {
-      Alert.alert('Error', 'Je moet ingelogd zijn om te solliciteren');
+      if (Platform.OS === 'web') {
+        window.alert('Je moet ingelogd zijn om te solliciteren');
+      } else {
+        Alert.alert('Error', 'Je moet ingelogd zijn om te solliciteren');
+      }
       return;
     }
     try {
       setApplying(true);
       await studentAPI.applyForJob(Number(studentId), Number(idParam));
       setApplicationStatus('pending');
-      Alert.alert('Succes!', 'Je sollicitatie is verstuurd. Je vindt deze terug bij Pending.');
+      if (Platform.OS === 'web') {
+        window.alert('Succes! Je sollicitatie is verstuurd. Je vindt deze terug bij Pending.');
+        router.replace('/Student/Dashboard?tab=pending');
+      } else {
+        Alert.alert('Succes!', 'Je sollicitatie is verstuurd. Je vindt deze terug bij Pending.', [
+          { text: 'OK', onPress: () => router.replace('/Student/Dashboard?tab=pending') }
+        ]);
+      }
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Kon niet solliciteren');
+      if (Platform.OS === 'web') {
+        window.alert(err?.message || 'Kon niet solliciteren');
+      } else {
+        Alert.alert('Error', err?.message || 'Kon niet solliciteren');
+      }
     } finally {
       setApplying(false);
     }
@@ -86,29 +101,48 @@ export default function JobDetail() {
   const handleCancel = async () => {
     if (!studentId || !applicationId) return;
     
-    Alert.alert(
-      'Sollicitatie annuleren',
-      'Weet je zeker dat je je sollicitatie wilt annuleren?',
-      [
-        { text: 'Nee', style: 'cancel' },
-        {
-          text: 'Ja, annuleer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setCancelling(true);
-              await studentAPI.cancelApplication(Number(studentId), applicationId);
-              setApplicationStatus('cancelled');
-              Alert.alert('Geannuleerd', 'Je sollicitatie is geannuleerd.');
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Kon niet annuleren');
-            } finally {
-              setCancelling(false);
-            }
+    const doCancel = async () => {
+      try {
+        setCancelling(true);
+        await studentAPI.cancelApplication(Number(studentId), applicationId);
+        setApplicationStatus('withdrawn');
+        if (Platform.OS === 'web') {
+          window.alert('Je sollicitatie is geannuleerd.');
+          router.push('/Student/Dashboard');
+        } else {
+          Alert.alert('Geannuleerd', 'Je sollicitatie is geannuleerd.', [
+            { text: 'OK', onPress: () => router.push('/Student/Dashboard') }
+          ]);
+        }
+      } catch (err: any) {
+        if (Platform.OS === 'web') {
+          window.alert(err?.message || 'Kon niet annuleren');
+        } else {
+          Alert.alert('Error', err?.message || 'Kon niet annuleren');
+        }
+      } finally {
+        setCancelling(false);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Weet je zeker dat je je sollicitatie wilt annuleren?')) {
+        doCancel();
+      }
+    } else {
+      Alert.alert(
+        'Sollicitatie annuleren',
+        'Weet je zeker dat je je sollicitatie wilt annuleren?',
+        [
+          { text: 'Nee', style: 'cancel' },
+          {
+            text: 'Ja, annuleer',
+            style: 'destructive',
+            onPress: doCancel,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   if (loading) {
@@ -199,8 +233,8 @@ export default function JobDetail() {
         </View>
       )}
 
-      {/* Cancelled status */}
-      {applicationStatus === 'cancelled' && (
+      {/* Withdrawn status */}
+      {applicationStatus === 'withdrawn' && (
         <View style={styles.statusContainer}>
           <View style={styles.cancelledBadge}>
             <Text style={styles.cancelledText}>❌ Sollicitatie geannuleerd</Text>

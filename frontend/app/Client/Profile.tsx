@@ -1,9 +1,15 @@
 import * as React from 'react';
-import { StyleSheet, Pressable, View as RNView, Switch, Image, TextInput, Alert } from 'react-native';
+import { StyleSheet, Pressable, View as RNView, Switch, Image, TextInput, Alert, Platform } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
-import { authAPI } from '@/services/api';
-import * as ImagePicker from 'expo-image-picker';  // <-- toevoegen
+import { authAPI, getClientId } from '@/services/api';
+import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// API URL - use localhost for web, IP address for mobile
+const API_BASE_URL = Platform.OS === 'web' 
+  ? 'http://localhost:3000' 
+  : 'http://10.2.88.141:3000';
 
 export default function ClientProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
@@ -22,9 +28,9 @@ export default function ClientProfile() {
   const [region, setRegion] = React.useState('');
   const [firstJobNeedsApproval, setFirstJobNeedsApproval] = React.useState(false);
 
-  function handleLogout() {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+  async function handleLogout() {
+    const { authAPI } = await import('@/services/api');
+    await authAPI.logout();
     router.replace('/');
   }
 
@@ -32,13 +38,31 @@ export default function ClientProfile() {
   React.useEffect(() => {
     async function loadProfile() {
       try {
-        const userJson = localStorage.getItem('user');
-        if (!userJson) return;
+        let userJson: string | null = null;
+        let userId: number | null = null;
+        
+        if (Platform.OS === 'web') {
+          userJson = localStorage.getItem('user');
+          if (userJson) {
+            const user = JSON.parse(userJson);
+            userId = user.id;
+          }
+        } else {
+          // Mobile - use AsyncStorage
+          userJson = await AsyncStorage.getItem('user');
+          if (userJson) {
+            const user = JSON.parse(userJson);
+            userId = user.id;
+          } else {
+            // Fallback to clientId
+            const clientId = await getClientId();
+            if (clientId) userId = parseInt(clientId);
+          }
+        }
+        
+        if (!userId) return;
 
-        const user = JSON.parse(userJson);
-        const userId = user.id;
-
-        const res = await fetch(`http://localhost:3000/clients/${userId}`);
+        const res = await fetch(`${API_BASE_URL}/clients/${userId}`);
         if (!res.ok) throw new Error('Failed to fetch profile');
 
         const data = await res.json();

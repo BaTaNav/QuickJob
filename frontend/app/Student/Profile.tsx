@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator, TextInput, ScrollView } from 'react-native';
+import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator, TextInput, ScrollView, Platform } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { studentAPI, authAPI, getStudentId } from '@/services/api';
@@ -37,8 +37,6 @@ export default function StudentProfile() {
 
   async function handleLogout() {
     await authAPI.logout();
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
     router.replace('/'); // Go to home page instead of login
   }
 

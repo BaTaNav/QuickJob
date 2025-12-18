@@ -1,13 +1,23 @@
 import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
 import * as React from "react";
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native';
 import { jobsAPI, studentAPI, getStudentId } from '@/services/api';
 
 export default function StudentDashboard() {
-  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('available');
+  const params = useLocalSearchParams();
+  const initialTab = (params.tab as 'today' | 'upcoming' | 'available' | 'pending' | 'archive') || 'available';
+  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>(initialTab);
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
   const [dashboardData, setDashboardData] = React.useState<any>({ today: [], upcoming: [], pending: [], archive: [] });
+
+  // Update tab when URL param changes
+  React.useEffect(() => {
+    if (params.tab && ['today', 'upcoming', 'available', 'pending', 'archive'].includes(params.tab as string)) {
+      setTab(params.tab as 'today' | 'upcoming' | 'available' | 'pending' | 'archive');
+    }
+  }, [params.tab]);
 
   // Keep the original default categories, but augment with categories discovered from jobs
   const DEFAULT_CATEGORIES = ['Hospitality', 'Retail', 'Office', 'Event', 'Other', 'Gardening', 'Pet care'];
@@ -52,6 +62,7 @@ export default function StudentDashboard() {
   React.useEffect(() => {
     const loadStudentId = async () => {
       const id = await getStudentId();
+      console.log('[Dashboard] Loaded studentId:', id);
       setStudentId(id);
     };
     loadStudentId();
@@ -61,7 +72,8 @@ export default function StudentDashboard() {
     try {
       setLoading(true);
       setError('');
-      const data = await jobsAPI.getAvailableJobs('open', 50);
+      // Pass studentId to exclude jobs the student has already applied to
+      const data = await jobsAPI.getAvailableJobs('open', 50, studentId);
       setAvailableJobs(data || []);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load jobs';
@@ -69,16 +81,21 @@ export default function StudentDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [studentId]);
 
   // Fetch student dashboard data (pending, upcoming, etc.)
   const fetchDashboard = React.useCallback(async () => {
-    if (!studentId) return;
+    if (!studentId) {
+      console.log('[Dashboard] No studentId, skipping fetchDashboard');
+      return;
+    }
     try {
+      console.log('[Dashboard] Fetching dashboard for studentId:', studentId);
       const data = await studentAPI.getDashboard(Number(studentId));
+      console.log('[Dashboard] Dashboard data received:', data);
       setDashboardData(data);
     } catch (err) {
-      console.log('Could not fetch dashboard data:', err);
+      console.error('[Dashboard] Error fetching dashboard:', err);
     }
   }, [studentId]);
 
@@ -99,30 +116,75 @@ export default function StudentDashboard() {
     }
   };
 
+  // Refresh data when screen comes into focus (e.g., after applying to a job)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[Dashboard] Screen focused, refreshing data...');
+      fetchAvailable();
+      if (studentId) {
+        fetchDashboard();
+      }
+    }, [studentId, fetchAvailable, fetchDashboard])
+  );
+
   // Cancel application handler
   const handleCancelApplication = async (applicationId: number) => {
-    if (!studentId) return;
+    console.log('[Dashboard] Cancel requested - studentId:', studentId, 'applicationId:', applicationId);
     
-    Alert.alert(
-      'Sollicitatie annuleren',
-      'Weet je zeker dat je je sollicitatie wilt annuleren?',
-      [
-        { text: 'Nee', style: 'cancel' },
-        {
-          text: 'Ja, annuleer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await studentAPI.cancelApplication(Number(studentId), applicationId);
-              Alert.alert('Geannuleerd', 'Je sollicitatie is geannuleerd.');
-              fetchDashboard(); // Refresh the dashboard
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Kon niet annuleren');
-            }
+    if (!studentId) {
+      console.error('[Dashboard] No studentId available');
+      return;
+    }
+    
+    if (!applicationId) {
+      console.error('[Dashboard] No applicationId provided');
+      if (Platform.OS === 'web') {
+        window.alert('Geen applicatie ID gevonden');
+      } else {
+        Alert.alert('Error', 'Geen applicatie ID gevonden');
+      }
+      return;
+    }
+    
+    const doCancel = async () => {
+      try {
+        console.log('[Dashboard] Cancelling application...');
+        await studentAPI.cancelApplication(Number(studentId), applicationId);
+        if (Platform.OS === 'web') {
+          window.alert('Je sollicitatie is geannuleerd.');
+        } else {
+          Alert.alert('Geannuleerd', 'Je sollicitatie is geannuleerd.');
+        }
+        fetchDashboard(); // Refresh the dashboard
+        fetchAvailable(); // Also refresh available jobs
+      } catch (err: any) {
+        console.error('[Dashboard] Cancel error:', err);
+        if (Platform.OS === 'web') {
+          window.alert(err?.message || 'Kon niet annuleren');
+        } else {
+          Alert.alert('Error', err?.message || 'Kon niet annuleren');
+        }
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Weet je zeker dat je je sollicitatie wilt annuleren?')) {
+        doCancel();
+      }
+    } else {
+      Alert.alert(
+        'Sollicitatie annuleren',
+        'Weet je zeker dat je je sollicitatie wilt annuleren?',
+        [
+          { text: 'Nee', style: 'cancel' },
+          {
+            text: 'Ja, annuleer',
+            style: 'destructive',
+            onPress: doCancel,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   // Filter jobs based on selected filters
