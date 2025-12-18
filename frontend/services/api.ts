@@ -392,6 +392,81 @@ export const jobsAPI = {
     // Backend now returns {jobs: [], message: string, count: number}
     return data.jobs || data;
   },
+
+  // Get applicants for a job
+  async getJobApplicants(jobId: number) {
+    try {
+      const url = `${API_BASE_URL}/jobs/${jobId}/applicants`;
+      logRequest('GET', url);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[API Error]', response.status, errorText);
+        throw new Error(`Failed to fetch applicants: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Applicants:', data?.count || 0, 'applicants');
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Network error');
+    }
+  },
+
+  // Accept or reject an applicant
+  async updateApplicantStatus(jobId: number, applicationId: number, status: 'accepted' | 'rejected') {
+    try {
+      const url = `${API_BASE_URL}/jobs/${jobId}/applicants/${applicationId}`;
+      logRequest('PATCH', url);
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update applicant');
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Applicant updated:', data);
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Failed to update applicant');
+    }
+  },
+
+  // Delete a job
+  async deleteJob(jobId: number, clientId?: string | number) {
+    try {
+      const url = `${API_BASE_URL}/jobs/${jobId}`;
+      logRequest('DELETE', url);
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || errorData.error || 'Failed to delete job');
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Job deleted:', data);
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Failed to delete job');
+    }
+  },
 };
 
 // Auth API
