@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { StyleSheet, Pressable, View as RNView, Switch, Image, TextInput, Alert, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { authAPI, getClientId } from '@/services/api';
@@ -15,6 +16,7 @@ export default function ClientProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
   const router = useRouter();
   const [clientProfile, setClientProfile] = React.useState<any>(null);
+  const insets = useSafeAreaInsets();
 
   // Local settings state (demo only)
   const [darkMode, setDarkMode] = React.useState(false);
@@ -186,7 +188,7 @@ export default function ClientProfile() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) + 12 }]}>
       <RNView style={styles.layoutRow}>
         <View style={styles.leftCard}>
           <RNView style={styles.leftTopRow}>
@@ -326,7 +328,7 @@ export default function ClientProfile() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 28, backgroundColor: '#fff', paddingBottom: 60 },
+  container: { padding: 28, backgroundColor: '#fff', paddingBottom: 60, flex: 1 },
   layoutRow: { flexDirection: 'row', gap: 24 },
   leftCard: { width: 300, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 14, backgroundColor: '#fff', height: 560, justifyContent: 'space-between', flexShrink: 0 },
   controlBtn: { paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#F4F6F7', marginBottom: 8, alignItems: 'flex-start', width: '100%' },

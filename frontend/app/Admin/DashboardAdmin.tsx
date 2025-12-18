@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput, Image } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RefreshCw, Plus, ArrowDown, Handshake, Home, Search, LogOut, User } from "lucide-react-native";
 import { useRouter } from "expo-router";
 
 export default function DashboardAdmin() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState("Open");
+    const insets = useSafeAreaInsets();
 
     const stats = [
         { label: "Verificaties", value: 0 },
@@ -27,7 +29,7 @@ export default function DashboardAdmin() {
             <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
             {/* Top Navigation Bar */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 8 }]}>
                 <View style={styles.headerLeft}>
                     <Handshake size={28} color="#176B51" strokeWidth={2.5} />
                     <Text style={styles.headerTitle}>QuickJob</Text>
@@ -136,7 +138,6 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         borderBottomWidth: 1,
         borderBottomColor: "#EFF0F6",
-        paddingTop: Platform.OS === 'android' ? 48 : 56,
     },
     headerLeft: {
         flexDirection: "row",

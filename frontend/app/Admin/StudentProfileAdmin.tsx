@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Handshake, LogOut } from "lucide-react-native";
 import { useRouter } from "expo-router";
 
 export default function AdminStudentProfile() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("verification");
+  const insets = useSafeAreaInsets();
 
     // Force Browser Tab Title on Web
     useEffect(() => {
@@ -19,7 +21,7 @@ export default function AdminStudentProfile() {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       {/* Top Navigation Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 8 }]}>
         <View style={styles.headerLeft}>
           <Handshake size={28} color="#176B51" strokeWidth={2.5} />
           <Text style={styles.headerTitle}>QuickJob</Text>
@@ -205,7 +207,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: Platform.OS === 'android' ? 48 : 16,
   },
   headerLeft: {
     flexDirection: "row",

@@ -269,17 +269,28 @@ router.post("/:studentId/apply", /* verifyJwt, */ async (req, res) => {
       return res.status(400).json({ error: "job_id is required" });
     }
 
-    // Check if already applied
+    // Check if already has an ACTIVE application (pending or accepted) or was rejected
+    // Students can only re-apply if their previous application was withdrawn
     const { data: existingApp } = await supabase
       .from("job_applications")
-      .select("id")
+      .select("id, status")
       .eq("student_id", studentId)
       .eq("job_id", job_id)
+      .in("status", ["pending", "accepted", "rejected"])
       .single();
 
     if (existingApp) {
       return res.status(409).json({ error: "Already applied to this job" });
     }
+
+    // Delete any previous withdrawn applications for this job
+    // so the student can create a fresh application
+    await supabase
+      .from("job_applications")
+      .delete()
+      .eq("student_id", studentId)
+      .eq("job_id", job_id)
+      .eq("status", "withdrawn");
 
     // Create application
     const { data, error } = await supabase
