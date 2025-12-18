@@ -161,7 +161,7 @@ export default function ClientProfile() {
     }
   };
 
-  // Bij mount: lees dark mode uit localStorage
+  //lees dark mode uit localStorage
   React.useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode !== null) {
@@ -175,10 +175,63 @@ export default function ClientProfile() {
     localStorage.setItem('darkMode', value.toString());
   };
 
+  const themedStyles = React.useMemo(() => StyleSheet.create({
+    container: { 
+      padding: 28, 
+      backgroundColor: darkMode ? '#1a1a1a' : '#fff', 
+      paddingBottom: 60 
+    },
+    leftCard: { 
+      width: 300, 
+      borderWidth: 1, 
+      borderColor: darkMode ? '#333' : '#E4E6EB', 
+      borderRadius: 12, 
+      padding: 14, 
+      backgroundColor: darkMode ? '#2a2a2a' : '#fff', 
+      height: 560, 
+      justifyContent: 'space-between', 
+      flexShrink: 0 
+    },
+    controlBtn: { 
+      paddingVertical: 10, 
+      paddingHorizontal: 8, 
+      borderRadius: 8, 
+      backgroundColor: darkMode ? '#333' : '#F4F6F7', 
+      marginBottom: 8, 
+      alignItems: 'flex-start', 
+      width: '100%' 
+    },
+    controlsContainer: { alignItems: 'center' },
+    controlBtnActive: { backgroundColor: '#176B51' },
+    controlBtnText: { color: darkMode ? '#fff' : '#333', fontWeight: '600' },
+    controlBtnTextActive: { color: '#fff', fontWeight: '600' },
+    label: { color: darkMode ? '#ccc' : '#7A7F85', marginTop: 12, fontWeight: '600' },
+    value: { fontSize: 16, marginTop: 4, color: darkMode ? '#fff' : '#000' },
+    sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, color: darkMode ? '#fff' : '#000' },
+    langRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+    langBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: darkMode ? '#333' : '#F4F6F7' },
+    langBtnActive: { backgroundColor: '#176B51' },
+    langBtnText: { color: darkMode ? '#fff' : '#333', fontWeight: '600' },
+    langBtnTextActive: { color: '#fff', fontWeight: '600' },
+    switchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
+    rightContent: { flex: 1, justifyContent: 'flex-start' },
+    avatarSmall: { width: 100, height: 100, borderRadius: 50 },
+    avatarLarge: { width: 120, height: 120, borderRadius: 60 },
+    leftTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 0 },
+    leftIdentity: { marginLeft: 8 },
+    leftName: { fontWeight: '700', fontSize: 16, color: darkMode ? '#fff' : '#000' },
+    leftEmail: { color: '#7A7F85', marginTop: 4 },
+    rightCard: { flex: 1, borderWidth: 1, borderColor: darkMode ? '#333' : '#E4E6EB', borderRadius: 12, padding: 12, backgroundColor: darkMode ? '#2a2a2a' : '#fff', minHeight: 560 },
+    profileHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    input: { borderWidth: 1, borderColor: darkMode ? '#333' : '#E4E6EB', borderRadius: 8, padding: 8, marginTop: 4, backgroundColor: darkMode ? '#3a3a3a' : '#fff', color: darkMode ? '#fff' : '#000' },
+    editBtn: { marginTop: 16, backgroundColor: '#176B51', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+    editBtnText: { color: '#fff', fontWeight: '700' },
+  }), [darkMode]);
+
   return (
-    <View style={styles.container}>
+    <View style={themedStyles.container}>
       <RNView style={styles.layoutRow}>
-        <View style={styles.leftCard}>
+        <View style={themedStyles.leftCard}>
           <RNView style={styles.leftTopRow}>
             <Pressable onPress={uploadAvatar}>
               <Image 
@@ -217,7 +270,7 @@ export default function ClientProfile() {
           </RNView>
         </View>
 
-        <View style={styles.rightCard}>
+        <View style={themedStyles.rightCard}>
           {panel === 'info' ? (
             <RNView style={styles.rightContent}>
               {/* Avatar groot in info panel */}
@@ -259,22 +312,22 @@ export default function ClientProfile() {
               <Text style={styles.sectionTitle}>Settings</Text>
 
               <Text style={styles.label}>Email</Text>
-              <TextInput value={email} onChangeText={setEmail} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+              <TextInput value={email} onChangeText={setEmail} style={themedStyles.input} autoCapitalize="none" keyboardType="email-address" />
 
               <Text style={styles.label}>Phone</Text>
-              <TextInput value={phone} onChangeText={setPhone} style={styles.input} keyboardType="phone-pad" />
+              <TextInput value={phone} onChangeText={setPhone} style={themedStyles.input} keyboardType="phone-pad" />
 
               <Text style={styles.label}>Address</Text>
-              <TextInput value={addressLine} onChangeText={setAddressLine} style={styles.input} />
+              <TextInput value={addressLine} onChangeText={setAddressLine} style={themedStyles.input} />
 
               <Text style={styles.label}>Postal Code</Text>
-              <TextInput value={postalCode} onChangeText={setPostalCode} style={styles.input} />
+              <TextInput value={postalCode} onChangeText={setPostalCode} style={themedStyles.input} />
 
               <Text style={styles.label}>City</Text>
-              <TextInput value={city} onChangeText={setCity} style={styles.input} />
+              <TextInput value={city} onChangeText={setCity} style={themedStyles.input} />
 
               <Text style={styles.label}>Region</Text>
-              <TextInput value={region} onChangeText={setRegion} style={styles.input} />
+              <TextInput value={region} onChangeText={setRegion} style={themedStyles.input} />
 
               <Text style={styles.label}>First Job Needs Approval</Text>
               <Switch value={firstJobNeedsApproval} onValueChange={setFirstJobNeedsApproval} />
@@ -316,14 +369,18 @@ export default function ClientProfile() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 28, backgroundColor: '#fff', paddingBottom: 60 },
   layoutRow: { flexDirection: 'row', gap: 24 },
-  leftCard: { width: 300, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 14, backgroundColor: '#fff', height: 560, justifyContent: 'space-between', flexShrink: 0 },
-  controlBtn: { paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#F4F6F7', marginBottom: 8, alignItems: 'flex-start', width: '100%' },
+  leftTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 0 },
+  leftIdentity: { marginLeft: 8 },
+  leftName: { fontWeight: '700', fontSize: 16 },
+  leftEmail: { color: '#7A7F85', marginTop: 4 },
   controlsContainer: { alignItems: 'center' },
-  controlBtnActive: { backgroundColor: '#176B51' },
-  controlBtnText: { color: '#333', fontWeight: '600' },
-  controlBtnTextActive: { color: '#fff', fontWeight: '600' },
+  rightContent: { flex: 1, justifyContent: 'flex-start' },
+  avatarSmall: { width: 100, height: 100, borderRadius: 50 },
+  avatarLarge: { width: 120, height: 120, borderRadius: 60 },
+  input: { borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 8, padding: 8, marginTop: 4 },
+  editBtn: { marginTop: 16, backgroundColor: '#176B51', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  editBtnText: { color: '#fff', fontWeight: '700' },
   label: { color: '#7A7F85', marginTop: 12, fontWeight: '600' },
   value: { fontSize: 16, marginTop: 4 },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
@@ -333,16 +390,12 @@ const styles = StyleSheet.create({
   langBtnText: { color: '#333', fontWeight: '600' },
   langBtnTextActive: { color: '#fff', fontWeight: '600' },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
-  rightContent: { flex: 1, justifyContent: 'flex-start' },
-  avatarSmall: { width: 100, height: 100, borderRadius: 50 },
-  avatarLarge: { width: 120, height: 120, borderRadius: 60 },
-  leftTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 0 },
-  leftIdentity: { marginLeft: 8 },
-  leftName: { fontWeight: '700', fontSize: 16 },
-  leftEmail: { color: '#7A7F85', marginTop: 4 },
   rightCard: { flex: 1, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 12, backgroundColor: '#fff', minHeight: 560 },
   profileHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  input: { borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 8, padding: 8, marginTop: 4 },
-  editBtn: { marginTop: 16, backgroundColor: '#176B51', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
-  editBtnText: { color: '#fff', fontWeight: '700' },
+  container: { padding: 28, backgroundColor: '#fff', paddingBottom: 60 },
+  controlBtn: { paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#F4F6F7', marginBottom: 8, alignItems: 'flex-start', width: '100%' },
+  controlBtnActive: { backgroundColor: '#176B51' },
+  controlBtnText: { color: '#333', fontWeight: '600' },
+  controlBtnTextActive: { color: '#fff', fontWeight: '600' },
+  leftCard: { width: 300, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 14, backgroundColor: '#fff', height: 560, justifyContent: 'space-between', flexShrink: 0 },
 });
