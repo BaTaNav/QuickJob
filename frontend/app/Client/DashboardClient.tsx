@@ -3,8 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusB
 import { useRouter } from 'expo-router';
 import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase } from "lucide-react-native";
 import { jobsAPI, getClientId } from "@/services/api";
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function DashboardClient() {
+  const { darkMode } = useTheme();
   const [activeTab, setActiveTab] = useState("Open");
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,32 +82,32 @@ export default function DashboardClient() {
 
   // Render a single job card
   const renderJobCard = (job: any) => (
-    <View key={job.id} style={styles.jobCard}>
+    <View key={job.id} style={[styles.jobCard, darkMode && styles.jobCardDark]}>
       <View style={styles.jobHeader}>
-        <Text style={styles.jobTitle}>{job.title}</Text>
+        <Text style={[styles.jobTitle, darkMode && styles.jobTitleDark]}>{job.title}</Text>
         <View style={[styles.statusBadge, job.status === 'open' ? styles.statusOpen : styles.statusOther]}>
           <Text style={styles.statusText}>{job.status}</Text>
         </View>
       </View>
       {job.category && (
         <View style={styles.jobMeta}>
-          <Briefcase size={14} color="#64748B" />
-          <Text style={styles.jobMetaText}>{job.category.name_nl || job.category.name_en}</Text>
+          <Briefcase size={14} color={darkMode ? "#94a3b8" : "#64748B"} />
+          <Text style={[styles.jobMetaText, darkMode && styles.jobMetaTextDark]}>{job.category.name_nl || job.category.name_en}</Text>
         </View>
       )}
       {job.area_text && (
         <View style={styles.jobMeta}>
-          <MapPin size={14} color="#64748B" />
-          <Text style={styles.jobMetaText}>{job.area_text}</Text>
+          <MapPin size={14} color={darkMode ? "#94a3b8" : "#64748B"} />
+          <Text style={[styles.jobMetaText, darkMode && styles.jobMetaTextDark]}>{job.area_text}</Text>
         </View>
       )}
       {job.start_time && (
         <View style={styles.jobMeta}>
-          <Clock size={14} color="#64748B" />
-          <Text style={styles.jobMetaText}>{formatDate(job.start_time)}</Text>
+          <Clock size={14} color={darkMode ? "#94a3b8" : "#64748B"} />
+          <Text style={[styles.jobMetaText, darkMode && styles.jobMetaTextDark]}>{formatDate(job.start_time)}</Text>
         </View>
       )}
-      <View style={styles.jobFooter}>
+      <View style={[styles.jobFooter, darkMode && styles.jobFooterDark]}>
         <Text style={styles.jobPrice}>
           {job.hourly_or_fixed === 'fixed' 
             ? `€${job.fixed_price || 0}` 
@@ -116,38 +118,38 @@ export default function DashboardClient() {
   );
 
   return (
-    <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+    <View style={[styles.screen, darkMode && styles.screenDark]}>
+      <StatusBar barStyle={darkMode ? "light-content" : "dark-content"} backgroundColor={darkMode ? "#1e293b" : "#fff"} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, darkMode && styles.headerDark]}>
         <View style={styles.headerLeft}>
           <Handshake size={28} color="#176B51" strokeWidth={2.5} />
-          <Text style={styles.headerTitle}>QuickJob</Text>
+          <Text style={[styles.headerTitle, darkMode && styles.headerTitleDark]}>QuickJob</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity style={styles.iconButton} onPress={() => {
+          <TouchableOpacity style={[styles.iconButton, darkMode && styles.iconButtonDark]} onPress={() => {
             fetchJobs();
           }}>
-            <RefreshCw size={20} color="#64748B" />
+            <RefreshCw size={20} color={darkMode ? "#94a3b8" : "#64748B"} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/Client/Profile' as never)}>
-            <User size={20} color="#1B1B1B" />
+          <TouchableOpacity style={[styles.iconButton, darkMode && styles.iconButtonDark]} onPress={() => router.push('/Client/Profile' as never)}>
+            <User size={20} color={darkMode ? "#e2e8f0" : "#1B1B1B"} />
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.contentContainer}>
+        <View style={[styles.contentContainer, darkMode && styles.contentContainerDark]}>
           
           {/* Stats Overview */}
-          <Text style={styles.sectionTitle}>Overview</Text>
+          <Text style={[styles.sectionTitle, darkMode && styles.sectionTitleDark]}>Overview</Text>
           <View style={styles.statsGrid}>
             {stats.map((stat, index) => (
-              <View key={index} style={styles.statCard}>
+              <View key={index} style={[styles.statCard, darkMode && styles.statCardDark]}>
                 <Text style={styles.statNumber}>{stat.value}</Text>
-                <Text style={styles.statLabel}>{stat.label}</Text>
+                <Text style={[styles.statLabel, darkMode && styles.statLabelDark]}>{stat.label}</Text>
               </View>
             ))}
           </View>
@@ -162,14 +164,14 @@ export default function DashboardClient() {
           </TouchableOpacity>
 
           {/* Tabs */}
-          <View style={styles.tabContainer}>
+          <View style={[styles.tabContainer, darkMode && styles.tabContainerDark]}>
             {tabs.map((tab) => (
               <TouchableOpacity
                 key={tab}
                 onPress={() => setActiveTab(tab)}
                 style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]}
               >
-                <Text style={activeTab === tab ? styles.activeTabText : styles.inactiveTabText}>
+                <Text style={activeTab === tab ? styles.activeTabText : (darkMode ? styles.inactiveTabTextDark : styles.inactiveTabText)}>
                   {tab} ({tab === "Open" ? openJobs.length : tab === "Today" ? todayJobs.length : tab === "Planned" ? plannedJobs.length : completedJobs.length})
                 </Text>
               </TouchableOpacity>
@@ -178,16 +180,16 @@ export default function DashboardClient() {
 
           {/* Loading State */}
           {loading && (
-            <View style={styles.loadingWrapper}>
+            <View style={[styles.loadingWrapper, darkMode && styles.loadingWrapperDark]}>
               <ActivityIndicator size="large" color="#176B51" />
-              <Text style={styles.loadingText}>Jobs laden...</Text>
+              <Text style={[styles.loadingText, darkMode && styles.loadingTextDark]}>Jobs laden...</Text>
             </View>
           )}
 
           {/* Error State */}
           {!loading && error && (
-            <View style={styles.emptyWrapper}>
-              <Text style={styles.emptyTitle}>⚠️ {error}</Text>
+            <View style={[styles.emptyWrapper, darkMode && styles.emptyWrapperDark]}>
+              <Text style={[styles.emptyTitle, darkMode && styles.emptyTitleDark]}>⚠️ {error}</Text>
               <TouchableOpacity style={styles.emptyButton} onPress={fetchJobs}>
                 <Text style={styles.emptyButtonText}>Opnieuw proberen</Text>
               </TouchableOpacity>
@@ -203,12 +205,12 @@ export default function DashboardClient() {
 
           {/* Empty State */}
           {!loading && !error && filteredJobs.length === 0 && (
-            <View style={styles.emptyWrapper}>
-              <View style={styles.emptyIcon}>
+            <View style={[styles.emptyWrapper, darkMode && styles.emptyWrapperDark]}>
+              <View style={[styles.emptyIcon, darkMode && styles.emptyIconDark]}>
                 <ArrowDown size={24} color="#176B51" />
               </View>
-              <Text style={styles.emptyTitle}>Geen {activeTab.toLowerCase()} jobs</Text>
-              <Text style={styles.emptySubtitle}>
+              <Text style={[styles.emptyTitle, darkMode && styles.emptyTitleDark]}>Geen {activeTab.toLowerCase()} jobs</Text>
+              <Text style={[styles.emptySubtitle, darkMode && styles.emptySubtitleDark]}>
                 Plaats je eerste job om te beginnen
               </Text>
               <TouchableOpacity style={styles.emptyButton} onPress={() => router.push('/Client/PostJob' as never)}>
@@ -218,83 +220,83 @@ export default function DashboardClient() {
           )}
 
           {/* FOOTER */}
-          <View style={styles.footer}>
+          <View style={[styles.footer, darkMode && styles.footerDark]}>
             <View style={styles.footerSection}>
               <Text style={styles.footerTitle}>QuickJob</Text>
-              <Text style={styles.footerDescription}>
+              <Text style={[styles.footerDescription, darkMode && styles.footerDescriptionDark]}>
                 Connecting students with flexible job opportunities across Belgium.
               </Text>
             </View>
 
             <View style={styles.footerLinks}>
               <View style={styles.footerColumn}>
-                <Text style={styles.footerColumnTitle}>Company</Text>
+                <Text style={[styles.footerColumnTitle, darkMode && styles.footerColumnTitleDark]}>Company</Text>
                 <TouchableOpacity>
-                  <Text style={styles.footerLink}>About Us</Text>
+                  <Text style={[styles.footerLink, darkMode && styles.footerLinkDark]}>About Us</Text>
                 </TouchableOpacity>
                 <TouchableOpacity>
-                  <Text style={styles.footerLink}>Contact</Text>
+                  <Text style={[styles.footerLink, darkMode && styles.footerLinkDark]}>Contact</Text>
                 </TouchableOpacity>
                 <TouchableOpacity>
-                  <Text style={styles.footerLink}>Careers</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.footerColumn}>
-                <Text style={styles.footerColumnTitle}>Support</Text>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>Help Center</Text>
-                </TouchableOpacity>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>Safety</Text>
-                </TouchableOpacity>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>FAQ</Text>
+                  <Text style={[styles.footerLink, darkMode && styles.footerLinkDark]}>Careers</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.footerColumn}>
-                <Text style={styles.footerColumnTitle}>Legal</Text>
+                <Text style={[styles.footerColumnTitle, darkMode && styles.footerColumnTitleDark]}>Support</Text>
                 <TouchableOpacity>
-                  <Text style={styles.footerLink}>Privacy Policy</Text>
+                  <Text style={[styles.footerLink, darkMode && styles.footerLinkDark]}>Help Center</Text>
                 </TouchableOpacity>
                 <TouchableOpacity>
-                  <Text style={styles.footerLink}>Terms of Service</Text>
+                  <Text style={[styles.footerLink, darkMode && styles.footerLinkDark]}>Safety</Text>
                 </TouchableOpacity>
                 <TouchableOpacity>
-                  <Text style={styles.footerLink}>Cookie Policy</Text>
+                  <Text style={[styles.footerLink, darkMode && styles.footerLinkDark]}>FAQ</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.footerColumn}>
+                <Text style={[styles.footerColumnTitle, darkMode && styles.footerColumnTitleDark]}>Legal</Text>
+                <TouchableOpacity>
+                  <Text style={[styles.footerLink, darkMode && styles.footerLinkDark]}>Privacy Policy</Text>
+                </TouchableOpacity>
+                <TouchableOpacity>
+                  <Text style={[styles.footerLink, darkMode && styles.footerLinkDark]}>Terms of Service</Text>
+                </TouchableOpacity>
+                <TouchableOpacity>
+                  <Text style={[styles.footerLink, darkMode && styles.footerLinkDark]}>Cookie Policy</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.footerSocial}>
-              <Text style={styles.footerSocialTitle}>Follow Us</Text>
+              <Text style={[styles.footerSocialTitle, darkMode && styles.footerSocialTitleDark]}>Follow Us</Text>
               <View style={styles.socialIcons}>
-                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Instagram')}>
+                <TouchableOpacity style={[styles.socialIcon, darkMode && styles.socialIconDark]} onPress={() => console.log('Instagram')}>
                   <Instagram size={20} color="#E4405F" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('LinkedIn')}>
+                <TouchableOpacity style={[styles.socialIcon, darkMode && styles.socialIconDark]} onPress={() => console.log('LinkedIn')}>
                   <Linkedin size={20} color="#0A66C2" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Facebook')}>
+                <TouchableOpacity style={[styles.socialIcon, darkMode && styles.socialIconDark]} onPress={() => console.log('Facebook')}>
                   <Facebook size={20} color="#1877F2" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Twitter')}>
+                <TouchableOpacity style={[styles.socialIcon, darkMode && styles.socialIconDark]} onPress={() => console.log('Twitter')}>
                   <Twitter size={20} color="#1DA1F2" />
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.footerContact}>
-              <Text style={styles.footerContactText}>📧 support@quickjob.be</Text>
-              <Text style={styles.footerContactText}>📞 +32 2 123 45 67</Text>
+              <Text style={[styles.footerContactText, darkMode && styles.footerContactTextDark]}>📧 support@quickjob.be</Text>
+              <Text style={[styles.footerContactText, darkMode && styles.footerContactTextDark]}>📞 +32 2 123 45 67</Text>
             </View>
 
-            <View style={styles.footerBottom}>
-              <Text style={styles.footerCopyright}>
+            <View style={[styles.footerBottom, darkMode && styles.footerBottomDark]}>
+              <Text style={[styles.footerCopyright, darkMode && styles.footerCopyrightDark]}>
                 © 2025 QuickJob. All rights reserved.
               </Text>
-              <Text style={styles.footerVersion}>v1.0.0</Text>
+              <Text style={[styles.footerVersion, darkMode && styles.footerVersionDark]}>v1.0.0</Text>
             </View>
           </View>
 
@@ -699,5 +701,105 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "500",
+  },
+
+  // Dark mode styles
+  screenDark: {
+    backgroundColor: "#0f172a",
+  },
+  headerDark: {
+    backgroundColor: "#1e293b",
+    borderBottomColor: "#334155",
+  },
+  headerTitleDark: {
+    color: "#f1f5f9",
+  },
+  iconButtonDark: {
+    backgroundColor: "#334155",
+  },
+  contentContainerDark: {
+    backgroundColor: "#0f172a",
+  },
+  sectionTitleDark: {
+    color: "#f1f5f9",
+  },
+  statCardDark: {
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  statLabelDark: {
+    color: "#94a3b8",
+  },
+  tabContainerDark: {
+    backgroundColor: "#1e293b",
+    borderColor: "#334155",
+  },
+  inactiveTabTextDark: {
+    color: "#94a3b8",
+  },
+  loadingWrapperDark: {
+    backgroundColor: "#1e293b",
+  },
+  loadingTextDark: {
+    color: "#94a3b8",
+  },
+  emptyWrapperDark: {
+    backgroundColor: "#1e293b",
+    borderColor: "#334155",
+  },
+  emptyIconDark: {
+    backgroundColor: "#1e4a3d",
+  },
+  emptyTitleDark: {
+    color: "#f1f5f9",
+  },
+  emptySubtitleDark: {
+    color: "#94a3b8",
+  },
+  jobCardDark: {
+    backgroundColor: "#1e293b",
+    borderColor: "#334155",
+  },
+  jobTitleDark: {
+    color: "#f1f5f9",
+  },
+  jobMetaTextDark: {
+    color: "#94a3b8",
+  },
+  jobFooterDark: {
+    borderTopColor: "#334155",
+  },
+  footerDark: {
+    backgroundColor: "#1e293b",
+    borderTopColor: "#334155",
+  },
+  footerDescriptionDark: {
+    color: "#94a3b8",
+  },
+  footerColumnTitleDark: {
+    color: "#f1f5f9",
+  },
+  footerLinkDark: {
+    color: "#94a3b8",
+  },
+  footerSocialTitleDark: {
+    color: "#f1f5f9",
+  },
+  socialIconDark: {
+    backgroundColor: "#334155",
+    borderColor: "#475569",
+  },
+  footerContactTextDark: {
+    color: "#94a3b8",
+  },
+  footerBottomDark: {
+    borderTopColor: "#334155",
+  },
+  footerCopyrightDark: {
+    color: "#64748b",
+  },
+  footerVersionDark: {
+    color: "#64748b",
   },
 });

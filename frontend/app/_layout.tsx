@@ -6,6 +6,7 @@ import 'react-native-reanimated';
 import { Pressable, Text, View, useColorScheme } from 'react-native';
 import { Handshake, RefreshCw, User } from 'lucide-react-native'; // Added User icon for profile
 import Colors from '../constants/Colors'; // Assuming this file exists and exports color palette
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 
 // Catch any errors thrown by the Layout component.
@@ -40,7 +41,11 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <ThemeProvider>
+      <RootLayoutNav />
+    </ThemeProvider>
+  );
 }
 
 function RootLayoutNav() {
