@@ -15,7 +15,7 @@ export { ErrorBoundary } from 'expo-router';
 // Global settings for Expo Router
 export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
+  initialRouteName: 'index',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -57,8 +57,6 @@ function RootLayoutNav() {
 
   return (
     <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-
       {/* Hide header for Login page (no back arrow) */}
       <Stack.Screen name="Login" options={{ headerShown: false }} />
 
