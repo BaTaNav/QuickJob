@@ -1,161 +1,272 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Platform, Alert, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { saveStudentId, saveClientId, saveAuthToken } from '@/services/api';
+
+// API URL - use localhost for web, IP address for mobile
+const API_BASE_URL = Platform.OS === 'web' 
+  ? 'http://localhost:3000' 
+  : 'http://10.2.88.141:3000';
 
 type Props = {
-  
-  onSubmit?: (email: string, password: string) => void;
-  title?: string; 
+  title?: string;
 };
 
-export default function Login({ onSubmit, title = 'Login' }: Props) {
+export default function Login({ title = 'Login' }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (onSubmit) {
-      onSubmit(email.trim(), password);
+  const handleLogin = async () => {
+    if (!email || !password) {
+      const msg = 'Please fill in all fields';
+      if (Platform.OS === 'web') {
+        setError(msg);
+      } else {
+        Alert.alert('Error', msg);
+      }
+      return;
+    }
+
+    try {
+      setError('');
+      setLoading(true);
+
+      // Login via backend
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Login successful:', data);
+        
+        // Save user data using platform-appropriate storage
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          if (data.token) {
+            localStorage.setItem('token', data.token);
+          }
+        } else {
+          // Mobile - use AsyncStorage
+          await AsyncStorage.setItem('user', JSON.stringify(data.user));
+          if (data.token) {
+            await AsyncStorage.setItem('token', data.token);
+          }
+        }
+        
+        // Save role-specific ID for API calls (works on both platforms)
+        if (data.user?.role === 'student') {
+          await saveStudentId(data.user.id.toString());
+        } else if (data.user?.role === 'client') {
+          await saveClientId(data.user.id.toString());
+        }
+        
+        if (data.token) {
+          await saveAuthToken(data.token);
+        }
+        
+        // Redirect based on role
+        if (data.user?.role === 'student') {
+          router.replace('/Student/Dashboard');
+        } else if (data.user?.role === 'client') {
+          router.replace('/Client/DashboardClient');
+        } else {
+          router.replace('/');
+        }
+      } else {
+        const errorText = await response.text();
+        const msg = errorText || 'Login failed. Please check your credentials.';
+        if (Platform.OS === 'web') {
+          setError(msg);
+        } else {
+          Alert.alert('Login Failed', msg);
+        }
+      }
+      
+    } catch (err: any) {
+      console.error('Login error:', err);
+      const msg = err.message || 'Login failed. Please try again.';
+      if (Platform.OS === 'web') {
+        setError(msg);
+      } else {
+        Alert.alert('Error', msg);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Force Browser Tab Title
-  useEffect(() => {
-    document.title = "QuickJob | Login ";
-  }, []);
-
-  const inputStyle = {
-    width: '100%',
-    padding: '0.875rem 1rem',
-    marginBottom: '1.25rem',
-    border: '2px solid #E1E7EB',
-    borderRadius: '10px',
-    fontSize: '0.9375rem',
-    transition: 'border-color 0.2s ease',
-    outline: 'none',
-    backgroundColor: '#FFFFFF',
-  };
-
-  const buttonStyle = {
-    width: '100%',
-    padding: '1rem 1.5rem',
-    backgroundColor: '#176B51', 
-    color: '#FFFFFF',
-    border: 'none',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '600',
-    marginTop: '0.5rem',
-    transition: 'background-color 0.2s ease, transform 0.1s ease',
-    boxShadow: '0 2px 8px rgba(23, 107, 81, 0.2)',
-  };
-
   return (
-    <div style={{
-      height: '100vh', // Changed from minHeight to enforce scroll container
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      padding: '3rem 2rem',
-      backgroundColor: '#F8FAFB',
-      backgroundImage: 'linear-gradient(135deg, #F8FAFB 0%, #EDF1F2 100%)',
-      overflowY: 'auto'
-    }}>
-      <div style={{ marginBottom: '2.5rem', marginTop: '2rem' }}>
-        <h1 style={{ 
-          fontSize: '2.25rem', 
-          fontWeight: '800',
-          color: '#176B51',
-          letterSpacing: '-0.02em'
-        }}>QuickJob</h1> 
-      </div>
-
-      <div style={{
-        width: '100%',
-        maxWidth: '520px',
-        padding: '3rem 3.5rem',
-        backgroundColor: '#FFFFFF',
-        borderRadius: '16px',
-        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)',
-        border: '1px solid rgba(225, 231, 235, 0.6)'
-      }}>
-        <h2 style={{ 
-          fontSize: '1.875rem', 
-          fontWeight: '700', 
-          textAlign: 'center', 
-          marginBottom: '0.75rem',
-          color: '#041316',
-          letterSpacing: '-0.01em'
-        }}>
-          {title}
-        </h2>
+    <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.card}>
+        <Text style={styles.title}>{title}</Text>
         
-        <p style={{ 
-          textAlign: 'center', 
-          marginBottom: '2.5rem',
-          color: '#5D6B73',
-          fontSize: '0.9375rem'
-        }}>
-          Don't have an account? <a href="Student/Signup" style={{ 
-            color: '#176B51', 
-            fontWeight: '600',
-            textDecoration: 'none',
-            borderBottom: '1px solid #176B51'
-          }}>Sign up</a>
-        </p>
+        <Text style={styles.subtitle}>
+          Don't have an account?{' '}
+          <Text 
+            style={styles.link} 
+            onPress={() => router.push('/Student/Signup')}
+          >
+            Sign up
+          </Text>
+        </Text>
 
-        <form onSubmit={handleSubmit}>
-          <label htmlFor="email" style={{ 
-            fontWeight: '600', 
-            display: 'block',
-            marginBottom: '0.5rem',
-            color: '#041316',
-            fontSize: '0.875rem'
-          }}>Email</label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={inputStyle}
-            aria-label="Email"
-          />
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
 
-          <label htmlFor="password" style={{ 
-            fontWeight: '600', 
-            display: 'block',
-            marginBottom: '0.5rem',
-            color: '#041316',
-            fontSize: '0.875rem'
-          }}>Password</label>
-          <input
-            type="password"
-            id="password"
-            name="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={inputStyle}
-            aria-label="Password"
-          />
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor="#9CA3AF"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          editable={!loading}
+        />
 
-          <button type="submit" style={buttonStyle}>
-            Login
-          </button>
-        </form>
+        <Text style={styles.label}>Password</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor="#9CA3AF"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          autoCapitalize="none"
+          editable={!loading}
+        />
 
-        <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-          <a href="/forgot-password" style={{ 
-            color: '#5D6B73', 
-            textDecoration: 'none',
-            fontSize: '0.9375rem'
-          }}>
-            
-            Forgot password?
-          </a>
-        </div>
-      </div>
-    </div>
+        <TouchableOpacity 
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.buttonText}>Login</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.forgotPassword}
+          onPress={() => router.push('/Resetpassword')}
+        >
+          <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flexGrow: 1,
+    backgroundColor: '#F8FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    minHeight: '100%',
+  },
+  card: {
+    width: '100%',
+    maxWidth: 520,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 40,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(225, 231, 235, 0.6)',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 8,
+    color: '#041316',
+  },
+  subtitle: {
+    textAlign: 'center',
+    marginBottom: 24,
+    color: '#5D6B73',
+    fontSize: 15,
+  },
+  link: {
+    color: '#176B51',
+    fontWeight: '600',
+  },
+  errorContainer: {
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  label: {
+    fontWeight: '600',
+    marginBottom: 8,
+    color: '#041316',
+    fontSize: 14,
+  },
+  input: {
+    width: '100%',
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#E1E7EB',
+    borderRadius: 10,
+    fontSize: 15,
+    backgroundColor: '#FFFFFF',
+    color: '#041316',
+  },
+  button: {
+    width: '100%',
+    padding: 16,
+    backgroundColor: '#176B51',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: '#176B51',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  forgotPassword: {
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  forgotPasswordText: {
+    color: '#5D6B73',
+    fontSize: 15,
+  },
+});

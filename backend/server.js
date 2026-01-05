@@ -1,31 +1,48 @@
-const express = require('express');
-const cors = require('cors');
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config(); // Laadt de variabelen uit .env
+// backend/server.js
+const express = require("express");
+const cors = require("cors");
+require("dotenv").config();
+
+const supabase = require("./supabaseClient");
+const clientsRouter = require("./clients/clients");
+const jobsRouter = require("./jobs/jobs");
+const studentsRouter = require("./students/students");
+const adminRouter = require("./Admin/Admin");
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
-// Supabase Configuratie
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-app.get('/', (req, res) => {
-  res.send('Backend met Supabase connectie draait!');
+// Root test
+app.get("/", (req, res) => {
+  res.send("QuickJob Backend API is running!");
 });
 
-// Voorbeeld endpoint om data op te halen
-app.get('/test-db', async (req, res) => {
-  // Vervang 'jouw_tabel' met een echte tabelnaam uit je database
-  const { data, error } = await supabase.from('jouw_tabel').select('*');
-  if (error) return res.status(400).json(error);
-  res.json(data);
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Mount routers
+app.use("/clients", clientsRouter);
+app.use("/jobs", jobsRouter);
+app.use("/students", studentsRouter);
+app.use("/admin", adminRouter);
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error("Server error:", err);
+  res.status(500).json({ error: "Internal server error" });
 });
 
 app.listen(port, () => {
-  console.log(`Server draait op http://localhost:${port}`);
+  console.log(`🚀 Server running on http://localhost:${port}`);
 });
+
+module.exports = app;
