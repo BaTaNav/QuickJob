@@ -74,21 +74,6 @@ function RootLayoutNav() {
             headerLeft: () => null,
             headerRight: () => (
               <>
-                {/* Refresh button */}
-                <Pressable
-                  onPress={() => {
-                    try {
-                      if (typeof window !== 'undefined' && window.location) {
-                        window.location.reload();
-                      }
-                    } catch (e) {
-                      // no-op on native for now
-                    }
-                  }}
-                  style={{ marginRight: 12, padding: 6, borderRadius: 999, backgroundColor: '#F7F9FC' }}
-                >
-                  <RefreshCw size={18} color="#64748B" />
-                </Pressable>
 
                 {/* Profile button (left of logout) */}
                 <Link href={'/Student/Profile' as unknown as any} asChild>
