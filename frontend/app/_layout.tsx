@@ -3,7 +3,8 @@ import { Stack, Link } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-import { Pressable, Text, View, useColorScheme } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { useColorScheme } from '../components/useColorScheme';
 import { Handshake, RefreshCw, User } from 'lucide-react-native'; // Added User icon for profile
 import Colors from '../constants/Colors'; // Assuming this file exists and exports color palette
 
