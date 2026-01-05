@@ -8,6 +8,8 @@ const clientsRouter = require("./clients/clients");
 const jobsRouter = require("./jobs/jobs");
 const studentsRouter = require("./students/students");
 const adminRouter = require("./Admin/Admin");
+const authRouter = require("./auth/auth");
+
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -30,6 +32,7 @@ app.use("/clients", clientsRouter);
 app.use("/jobs", jobsRouter);
 app.use("/students", studentsRouter);
 app.use("/admin", adminRouter);
+app.use("/auth", authRouter);
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
