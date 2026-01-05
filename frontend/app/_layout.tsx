@@ -67,7 +67,7 @@ function RootLayoutNav() {
       <Stack.Screen name="Client/DashboardClient" options={{ headerShown: false }} />
       <Stack.Screen name="Client/Profile" options={{ headerShown: false }} />
       <Stack.Screen name="Client/PostJob" options={{ headerShown: false }} />
-      <Stack.Screen name="Client/Job/[id]" options={{ title: 'Job Details' }} />
+     {/*<Stack.Screen name="Client/Job/[id]" options={{ title: 'Job Details' }} />*/}
 
       {/* Hide headers for admin pages */}
       <Stack.Screen name="Admin/DashboardAdmin" options={{ headerShown: false }} />
