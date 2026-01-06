@@ -320,10 +320,13 @@ export default function PostJob() {
     return true;
   };
 
-// Add this constant at the TOP of your file (outside the component) if not already there
+  // Add this constant at the TOP of your file (outside the component) if not already there
   const API_URL = 'http://localhost:3000'; // Use your computer's IP if on real device
 
-  const handlePostJob = async () => {
+// ... imports remain the same
+
+ 
+const handlePostJob = async () => {
     // 1. Validation
     if (!formData.client_id) {
       Alert.alert("Error", "Sessie verlopen. Log opnieuw in.");
@@ -338,41 +341,54 @@ export default function PostJob() {
     let uploadedImageUrl = null;
 
     try {
-      // 2. Image Upload Logic
+      // 2. Image Upload Logic (Handles both Web and Mobile)
       if (image) {
-        // RENAME variable to avoid conflict with your state 'formData'
-        const uploadBody = new FormData(); 
-        const filename = image.split('/').pop();
-        const match = /\.(\w+)$/.exec(filename || '');
-        const type = match ? `image/${match[1]}` : `image`;
+        const uploadBody = new FormData();
+        const filename = image.split('/').pop() || 'upload.jpg';
+        
+        if (Platform.OS === 'web') {
+          // --- WEB SPECIFIC LOGIC ---
+          // On web, we must fetch the URI and convert to a Blob
+          const response = await fetch(image);
+          const blob = await response.blob();
+          uploadBody.append('image', blob, filename);
+        } else {
+          // --- MOBILE SPECIFIC LOGIC ---
+          const match = /\.(\w+)$/.exec(filename);
+          const type = match ? `image/${match[1]}` : `image/jpeg`;
+          
+          // @ts-ignore
+          uploadBody.append('image', {
+            uri: image,
+            name: filename,
+            type,
+          });
+        }
 
-        // @ts-ignore
-        uploadBody.append('image', { uri: image, name: filename, type });
-
-        // Use the API_URL constant
+        // Upload to backend
         const uploadRes = await fetch(`${API_URL}/jobs/upload-image`, {
           method: 'POST',
           body: uploadBody,
+          // IMPORTANT: Do NOT set Content-Type header manually here
         });
 
         const uploadData = await uploadRes.json();
-        if (uploadRes.ok && uploadData.url) {
+        
+        if (!uploadRes.ok) {
+           throw new Error(uploadData.error || "Image upload failed");
+        }
+        
+        if (uploadData.url) {
           uploadedImageUrl = uploadData.url;
-        } else {
-          console.log("Upload failed:", uploadData);
-          Alert.alert("Upload Error", "Failed to upload image.");
-          setUploading(false);
-          return;
         }
       }
 
-      // 3. Prepare Payload (using your existing formData state)
+      // 3. Prepare Job Payload
       let finalEndTime = formData.end_time;
       if (!finalEndTime && formData.duration) {
         finalEndTime = new Date(formData.start_time);
         finalEndTime.setHours(finalEndTime.getHours() + formData.duration);
       } else if (!finalEndTime) {
-        // Default duration 2 hours if not specified
         finalEndTime = new Date(formData.start_time);
         finalEndTime.setHours(finalEndTime.getHours() + 2);
       }
@@ -388,20 +404,18 @@ export default function PostJob() {
         fixed_price: formData.fixed_price,
         start_time: formData.start_time.toISOString(),
         end_time: finalEndTime?.toISOString(),
-        image_url: uploadedImageUrl, // <--- Image URL added here
+        image_url: uploadedImageUrl,
       };
 
-      // 4. Send to Backend
+      // 4. Send Job to Backend
       await jobsAPI.createJob(payload);
 
       Alert.alert("Success", "Job posted successfully!");
-      // Direct navigation
       router.replace("/Client/DashboardClient" as never);
 
     } catch (err: any) {
       console.error(err);
-      // setError(err?.message || "Er ging iets mis bij het plaatsen."); // Use this if you have setError
-      Alert.alert("Error", err?.message || "Er ging iets mis bij het plaatsen.");
+      Alert.alert("Error", err.message || "Er ging iets mis.");
     } finally {
       setUploading(false);
       setLoading(false);
