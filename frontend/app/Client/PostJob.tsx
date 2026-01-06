@@ -132,11 +132,11 @@ export default function PostJob() {
   // ... existing state ...
   const [image, setImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  
+
 
   // --- PASTE THIS BLOCK INSIDE THE COMPONENT ---
 
-const pickImage = async () => {
+  const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to make this work!');
@@ -338,7 +338,7 @@ const pickImage = async () => {
         formData.append('image', { uri: image, name: filename, type });
 
         // Upload to your backend
-        const uploadRes = await fetch('http://YOUR_IP_ADDRESS:3000/jobs/upload-image', {
+        const uploadRes = await fetch('http://localhost:3000/jobs/upload-image', {
           method: 'POST',
           body: formData,
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -349,7 +349,7 @@ const pickImage = async () => {
           uploadedImageUrl = uploadData.url;
         }
       }
-      
+
       // Now create your jobData object
       const jobData = {
         // ... your existing fields (title, description, etc.) ...
@@ -362,7 +362,7 @@ const pickImage = async () => {
       console.error(error);
       Alert.alert("Error", "Failed to upload image");
       setUploading(false);
-      return; 
+      return;
     }
     setLoading(true);
     try {
@@ -514,41 +514,41 @@ const pickImage = async () => {
                       accessibilityLabel="Titel van de opdracht"
                       accessibilityHint="Vul een korte titel in"
                     />
-                    
-                    
+
+
                   </View>
-                  
+
                 )}
                 {/* Image Picker UI */}
-      <View style={{ marginBottom: 20, alignItems: 'center' }}>
-        <TouchableOpacity 
-          onPress={pickImage} 
-          style={{
-            width: '100%', 
-            height: 150, 
-            backgroundColor: '#f0f0f0', 
-            borderRadius: 10, 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            borderWidth: 1,
-            borderColor: '#ccc',
-            borderStyle: 'dashed'
-          }}
-        >
-          {image ? (
-            <Image source={{ uri: image }} style={{ width: '100%', height: '100%', borderRadius: 10 }} />
-          ) : (
-            <Text style={{ color: '#666' }}>+ Upload Job Photo</Text>
-          )}
-        </TouchableOpacity>
-        
-        {image && (
-          <TouchableOpacity onPress={() => setImage(null)} style={{ marginTop: 10 }}>
-            <Text style={{ color: 'red' }}>Remove Photo</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-                
+                <View style={{ marginBottom: 20, alignItems: 'center' }}>
+                  <TouchableOpacity
+                    onPress={pickImage}
+                    style={{
+                      width: '100%',
+                      height: 150,
+                      backgroundColor: '#f0f0f0',
+                      borderRadius: 10,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: '#ccc',
+                      borderStyle: 'dashed'
+                    }}
+                  >
+                    {image ? (
+                      <Image source={{ uri: image }} style={{ width: '100%', height: '100%', borderRadius: 10 }} />
+                    ) : (
+                      <Text style={{ color: '#666' }}>+ Upload Job Photo</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  {image && (
+                    <TouchableOpacity onPress={() => setImage(null)} style={{ marginTop: 10 }}>
+                      <Text style={{ color: 'red' }}>Remove Photo</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
 
                 {/* Location */}
                 <View style={styles.section}>
