@@ -270,7 +270,7 @@ export default function StudentDashboard() {
                 <Pressable 
                   key={app.id} 
                   style={styles.jobCard} 
-                  onPress={() => router.push(`/Student/Job/${app.job_id}` as never)} 
+                  onPress={() => router.push(`/Student/Applied/${app.id}` as never)} 
                 >
                   <View style={styles.pendingHeader}>
                     <Clock size={16} color="#F59E0B" />
