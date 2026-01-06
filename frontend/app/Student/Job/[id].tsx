@@ -116,14 +116,8 @@ export default function JobDetail() {
 
                 console.log('[Apply] server response:', applyResult);
 
-                // Refresh job from API so UI reflects server state (DB result)
-                try {
-                  const fresh = await jobsAPI.getJob(job.id);
-                  console.log('[Apply] refreshed job from server:', fresh);
-                  setJob(fresh);
-                } catch (refreshErr) {
-                  console.warn('[Apply] failed to refresh job after apply:', refreshErr);
-                }
+                // Navigate to Dashboard pending tab
+                router.push('/Student/Dashboard?tab=pending');
               } catch (innerErr) {
                 // Fallback: try jobs endpoint if backend exposes one
                 console.warn('[Apply] primary apply attempt failed:', innerErr);
@@ -131,11 +125,9 @@ export default function JobDetail() {
                 try {
                   const res = await fetch(`${API_BASE}/jobs/${job.id}/apply`, { method: 'POST' });
                   try { const json = await res.json(); console.log('[Apply] fallback response:', json); } catch(_){}
-                  // attempt refresh even after fallback
-                  try {
-                    const fresh = await jobsAPI.getJob(job.id);
-                    setJob(fresh);
-                  } catch (refreshErr) { console.warn('[Apply] refresh after fallback failed', refreshErr); }
+                  
+                  // Navigate to Dashboard pending tab
+                  router.push('/Student/Dashboard?tab=pending');
                 } catch (fallbackErr) {
                   console.error('[Apply] fallback also failed:', fallbackErr);
                   throw fallbackErr;

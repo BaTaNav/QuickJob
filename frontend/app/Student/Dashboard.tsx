@@ -1,12 +1,16 @@
 import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator, Platform, TextInput } from "react-native";
 import * as React from "react";
-import { useRouter } from 'expo-router';
-import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native';
-import { jobsAPI } from '../../services/api';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock } from 'lucide-react-native';
+import { jobsAPI, studentAPI, getStudentId } from '../../services/api';
 
 export default function StudentDashboard() {
-  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('available');
+  const params = useLocalSearchParams();
+  const initialTab = (params.tab as 'today' | 'upcoming' | 'available' | 'pending' | 'archive') || 'available';
+  
+  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>(initialTab);
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
+  const [pendingApplications, setPendingApplications] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [showFilters, setShowFilters] = React.useState(false);
@@ -16,6 +20,13 @@ export default function StudentDashboard() {
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
   const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
   const router = useRouter();
+
+  // Set tab from params on mount
+  React.useEffect(() => {
+    if (params.tab) {
+      setTab(params.tab as any);
+    }
+  }, [params.tab]);
 
   const fetchAvailable = React.useCallback(async () => {
     try {
@@ -31,12 +42,35 @@ export default function StudentDashboard() {
     }
   }, []);
 
+  const fetchPending = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const sid = await getStudentId();
+      if (!sid) {
+        setPendingApplications([]);
+        return;
+      }
+      const data = await studentAPI.getApplications(Number(sid));
+      // Filter only pending applications
+      const pending = data.filter((app: any) => app.status === 'pending');
+      setPendingApplications(pending || []);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load applications';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     fetchAvailable();
-  }, [fetchAvailable]);
+    fetchPending();
+  }, [fetchAvailable, fetchPending]);
 
   const handleRefresh = () => {
     fetchAvailable();
+    fetchPending();
   };
 
   // Filter jobs based on selected filters
@@ -75,7 +109,7 @@ export default function StudentDashboard() {
     today: [],
     upcoming: [],
     available: availableJobs,
-    pending: [],
+    pending: pendingApplications,
     archive: [],
   };
 
@@ -131,7 +165,7 @@ export default function StudentDashboard() {
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
-            <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending ({mockJobs.pending.length})</Text>
+            <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending ({pendingApplications.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'archive' && styles.tabActive]} onPress={() => setTab('archive')}>
@@ -230,22 +264,46 @@ export default function StudentDashboard() {
       {!loading && !error && jobs.length > 0 ? (
         <View style={styles.jobsContainer}>
           <View style={styles.jobsList}>
-            {filteredJobs.map((job: any) => (
-              <Pressable 
-                key={job.id} 
-                style={styles.jobCard} 
-                onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
-              >
-                <Text style={styles.jobTitle}>{job.title}</Text>
-                <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
-                <Text style={styles.jobMeta}>
-                  {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
-                  {job.area_text ? ` • ${job.area_text}` : ''}
-                  {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
-                  {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
-                </Text>
-              </Pressable>
-            ))}
+            {tab === 'pending' ? (
+              // Render pending applications
+              pendingApplications.map((app: any) => (
+                <Pressable 
+                  key={app.id} 
+                  style={styles.jobCard} 
+                  onPress={() => router.push(`/Student/Job/${app.job_id}` as never)} 
+                >
+                  <View style={styles.pendingHeader}>
+                    <Clock size={16} color="#F59E0B" />
+                    <Text style={styles.pendingBadge}>Pending Review</Text>
+                  </View>
+                  <Text style={styles.jobTitle}>{app.jobs?.title || 'Job'}</Text>
+                  <Text style={styles.jobDescription}>{app.jobs?.description || 'Geen beschrijving'}</Text>
+                  <Text style={styles.jobMeta}>
+                    Applied: {new Date(app.applied_at).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {app.jobs?.start_time ? ` • Starts: ${new Date(app.jobs.start_time).toLocaleDateString('nl-BE')}` : ''}
+                    {app.jobs?.area_text ? ` • ${app.jobs.area_text}` : ''}
+                  </Text>
+                </Pressable>
+              ))
+            ) : (
+              // Render available jobs
+              filteredJobs.map((job: any) => (
+                <Pressable 
+                  key={job.id} 
+                  style={styles.jobCard} 
+                  onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
+                >
+                  <Text style={styles.jobTitle}>{job.title}</Text>
+                  <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
+                  <Text style={styles.jobMeta}>
+                    {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
+                    {job.area_text ? ` • ${job.area_text}` : ''}
+                    {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
+                    {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
+                  </Text>
+                </Pressable>
+              ))
+            )}
           </View>
         </View>
       ) : (
@@ -474,6 +532,17 @@ const styles = StyleSheet.create({
   },
   tabActive: {
     backgroundColor: "#176B51",
+  },
+  pendingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  pendingBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#F59E0B',
   },
   tabText: { color: "#7A7F85", fontWeight: "500" },
   tabActiveText: { color: "#fff", fontWeight: "600" },
