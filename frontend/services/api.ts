@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // For mobile simulator: Use your computer's IP addressr
 const API_BASE_URL = Platform.OS === 'web' 
   ? 'http://localhost:3000' 
-  : 'http://10.2.88.69:3000';
+  : 'http://192.168.129.7:3000';
 
 // Add logging for debugging
 const logRequest = (method: string, url: string) => {
@@ -455,6 +455,27 @@ export const authAPI = {
 
 // Payment API Endpoints (voeg toe aan het einde van het bestand)
 export const paymentAPI = {
+  // Connect Stripe account for a student (returns onboarding URL)
+  async connectStudentAccount(student_id: number) {
+    try {
+      const url = `${API_BASE_URL}/payments/connect-account`;
+      logRequest('POST', url);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to initiate Stripe onboarding');
+      }
+      const result = await response.json();
+      return result; // { onboarding_url, stripe_account_id, ... }
+    } catch (error: any) {
+      console.error('[Payment API Exception] Connect account failed:', error);
+      throw new Error(error.message || 'Stripe onboarding failed');
+    }
+  },
   // Create payment intent for a job
   async createPaymentIntent(data: {
     student_id: number;

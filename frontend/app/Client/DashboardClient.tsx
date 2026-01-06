@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Alert } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Alert, Linking } from "react-native";
 import { useRouter } from 'expo-router';
 import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, CreditCard } from "lucide-react-native";
 import { jobsAPI, getClientId, paymentAPI } from "@/services/api";
@@ -80,6 +80,22 @@ function DashboardClientContent() {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Trigger Stripe onboarding for a student (temporary demo: student_id = 1)
+  const startStripeOnboarding = async () => {
+    try {
+      const studentId = 1; // TODO: replace with real accepted student ID
+      const res = await paymentAPI.connectStudentAccount(studentId);
+      if (res?.onboarding_url) {
+        Alert.alert('Stripe', 'Open onboarding in browser.');
+        Linking.openURL(res.onboarding_url);
+      } else {
+        Alert.alert('Stripe', 'Geen onboarding URL ontvangen.');
+      }
+    } catch (err: any) {
+      Alert.alert('Stripe onboarding mislukt', err?.message || 'Onbekende fout');
+    }
   };
 
   // Handle payment for completed job
@@ -235,6 +251,12 @@ function DashboardClientContent() {
               </View>
             ))}
           </View>
+
+                {/* Enable student payouts via Stripe Connect */}
+                <TouchableOpacity style={styles.createJobBtn} onPress={startStripeOnboarding}>
+                  <CreditCard size={18} color="#fff" style={{ marginRight: 8 }} />
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>Enable Student Payouts (Stripe)</Text>
+                </TouchableOpacity>
 
           {/* Primary Action */}
           <TouchableOpacity
