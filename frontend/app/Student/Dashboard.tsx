@@ -1,4 +1,4 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View,Image, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
 import * as React from "react";
 import { useRouter } from 'expo-router';
 import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native';
@@ -14,7 +14,7 @@ export default function StudentDashboard() {
   const categoryOptions = React.useMemo(() => {
     const map = new Map<string, { id: number | null; name: string }>();
 
-    // 'All' option
+    
     map.set('All', { id: null, name: 'All' });
 
     // start with defaults (no id)
@@ -342,6 +342,13 @@ export default function StudentDashboard() {
                 style={styles.jobCard} 
                 onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
               >
+                {/* Add Image Here */}
+  {job.image_url && (
+    <Image 
+      source={{ uri: job.image_url }} 
+      style={styles.jobImage}
+    />
+  )}
                 <Text style={styles.jobTitle}>{job.title}</Text>
                 <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
                 <Text style={styles.jobMeta}>
@@ -625,6 +632,14 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 8,
   },
+  jobImage: {
+  width: '100%',
+  height: 180,
+  borderTopLeftRadius: 12,
+  borderTopRightRadius: 12,
+  marginBottom: 10,
+},
+  
   jobCard: {
     paddingVertical: 12,
     borderBottomWidth: 1,

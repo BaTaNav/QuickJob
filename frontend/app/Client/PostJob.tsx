@@ -174,36 +174,21 @@ export default function PostJob() {
 
   const cancelWebModal = () => setWebModal(null);
 
-  // Auto-focus + keyboard handling for modal (also lock body scroll on web)
+  // Auto-focus + keyboard handling for modal
   React.useEffect(() => {
     if (!webModal) return;
     // Small timeout to allow render
     setTimeout(() => webModalInputRef.current?.focus?.(), 50);
-
-    // Prevent body scroll while modal is open on web
-    if (Platform.OS === 'web') {
-      const prevOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-
-      const onKey = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') cancelWebModal();
-        if (e.key === 'Enter') confirmWebModal();
-      };
-
-      window.addEventListener('keydown', onKey);
-      return () => {
-        window.removeEventListener('keydown', onKey);
-        document.body.style.overflow = prevOverflow || '';
-      };
-    }
-
+    
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') cancelWebModal();
       if (e.key === 'Enter') confirmWebModal();
     };
 
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    if (Platform.OS === 'web') {
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }
   }, [webModal]);
 
   const [formData, setFormData] = useState<JobFormData>({
@@ -754,7 +739,48 @@ export default function PostJob() {
             {/* Bottom Spacer: ensures content scrolls above the footer */}
             <View style={{ height: 120 }} />
 
+            {/* Web-centered modal for date/time pickers*/}
+            {Platform.OS === 'web' && webModal && (
+              <Pressable style={styles.webModalOverlay} onPress={() => cancelWebModal()}>
+                <Pressable 
+                  style={styles.webModalCard} 
+                  onPress={(e: any) => e.stopPropagation()} 
+                >
+                  <TouchableOpacity onPress={cancelWebModal} style={{ position: 'absolute', top: 10, right: 10, padding: 6 }} accessibilityLabel="Close picker">
+                    <Text style={{ fontSize: 16, color: '#6B7280' }}>✕</Text>
+                  </TouchableOpacity>
 
+                  <Text style={styles.webModalTitle}>{webModal.mode === 'date' ? 'Choose date' : `Choose time (${webModal.target === 'start' ? 'Start' : 'End'})`}</Text>
+
+                  {webModal.mode === 'date' && (
+                    <Text style={{ marginTop: 8, color: '#6B7280' }}>{(() => {
+                      const parts = (webModal.value || '').split('-');
+                      if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                      return webModal.value;
+                    })()}</Text>
+                  )}
+
+                  <input
+                    ref={webModalInputRef as any}
+                    type={webModal.mode}
+                    value={webModal.value}
+                    onClick={(e: any) => e.stopPropagation()}
+                    onChange={(e: any) => setWebModal(m => m ? ({ ...m, value: e.target.value }) : m)}
+                    onKeyDown={(e: any) => { if (e.key === 'Enter') confirmWebModal(); if (e.key === 'Escape') cancelWebModal(); }}
+                    style={{ fontSize: 18, padding: 10, marginTop: 12, width: '100%', border: '1px solid #ccc', borderRadius: 6 }}
+                  />
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 18 }}>
+                    <TouchableOpacity onPress={cancelWebModal} style={styles.webModalButtonSecondary}>
+                      <Text style={{ color: '#374151' }}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={confirmWebModal} style={styles.webModalButtonPrimary}>
+                      <Text style={{ color: '#fff' }}>Confirm</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Pressable>
+              </Pressable>
+            )}
           </ScrollView>
 
           {/* --- Desktop Sidebar (Preview) --- */}
@@ -812,51 +838,6 @@ export default function PostJob() {
 
         </View>
       </KeyboardAvoidingView>
-
-      {/* Web-centered modal for date/time pickers (rendered at top level on web) */}
-      {Platform.OS === 'web' && webModal && (
-        <Pressable style={[styles.webModalOverlay, { position: 'fixed' }]} onPress={() => cancelWebModal()}>
-          <Pressable 
-            style={styles.webModalCard} 
-            onPress={(e: any) => e.stopPropagation()} 
-            accessibilityRole="dialog"
-            accessibilityLabel={webModal.mode === 'date' ? 'Date picker' : 'Time picker'}
-          >
-            <TouchableOpacity onPress={cancelWebModal} style={{ position: 'absolute', top: 10, right: 10, padding: 6 }} accessibilityLabel="Close picker">
-              <Text style={{ fontSize: 16, color: '#6B7280' }}>✕</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.webModalTitle}>{webModal.mode === 'date' ? 'Choose date' : `Choose time (${webModal.target === 'start' ? 'Start' : 'End'})`}</Text>
-
-            {webModal.mode === 'date' && (
-              <Text style={{ marginTop: 8, color: '#6B7280' }}>{(() => {
-                const parts = (webModal.value || '').split('-');
-                if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-                return webModal.value;
-              })()}</Text>
-            )}
-
-            <input
-              ref={webModalInputRef as any}
-              type={webModal.mode}
-              value={webModal.value}
-              onClick={(e: any) => e.stopPropagation()}
-              onChange={(e: any) => setWebModal(m => m ? ({ ...m, value: e.target.value }) : m)}
-              onKeyDown={(e: any) => { if (e.key === 'Enter') confirmWebModal(); if (e.key === 'Escape') cancelWebModal(); }}
-              style={{ fontSize: 18, padding: 10, marginTop: 12, width: '100%', border: '1px solid #ccc', borderRadius: 6 }}
-            />
-
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 18 }}>
-              <TouchableOpacity onPress={cancelWebModal} style={styles.webModalButtonSecondary}>
-                <Text style={{ color: '#374151' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={confirmWebModal} style={styles.webModalButtonPrimary}>
-                <Text style={{ color: '#fff' }}>Confirm</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      )}
 
       {/* --- Native Modals --- */}
       {Platform.OS !== 'web' && pickerMode && DateTimePicker && (

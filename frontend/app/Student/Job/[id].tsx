@@ -133,6 +133,7 @@ export default function JobDetail() {
   }
 
   return (
+    
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.category}>{job.category?.name_nl || job.category?.name_en || 'Categorie'}</Text>
       <Text style={styles.pageTitle}>{job.title}</Text>
@@ -140,6 +141,8 @@ export default function JobDetail() {
         {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
         {job.area_text ? ` • ${job.area_text}` : ''}
       </Text>
+      
+      
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Description</Text>
