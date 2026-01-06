@@ -73,9 +73,15 @@ export default function StudentDashboard() {
     fetchPending();
   };
 
-  // Filter jobs based on selected filters
+  // Filter jobs based on selected filters and exclude already applied jobs
   const filteredJobs = React.useMemo(() => {
     let filtered = availableJobs;
+    
+    // Get IDs of jobs the student has already applied to
+    const appliedJobIds = new Set(pendingApplications.map(app => app.job_id));
+    
+    // Exclude jobs already applied to
+    filtered = filtered.filter(job => !appliedJobIds.has(job.id));
     
     if (filterCategory !== 'All') {
       filtered = filtered.filter(job => job.category === filterCategory);
@@ -103,7 +109,7 @@ export default function StudentDashboard() {
     }
     
     return filtered;
-  }, [availableJobs, filterCategory, filterDate, selectedDate]);
+  }, [availableJobs, pendingApplications, filterCategory, filterDate, selectedDate]);
 
   const mockJobs: Record<string, Array<any>> = {
     today: [],
@@ -161,7 +167,7 @@ export default function StudentDashboard() {
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'available' && styles.tabActive]} onPress={() => setTab('available')}>
-            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({availableJobs.length})</Text>
+            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({filteredJobs.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
