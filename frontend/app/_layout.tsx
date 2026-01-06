@@ -4,7 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { Pressable, Text, View, useColorScheme } from 'react-native';
-import { Handshake, RefreshCw, User } from 'lucide-react-native'; // Added User icon for profile
+import { Handshake, User } from 'lucide-react-native'; // Added User icon for profile
 import Colors from '../constants/Colors'; // Assuming this file exists and exports color palette
 
 
@@ -46,12 +46,6 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme(); // Hook to access the current color scheme
 
-  // Placeholder for a refresh action in the native header (e.g., refetch data)
-  const handleNativeHeaderRefresh = () => {
-    // In a production app, you would use a global state manager (Redux/Context/etc.)
-    // to dispatch a 'refresh' action that the current screen (Dashboard) listens to.
-    console.log("Header Refresh triggered (Dispatching global refresh event...)");
-  };
 
 
   return (
@@ -62,12 +56,10 @@ function RootLayoutNav() {
       <Stack.Screen name="Login" options={{ headerShown: false }} />
 
       {/* Hide headers for signup pages */}
-      <Stack.Screen name="Student/Signup" options={{ headerShown: false }} />
-      <Stack.Screen name="Client/Signup" options={{ headerShown: false }} />
+      <Stack.Screen name="Student/Signup" options={{ headerShown: true }} />
+      <Stack.Screen name="Client/Signup" options={{ headerShown: true }} />
       <Stack.Screen name="Client/DashboardClient" options={{ headerShown: false }} />
-      <Stack.Screen name="Client/Profile" options={{ headerShown: false }} />
-      <Stack.Screen name="Client/PostJob" options={{ headerShown: false }} />
-      <Stack.Screen name="Client/Job/[id]" options={{ title: 'Job Details' }} />
+      <Stack.Screen name="Client/Profile" options={{ headerShown: true }} />
 
       {/* Hide headers for admin pages */}
       <Stack.Screen name="Admin/DashboardAdmin" options={{ headerShown: false }} />
@@ -98,20 +90,11 @@ function RootLayoutNav() {
 
           // Custom header right buttons (Refresh and Profile)
           headerRight: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {/* 1. Refresh button */}
-              <Pressable
-                onPress={handleNativeHeaderRefresh}
-                style={{ padding: 6, borderRadius: 999, backgroundColor: '#F7F9FC' }}
-              >
-                <RefreshCw size={18} color="#64748B" />
-              </Pressable>
-
-              {/* 2. Profile button */}
-              {/* 'as never' or 'as any' is necessary here for non-standard routes like /Student/Profile */}
-              <Link href={'/Student/Profile' as never} asChild> 
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {/* Profile button */}
+              <Link href={'/Student/Profile' as never} asChild>
                 <Pressable style={{ padding: 6 }}>
-                  <User size={24} color="#1B1B1B" /> 
+                  <User size={24} color="#1B1B1B" />
                 </Pressable>
               </Link>
             </View>
@@ -127,6 +110,8 @@ function RootLayoutNav() {
           headerShown: true,
         }}
       />
+
+
 
       {/* Generic modal screen */}
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
