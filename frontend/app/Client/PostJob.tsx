@@ -320,57 +320,59 @@ export default function PostJob() {
     return true;
   };
 
-  const handlePostJob = async () => {
-    if (!formData.client_id) return setError("Sessie verlopen");
+// Add this constant at the TOP of your file (outside the component) if not already there
+  const API_URL = 'http://localhost:3000'; // Use your computer's IP if on real device
 
-    // Inside handlePostJob, BEFORE the fetch request to /jobs
-    setUploading(true); // Start loading
+  const handlePostJob = async () => {
+    // 1. Validation
+    if (!formData.client_id) {
+      Alert.alert("Error", "Sessie verlopen. Log opnieuw in.");
+      return;
+    }
+    if (!formData.title || !formData.category_id || !formData.start_time) {
+      Alert.alert("Error", "Vul alle verplichte velden in.");
+      return;
+    }
+
+    setUploading(true);
     let uploadedImageUrl = null;
 
     try {
+      // 2. Image Upload Logic
       if (image) {
-        const formData = new FormData();
+        // RENAME variable to avoid conflict with your state 'formData'
+        const uploadBody = new FormData(); 
         const filename = image.split('/').pop();
         const match = /\.(\w+)$/.exec(filename || '');
         const type = match ? `image/${match[1]}` : `image`;
 
         // @ts-ignore
-        formData.append('image', { uri: image, name: filename, type });
+        uploadBody.append('image', { uri: image, name: filename, type });
 
-        // Upload to your backend
-        const uploadRes = await fetch('http://localhost:3000/jobs/upload-image', {
+        // Use the API_URL constant
+        const uploadRes = await fetch(`${API_URL}/jobs/upload-image`, {
           method: 'POST',
-          body: formData,
-          headers: { 'Content-Type': 'multipart/form-data' },
+          body: uploadBody,
         });
 
         const uploadData = await uploadRes.json();
-        if (uploadData.url) {
+        if (uploadRes.ok && uploadData.url) {
           uploadedImageUrl = uploadData.url;
+        } else {
+          console.log("Upload failed:", uploadData);
+          Alert.alert("Upload Error", "Failed to upload image.");
+          setUploading(false);
+          return;
         }
       }
 
-      // Now create your jobData object
-      const jobData = {
-        // ... your existing fields (title, description, etc.) ...
-        image_url: uploadedImageUrl, // <--- ADD THIS FIELD
-      };
-
-      // ... Proceed with your existing fetch to create the job ...
-
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Failed to upload image");
-      setUploading(false);
-      return;
-    }
-    setLoading(true);
-    try {
+      // 3. Prepare Payload (using your existing formData state)
       let finalEndTime = formData.end_time;
       if (!finalEndTime && formData.duration) {
         finalEndTime = new Date(formData.start_time);
         finalEndTime.setHours(finalEndTime.getHours() + formData.duration);
       } else if (!finalEndTime) {
+        // Default duration 2 hours if not specified
         finalEndTime = new Date(formData.start_time);
         finalEndTime.setHours(finalEndTime.getHours() + 2);
       }
@@ -386,15 +388,22 @@ export default function PostJob() {
         fixed_price: formData.fixed_price,
         start_time: formData.start_time.toISOString(),
         end_time: finalEndTime?.toISOString(),
+        image_url: uploadedImageUrl, // <--- Image URL added here
       };
 
+      // 4. Send to Backend
       await jobsAPI.createJob(payload);
 
-      // Direct navigatie naar dashboard na succesvolle plaatsing
+      Alert.alert("Success", "Job posted successfully!");
+      // Direct navigation
       router.replace("/Client/DashboardClient" as never);
+
     } catch (err: any) {
-      setError(err?.message || "Er ging iets mis bij het plaatsen.");
+      console.error(err);
+      // setError(err?.message || "Er ging iets mis bij het plaatsen."); // Use this if you have setError
+      Alert.alert("Error", err?.message || "Er ging iets mis bij het plaatsen.");
     } finally {
+      setUploading(false);
       setLoading(false);
     }
   };
@@ -574,7 +583,6 @@ export default function PostJob() {
                 <View style={styles.card}>
                   <Text style={styles.label}>Datum</Text>
                   <TouchableOpacity
-                    nativeID="date-selector"
                     style={styles.dateSelector}
                     onPress={() => {
                       if (Platform.OS === 'web') {
@@ -604,7 +612,6 @@ export default function PostJob() {
                   <View style={[styles.card, { flex: 1 }]}>
                     <Text style={styles.label}>Starttijd</Text>
                     <TouchableOpacity
-                      nativeID="start-selector"
                       style={styles.timeSelector}
                       onPress={() => {
                         if (Platform.OS === 'web') {
@@ -634,7 +641,7 @@ export default function PostJob() {
                   <View style={[styles.card, { flex: 1 }]}>
                     <Text style={styles.label}>Eindtijd (optioneel)</Text>
                     <TouchableOpacity
-                      nativeID="end-selector"
+
                       style={styles.timeSelector}
                       onPress={() => {
                         if (Platform.OS === 'web') {

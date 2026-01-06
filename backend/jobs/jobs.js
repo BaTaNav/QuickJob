@@ -41,12 +41,18 @@ function mapJobRow(row) {
  * POST /jobs/upload-image
  * Uploads an image file to Supabase Storage (Bucket: 'job-images')
  */
+/**
+ * POST /jobs/upload-image
+ * Uploads an image file to Supabase Storage (Bucket: 'job-images')
+ */
 router.post("/upload-image", upload.single("image"), async (req, res) => {
   try {
     const file = req.file;
     if (!file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
+
+    console.log("Attempting to upload:", file.originalname); // Log 1
 
     // 1. Generate a unique filename
     const fileExt = file.originalname.split(".").pop();
@@ -55,23 +61,29 @@ router.post("/upload-image", upload.single("image"), async (req, res) => {
 
     // 2. Upload to Supabase Storage
     const { data, error } = await supabase.storage
-      .from("job-images") // Make sure this bucket exists in Supabase
+      .from("job-images") // <--- MUST MATCH YOUR SUPABASE BUCKET NAME
       .upload(filePath, file.buffer, {
         contentType: file.mimetype,
         upsert: false,
       });
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase Storage Error:", error); // Log 2: Print actual error to terminal
+      throw error;
+    }
 
     // 3. Get Public URL
     const { data: publicUrlData } = supabase.storage
       .from("job-images")
       .getPublicUrl(filePath);
 
+    console.log("Upload success, URL:", publicUrlData.publicUrl); // Log 3
+
     res.status(200).json({ url: publicUrlData.publicUrl });
   } catch (error) {
-    console.error("Upload error:", error);
-    res.status(500).json({ error: "Failed to upload image" });
+    console.error("Server Upload Error:", error.message);
+    // Send the ACTUAL error message to the frontend
+    res.status(500).json({ error: error.message, details: error });
   }
 });
 
@@ -225,7 +237,7 @@ router.post("/", async (req, res) => {
       hourly_rate,
       fixed_price,
       start_time,
-      image_url, // Receive image_url from frontend
+      image_url,
     } = req.body;
 
     const clientIdNum = parseInt(client_id, 10);
@@ -283,7 +295,8 @@ router.post("/", async (req, res) => {
  * POST /jobs/draft
  * Save a draft job (status=draft)
  */
-router.post("/draft", async (req, res) => {
+// POST /jobs - Create a new job
+router.post("/", async (req, res) => {
   try {
     const {
       client_id,
@@ -295,16 +308,15 @@ router.post("/draft", async (req, res) => {
       hourly_rate,
       fixed_price,
       start_time,
-      image_url, // Support images in drafts too
+      image_url,
     } = req.body;
 
     const clientIdNum = parseInt(client_id, 10);
     const categoryIdNum = parseInt(category_id, 10);
 
-    // Minimal required fields for draft
-    if (!clientIdNum || !categoryIdNum || !title) {
+    if (!clientIdNum || !categoryIdNum || !title || !start_time) {
       return res.status(400).json({
-        error: "Missing required fields: client_id, category_id, title",
+        error: "Missing required fields: client_id, category_id, title, start_time",
       });
     }
 
@@ -316,11 +328,11 @@ router.post("/draft", async (req, res) => {
         title,
         description: description || null,
         area_text: area_text || null,
-        hourly_or_fixed: hourly_or_fixed || "hourly",
+        hourly_or_fixed,
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
-        start_time: start_time || null,
-        status: "draft",
+        start_time,
+        status: "open",
         created_at: new Date().toISOString(),
         image_url: image_url || null,
       })
@@ -331,12 +343,12 @@ router.post("/draft", async (req, res) => {
 
     const mapped = mapJobRow(job);
     res.status(201).json({
-      message: "Job draft saved",
+      message: "Job created successfully",
       job: mapped,
     });
   } catch (err) {
-    console.error("Error saving draft:", err);
-    res.status(500).json({ error: "Failed to save draft" });
+    console.error("Error creating job:", err);
+    res.status(500).json({ error: "Failed to create job" });
   }
 });
 
