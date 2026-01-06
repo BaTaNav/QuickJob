@@ -71,7 +71,7 @@ export default function JobDetail() {
           }
           if (job.postal_code) parts.push(job.postal_code);
           if (job.city) parts.push(job.city);
-          const addr = parts.length > 0 ? parts.join(' ') : (job.area_text || '');
+          const addr = parts.length > 0 ? parts.join(' ') : '';
           return addr ? ` • ${addr}` : '';
         })()}
       </Text>
@@ -93,7 +93,7 @@ export default function JobDetail() {
           if (job.postal_code) parts.push(job.postal_code);
           if (job.city) parts.push(job.city);
           if (parts.length > 0) return parts.join(' ');
-          return job.area_text || 'Niet opgegeven';
+          return 'Niet opgegeven';
         })()}</Text>
       </View>
 

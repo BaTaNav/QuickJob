@@ -91,7 +91,8 @@ export default function StudentDashboard() {
     if (job.postal_code) parts.push(job.postal_code);
     if (job.city) parts.push(job.city);
     if (parts.length > 0) return parts.join(' ');
-    return job.area_text || '';
+    // No legacy free-text fallback — rely on structured address
+    return '';
   };
 
 

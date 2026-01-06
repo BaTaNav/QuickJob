@@ -228,6 +228,23 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // Require structured address fields (at least one) instead of relying solely on area_text.
+    const hasStructuredAddress = (street && String(street).trim() !== '') ||
+      (house_number && String(house_number).trim() !== '') ||
+      (postal_code && String(postal_code).trim() !== '') ||
+      (city && String(city).trim() !== '');
+
+    if (!hasStructuredAddress) {
+      return res.status(400).json({
+        error: "Missing structured address. Please provide at least one of: street, house_number, postal_code or city.",
+      });
+    }
+
+    // If area_text is not provided, compose a best-effort area_text from structured fields for backward compatibility
+    const composedAreaText = area_text && String(area_text).trim() !== ''
+      ? area_text
+      : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
+
     // Validate hourly_or_fixed and corresponding price
     if (hourly_or_fixed === "fixed" && !fixed_price) {
       return res.status(400).json({ error: "Fixed price required for fixed jobs" });
@@ -241,7 +258,7 @@ router.post("/", async (req, res) => {
         category_id: categoryIdNum,
         title,
         description: description || null,
-        area_text: area_text || null,
+        area_text: composedAreaText,
         street: street || null,
         house_number: house_number || null,
         postal_code: postal_code || null,
@@ -301,6 +318,23 @@ router.post("/draft", async (req, res) => {
       });
     }
 
+    // For drafts, also encourage structured address. If none provided, reject to enforce the new pattern.
+    const hasStructuredAddress = (street && String(street).trim() !== '') ||
+      (house_number && String(house_number).trim() !== '') ||
+      (postal_code && String(postal_code).trim() !== '') ||
+      (city && String(city).trim() !== '');
+
+    if (!hasStructuredAddress) {
+      return res.status(400).json({
+        error: "Missing structured address for draft. Please provide at least one of: street, house_number, postal_code or city.",
+      });
+    }
+
+    // Compose area_text from structured fields if not explicitly provided
+    const composedAreaText = area_text && String(area_text).trim() !== ''
+      ? area_text
+      : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
+
     const { data: job, error: jobError } = await supabase
       .from("jobs")
       .insert({
@@ -308,7 +342,7 @@ router.post("/draft", async (req, res) => {
         category_id: categoryIdNum,
         title,
         description: description || null,
-        area_text: area_text || null,
+        area_text: composedAreaText,
         street: street || null,
         house_number: house_number || null,
         postal_code: postal_code || null,

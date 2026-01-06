@@ -102,7 +102,7 @@ export default function DashboardClient() {
         }
         if (job.postal_code) parts.push(job.postal_code);
         if (job.city) parts.push(job.city);
-        const addr = parts.length > 0 ? parts.join(' ') : job.area_text;
+        const addr = parts.length > 0 ? parts.join(' ') : '';
         if (addr) {
           return (
             <View style={styles.jobMeta}>
