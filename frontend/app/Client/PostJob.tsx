@@ -4,6 +4,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Platform,
   StatusBar,
@@ -21,7 +22,7 @@ import { useRouter } from "expo-router";
 import {
   ArrowLeft,
   Calendar,
-  Clock,
+  
   AlertCircle,
   Briefcase,
   Scissors,
@@ -30,11 +31,10 @@ import {
   Home,
   ChevronRight,
   MapPin,
-  DollarSign
+  DollarSign,
+  Dog,
 } from "lucide-react-native";
 import { getClientId, jobsAPI } from "@/services/api";
-// Updated import path for getClientId
-// Adjusted to reflect the new directory structure
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -59,6 +59,7 @@ const JOB_CATEGORIES = [
   { id: 3, key: "repair", icon: Wrench, name_nl: "Reparatie", name_fr: "Réparation", name_en: "Repair" },
   { id: 4, key: "moving", icon: Truck, name_nl: "Verhuizing", name_fr: "Déménagement", name_en: "Moving" },
   { id: 5, key: "handyman", icon: Briefcase, name_nl: "Klusjeswerk", name_fr: "Bricolage", name_en: "Handyman" },
+  { id: 6, key: "petcare", icon: Dog, name_nl: "Dierenverzorging", name_fr: "Soins pour animaux", name_en: "Pet care" },
 ];
 
 const TITLE_SUGGESTIONS: Record<string, string[]> = {
@@ -102,6 +103,22 @@ export default function PostJob() {
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
   
+  // Format helpers for inputs
+  const formatDateForInput = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  const formatTimeForInput = (d: Date) => {
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
+  // Small helper to ensure we have a valid Date object
+  const formFormDataStartSafe = (d: Date | null) => d ? new Date(d) : new Date();
+  
   // State
   const [clientId, setClientId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
@@ -109,8 +126,84 @@ export default function PostJob() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   
-  // Pickers State
+  // Native Pickers State
   const [pickerMode, setPickerMode] = useState<"date" | "startTime" | "endTime" | null>(null);
+
+  // Web Modal State
+  const [webModal, setWebModal] = React.useState<null | { mode: 'date' | 'time'; target: 'date' | 'start' | 'end'; value: string }>(null);
+  const webModalInputRef = React.useRef<any>(null);
+
+  // Open Web Modal (Centering Logic is in Styles)
+  const openWebModal = (mode: 'date' | 'time', target: 'date' | 'start' | 'end', initialDate: Date | null) => {
+    const value = mode === 'date' ? formatDateForInput(initialDate || new Date()) : formatTimeForInput(initialDate || new Date());
+    setWebModal({ mode, target, value });
+  };
+
+  const confirmWebModal = () => {
+    if (!webModal) return;
+    
+    if (webModal.mode === 'date') {
+      const [y, m, d] = webModal.value.split('-').map(Number);
+      const newStart = new Date(formData.start_time);
+      newStart.setFullYear(y, m - 1, d);
+      setFormData(p => ({ ...p, start_time: newStart }));
+    } else {
+      // Time Logic
+      const [hh, mm] = webModal.value.split(':').map(Number);
+      
+      if (webModal.target === 'start') {
+        const newStart = new Date(formData.start_time);
+        newStart.setHours(hh, mm);
+        setFormData(p => ({ ...p, start_time: newStart }));
+      } else if (webModal.target === 'end') {
+        const newEnd = new Date(formFormDataStartSafe(formData.start_time));
+        newEnd.setHours(hh, mm);
+        
+        // Validation: End time must be after start time
+        if (newEnd <= formFormDataStartSafe(formData.start_time)) {
+             if (Platform.OS === 'web') alert('Eindtijd moet na de starttijd liggen.');
+             else Alert.alert('Fout', 'Eindtijd moet na de starttijd liggen.');
+             return;
+        }
+        setFormData(p => ({ ...p, end_time: newEnd, duration: null })); // Reset duration if end time is set manually
+      }
+    }
+    setWebModal(null);
+  };
+
+  const cancelWebModal = () => setWebModal(null);
+
+  // Auto-focus + keyboard handling for modal (also lock body scroll on web)
+  React.useEffect(() => {
+    if (!webModal) return;
+    // Small timeout to allow render
+    setTimeout(() => webModalInputRef.current?.focus?.(), 50);
+
+    // Prevent body scroll while modal is open on web
+    if (Platform.OS === 'web') {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') cancelWebModal();
+        if (e.key === 'Enter') confirmWebModal();
+      };
+
+      window.addEventListener('keydown', onKey);
+      return () => {
+        window.removeEventListener('keydown', onKey);
+        document.body.style.overflow = prevOverflow || '';
+      };
+    }
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelWebModal();
+      if (e.key === 'Enter') confirmWebModal();
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [webModal]);
 
   const [formData, setFormData] = useState<JobFormData>({
     client_id: "",
@@ -328,7 +421,7 @@ export default function PostJob() {
                         accessibilityState={{ selected: isSelected }}
                         accessibilityLabel={(cat as any)[`name_${language}`]}
                       >
-                        <Icon size={28} color={isSelected ? "#fff" : "#176B51"} />
+                        <Icon size={28} color={isSelected ? "#000000ff" : "#176B51"} />
                         <Text style={[styles.gridText, isSelected && styles.gridTextActive]}>
                           {(cat as any)[`name_${language}`]}
                         </Text>
@@ -392,16 +485,29 @@ export default function PostJob() {
                 <View style={styles.card}>
                   <Text style={styles.label}>Datum</Text>
                   <TouchableOpacity 
+                    nativeID="date-selector"
                     style={styles.dateSelector} 
-                    onPress={() => setPickerMode('date')}
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        openWebModal('date','date', formData.start_time);
+                      } else {
+                        setPickerMode('date');
+                      }
+                    }}
                     accessibilityRole="button"
                     accessibilityLabel="Datum selecteren"
                   >
                     <Calendar size={20} color="#176B51" />
                     <Text style={styles.dateSelectorText}>
-                      {formData.start_time.toLocaleDateString(language === 'en' ? 'en-US' : 'nl-BE', { weekday: 'long', day: 'numeric', month: 'long' })}
+                      {formFormDataStartSafe(formData.start_time).toLocaleDateString(language === 'en' ? 'en-US' : 'nl-BE', { weekday: 'long', day: 'numeric', month: 'long' })}
                     </Text>
+
                     <Text style={styles.changeLink}>Wijzig</Text>
+                    {Platform.OS === 'web' && (
+                      <TouchableOpacity onPress={() => openWebModal('date','date', formData.start_time)} style={{ marginLeft: 8 }}>
+                        <Text style={{ color: '#176B51', fontWeight: '600' }}>Open picker</Text>
+                      </TouchableOpacity>
+                    )}
                   </TouchableOpacity>
                 </View>
 
@@ -409,14 +515,26 @@ export default function PostJob() {
                    <View style={[styles.card, { flex: 1 }]}>
                       <Text style={styles.label}>Starttijd</Text>
                       <TouchableOpacity 
+                        nativeID="start-selector"
                         style={styles.timeSelector} 
-                        onPress={() => setPickerMode('startTime')}
+                        onPress={() => {
+                          if (Platform.OS === 'web') {
+                            openWebModal('time','start', formFormDataStartSafe(formData.start_time));
+                          } else {
+                            setPickerMode('startTime');
+                          }
+                        }}
                         accessibilityRole="button"
                         accessibilityLabel="Starttijd selecteren"
                       >
                         <Text style={styles.timeBig}>
                           {formData.start_time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </Text>
+                        {Platform.OS === 'web' && (
+                          <TouchableOpacity onPress={() => openWebModal('time','start', formFormDataStartSafe(formData.start_time))} style={{ marginTop: 6 }}>
+                            <Text style={{ color: '#176B51', fontWeight: '600' }}>Open picker</Text>
+                          </TouchableOpacity>
+                        )}
                       </TouchableOpacity>
                    </View>
                    
@@ -427,16 +545,28 @@ export default function PostJob() {
                    <View style={[styles.card, { flex: 1 }]}>
                       <Text style={styles.label}>Eindtijd (optioneel)</Text>
                       <TouchableOpacity 
+                        nativeID="end-selector"
                         style={styles.timeSelector} 
-                        onPress={() => setPickerMode('endTime')}
+                        onPress={() => {
+                          if (Platform.OS === 'web') {
+                            openWebModal('time','end', formFormDataStartSafe(formData.end_time || formData.start_time));
+                          } else {
+                            setPickerMode('endTime');
+                          }
+                        }}
                         accessibilityRole="button"
                         accessibilityLabel="Eindtijd selecteren"
                       >
                         <Text style={[styles.timeBig, !formData.end_time && { color: '#ccc' }]}>
                           {formData.end_time 
-                            ? formData.end_time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                            ? formFormDataStartSafe(formData.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
                             : "--:--"}
                         </Text>
+                        {Platform.OS === 'web' && (
+                          <TouchableOpacity onPress={() => openWebModal('time','end', formFormDataStartSafe(formData.end_time || formData.start_time))} style={{ marginTop: 6 }}>
+                            <Text style={{ color: '#176B51', fontWeight: '600' }}>Open picker</Text>
+                          </TouchableOpacity>
+                        )}
                       </TouchableOpacity>
                    </View>
                 </View>
@@ -622,6 +752,8 @@ export default function PostJob() {
 
             {/* Bottom Spacer: ensures content scrolls above the footer */}
             <View style={{ height: 120 }} />
+
+
           </ScrollView>
 
           {/* --- Desktop Sidebar (Preview) --- */}
@@ -679,6 +811,51 @@ export default function PostJob() {
 
         </View>
       </KeyboardAvoidingView>
+
+      {/* Web-centered modal for date/time pickers (rendered at top level on web) */}
+      {Platform.OS === 'web' && webModal && (
+        <Pressable style={[styles.webModalOverlay, { position: 'fixed' }]} onPress={() => cancelWebModal()}>
+          <Pressable 
+            style={styles.webModalCard} 
+            onPress={(e: any) => e.stopPropagation()} 
+            accessibilityRole="dialog"
+            accessibilityLabel={webModal.mode === 'date' ? 'Date picker' : 'Time picker'}
+          >
+            <TouchableOpacity onPress={cancelWebModal} style={{ position: 'absolute', top: 10, right: 10, padding: 6 }} accessibilityLabel="Close picker">
+              <Text style={{ fontSize: 16, color: '#6B7280' }}>✕</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.webModalTitle}>{webModal.mode === 'date' ? 'Choose date' : `Choose time (${webModal.target === 'start' ? 'Start' : 'End'})`}</Text>
+
+            {webModal.mode === 'date' && (
+              <Text style={{ marginTop: 8, color: '#6B7280' }}>{(() => {
+                const parts = (webModal.value || '').split('-');
+                if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                return webModal.value;
+              })()}</Text>
+            )}
+
+            <input
+              ref={webModalInputRef as any}
+              type={webModal.mode}
+              value={webModal.value}
+              onClick={(e: any) => e.stopPropagation()}
+              onChange={(e: any) => setWebModal(m => m ? ({ ...m, value: e.target.value }) : m)}
+              onKeyDown={(e: any) => { if (e.key === 'Enter') confirmWebModal(); if (e.key === 'Escape') cancelWebModal(); }}
+              style={{ fontSize: 18, padding: 10, marginTop: 12, width: '100%', border: '1px solid #ccc', borderRadius: 6 }}
+            />
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 18 }}>
+              <TouchableOpacity onPress={cancelWebModal} style={styles.webModalButtonSecondary}>
+                <Text style={{ color: '#374151' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={confirmWebModal} style={styles.webModalButtonPrimary}>
+                <Text style={{ color: '#fff' }}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      )}
 
       {/* --- Native Modals --- */}
       {Platform.OS !== 'web' && pickerMode && DateTimePicker && (
@@ -1179,4 +1356,35 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#176B51",
   },
+
+  /* Web modal picker styles */
+  webModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.25)', // lighter overlay
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+    // Web specific fix to ensure full coverage
+    ...Platform.select({
+        web: { position: 'fixed', height: '100vh', width: '100vw' } as any
+    })
+  },
+  webModalCard: {
+    width: 360,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 12,
+  },
+  webModalTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
+  webModalButtonPrimary: { backgroundColor: '#176B51', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
+  webModalButtonSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#F3F4F6' },
 });
