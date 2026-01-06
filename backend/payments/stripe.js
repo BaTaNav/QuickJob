@@ -12,3 +12,11 @@ const connectRefreshUrl = process.env.STRIPE_CONNECT_REFRESH_URL || "https://exa
 
 const stripe = stripeSecret ? new Stripe(stripeSecret, { apiVersion: "2023-10-16" }) : null;
 const router = express.Router();
+
+const ensureStripe = (res) => {
+  if (!stripe) {
+    res.status(500).json({ error: "Stripe secret key ontbreekt (STRIPE_SECRET_KEY)" });
+    return false;
+  }
+  return true;
+};
