@@ -88,6 +88,11 @@ interface JobFormData {
   title: string;
   description: string;
   area_text: string;
+  // Structured address fields (new)
+  street?: string;
+  house_number?: string;
+  postal_code?: string;
+  city?: string;
   hourly_or_fixed: "hourly" | "fixed";
   hourly_rate: number | null;
   fixed_price: number | null;
@@ -210,7 +215,12 @@ export default function PostJob() {
     category_id: null,
     title: "",
     description: "",
-    area_text: "",
+  area_text: "",
+  // new structured address defaults
+  street: "",
+  house_number: "",
+  postal_code: "",
+  city: "",
     hourly_or_fixed: "hourly",
     hourly_rate: null,
     fixed_price: null,
@@ -219,6 +229,9 @@ export default function PostJob() {
     duration: null,
     urgent: false,
   });
+
+  // Address validation errors
+  const [addressErrors, setAddressErrors] = useState<{ street?: string; house_number?: string; postal_code?: string; city?: string }>({});
 
   // Initialization
   useEffect(() => {
@@ -307,7 +320,22 @@ export default function PostJob() {
 
   const handlePostJob = async () => {
     if (!formData.client_id) return setError("Sessie verlopen");
-    
+    // Validate structured address before attempting to post
+    const validateAddress = () => {
+      const errs: any = {};
+      if (!formData.street || formData.street.trim().length < 2) errs.street = 'Straat is verplicht';
+      if (!formData.house_number || formData.house_number.trim().length < 1) errs.house_number = 'Huisnummer is verplicht';
+  if (!formData.postal_code || !/^\d{4}$/.test(String(formData.postal_code).trim())) errs.postal_code = 'Ongeldige postcode (4 cijfers)';
+      if (!formData.city || formData.city.trim().length < 2) errs.city = 'Gemeente is verplicht';
+      setAddressErrors(errs);
+      return Object.keys(errs).length === 0;
+    };
+
+    if (!validateAddress()) {
+      setError('Controleer het adresformulier.');
+      return;
+    }
+
     setLoading(true);
     try {
       let finalEndTime = formData.end_time;
@@ -325,6 +353,11 @@ export default function PostJob() {
         title: formData.title,
         description: formData.description || undefined,
         area_text: formData.area_text || undefined,
+  // Structured address fields (Belgium-only)
+  street: formData.street || undefined,
+  house_number: formData.house_number || undefined,
+  postal_code: formData.postal_code || undefined,
+  city: formData.city || undefined,
         hourly_or_fixed: formData.hourly_or_fixed,
         hourly_rate: formData.hourly_rate,
         fixed_price: formData.fixed_price,
@@ -461,18 +494,63 @@ export default function PostJob() {
                   </View>
                 )}
                 
-                {/* Location */}
+                {/* Location / Structured Address */}
                 <View style={styles.section}>
-                  <Text style={styles.label}>Locatie (Zone/Gemeente)</Text>
-                  <View style={styles.inputWithIcon}>
-                    <MapPin size={20} color="#9CA3AF" style={{ marginRight: 8 }} />
+                  <Text style={styles.label}>Adres</Text>
+
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
                     <TextInput
-                      style={{ flex: 1, paddingVertical: 10 }}
-                      value={formData.area_text}
-                      onChangeText={t => setFormData(p => ({ ...p, area_text: t }))}
-                      placeholder="bv. Brussel Centrum"
-                      accessibilityLabel="Locatie"
+                      style={[styles.input, { flex: 2, marginRight: 8 }]}
+                      placeholder="Straat"
+                      value={formData.street}
+                      onChangeText={t => setFormData(p => ({ ...p, street: t }))}
+                      accessibilityLabel="Straat"
                     />
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="Huisnr"
+                      value={formData.house_number}
+                      onChangeText={t => setFormData(p => ({ ...p, house_number: t }))}
+                      accessibilityLabel="Huisnummer"
+                    />
+                  </View>
+                  {addressErrors.street ? <Text style={styles.addressError}>{addressErrors.street}</Text> : null}
+                  {addressErrors.house_number ? <Text style={styles.addressError}>{addressErrors.house_number}</Text> : null}
+
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                    <TextInput
+                      style={[styles.input, { flex: 1, marginRight: 8 }]}
+                      placeholder="Postcode"
+                      keyboardType="numeric"
+                      value={String(formData.postal_code || '')}
+                      onChangeText={t => setFormData(p => ({ ...p, postal_code: t }))}
+                      accessibilityLabel="Postcode"
+                    />
+                    <TextInput
+                      style={[styles.input, { flex: 2 }]}
+                      placeholder="Gemeente"
+                      value={formData.city}
+                      onChangeText={t => setFormData(p => ({ ...p, city: t }))}
+                      accessibilityLabel="Gemeente"
+                    />
+                  </View>
+                  {addressErrors.postal_code ? <Text style={styles.addressError}>{addressErrors.postal_code}</Text> : null}
+                  {addressErrors.city ? <Text style={styles.addressError}>{addressErrors.city}</Text> : null}
+
+                  {/* Country removed — Belgium only, handled server-side if needed */}
+
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={styles.helperText}>Optioneel: vrije tekst (bv. buurt) — blijft beschikbaar voor compatibiliteit</Text>
+                    <View style={[styles.inputWithIcon, { marginTop: 8 }]}>
+                      <MapPin size={20} color="#9CA3AF" style={{ marginRight: 8 }} />
+                      <TextInput
+                        style={{ flex: 1, paddingVertical: 10 }}
+                        value={formData.area_text}
+                        onChangeText={t => setFormData(p => ({ ...p, area_text: t }))}
+                        placeholder="bv. Brussel Centrum"
+                        accessibilityLabel="Locatie vrije tekst"
+                      />
+                    </View>
                   </View>
                 </View>
               </View>
@@ -1387,4 +1465,5 @@ const styles = StyleSheet.create({
   webModalTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
   webModalButtonPrimary: { backgroundColor: '#176B51', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
   webModalButtonSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#F3F4F6' },
+  addressError: { color: '#DC2626', marginTop: 6, fontSize: 13 },
 });
