@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Image } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { jobsAPI, studentAPI, getStudentId } from '@/services/api';
@@ -85,7 +85,7 @@ export default function JobDetail() {
 
   const handleCancel = async () => {
     if (!studentId || !applicationId) return;
-    
+
     Alert.alert(
       'Sollicitatie annuleren',
       'Weet je zeker dat je je sollicitatie wilt annuleren?',
@@ -133,7 +133,7 @@ export default function JobDetail() {
   }
 
   return (
-    
+
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.category}>{job.category?.name_nl || job.category?.name_en || 'Categorie'}</Text>
       <Text style={styles.pageTitle}>{job.title}</Text>
@@ -141,8 +141,14 @@ export default function JobDetail() {
         {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
         {job.area_text ? ` • ${job.area_text}` : ''}
       </Text>
-      
-      
+
+      {job?.image_url && (
+        <Image
+          source={{ uri: job.image_url }}
+          style={styles.jobImage}
+          resizeMode="cover"
+        />
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Description</Text>
@@ -157,14 +163,14 @@ export default function JobDetail() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Budget</Text>
         <Text style={styles.sectionText}>
-          {job.hourly_or_fixed === 'fixed' && job.fixed_price ? `Vaste prijs: €${job.fixed_price}` : 'Uurloon' }
+          {job.hourly_or_fixed === 'fixed' && job.fixed_price ? `Vaste prijs: €${job.fixed_price}` : 'Uurloon'}
         </Text>
       </View>
 
       {/* Apply Button - only show if job is open and not yet applied */}
       {job.status === 'open' && !applicationStatus && (
-        <Pressable 
-          style={[styles.applyBtn, applying && styles.applyBtnDisabled]} 
+        <Pressable
+          style={[styles.applyBtn, applying && styles.applyBtnDisabled]}
           onPress={handleApply}
           disabled={applying}
         >
@@ -180,8 +186,8 @@ export default function JobDetail() {
           <View style={styles.pendingBadge}>
             <Text style={styles.pendingText}>⏳ Sollicitatie in afwachting</Text>
           </View>
-          <Pressable 
-            style={[styles.cancelBtn, cancelling && styles.cancelBtnDisabled]} 
+          <Pressable
+            style={[styles.cancelBtn, cancelling && styles.cancelBtnDisabled]}
             onPress={handleCancel}
             disabled={cancelling}
           >
@@ -339,4 +345,14 @@ const styles = StyleSheet.create({
     color: '#7A7F85',
     marginTop: 8,
   },
+
+  jobImage: {
+    width: '20%',
+    height: 300,
+    borderRadius: 12,
+    marginBottom: 20,
+    backgroundColor: '#e1e1e1', // Grijze achtergrond terwijl laden
+  },
+
+
 });

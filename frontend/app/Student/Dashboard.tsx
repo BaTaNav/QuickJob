@@ -633,8 +633,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   jobImage: {
-  width: '50%',
-  height: 180,
+  width: '20%',
+  height: 300,
   borderTopLeftRadius: 12,
   borderTopRightRadius: 12,
   marginBottom: 10,
