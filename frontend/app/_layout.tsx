@@ -56,8 +56,8 @@ function RootLayoutNav() {
       <Stack.Screen name="Login" options={{ headerShown: false }} />
 
       {/* Hide headers for signup pages */}
-      <Stack.Screen name="Student/Signup" options={{ headerShown: false }} />
-      <Stack.Screen name="Client/Signup" options={{ headerShown: false }} />
+      <Stack.Screen name="Student/Signup" options={{ headerShown: true }} />
+      <Stack.Screen name="Client/Signup" options={{ headerShown: true }} />
       <Stack.Screen name="Client/DashboardClient" options={{ headerShown: false }} />
       <Stack.Screen name="Client/Profile" options={{ headerShown: true }} />
 
