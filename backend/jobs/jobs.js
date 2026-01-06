@@ -13,6 +13,11 @@ function mapJobRow(row) {
     title: row.title,
     description: row.description,
     area_text: row.area_text,
+    // Structured address
+    street: row.street,
+    house_number: row.house_number,
+    postal_code: row.postal_code,
+    city: row.city,
     hourly_or_fixed: row.hourly_or_fixed,
     hourly_rate: row.hourly_rate,
     fixed_price: row.fixed_price,
@@ -65,7 +70,7 @@ router.get("/available", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text,
+        title, description, area_text, street, house_number, postal_code, city,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at,
         job_categories (
@@ -112,6 +117,7 @@ router.get("/:id", async (req, res) => {
         `
         id, client_id, category_id,
         title, description, area_text,
+        street, house_number, postal_code, city,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at,
         job_categories (
@@ -150,7 +156,7 @@ router.get("/search", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text,
+  title, description, area_text, street, house_number, postal_code, city,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at,
         job_categories (
@@ -165,7 +171,8 @@ router.get("/search", async (req, res) => {
       query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
     }
     if (location) {
-      query = query.ilike("area_text", `%${location}%`);
+      // Match location against city OR area_text for backward compatibility
+      query = query.or(`city.ilike.%${location}%,area_text.ilike.%${location}%`);
     }
     if (categoryId) {
       query = query.eq("category_id", parseInt(categoryId));
@@ -201,6 +208,10 @@ router.post("/", async (req, res) => {
       title,
       description,
       area_text,
+      street,
+      house_number,
+      postal_code,
+      city,
       hourly_or_fixed,
       hourly_rate,
       fixed_price,
@@ -231,6 +242,10 @@ router.post("/", async (req, res) => {
         title,
         description: description || null,
         area_text: area_text || null,
+        street: street || null,
+        house_number: house_number || null,
+        postal_code: postal_code || null,
+        city: city || null,
         hourly_or_fixed,
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
@@ -266,6 +281,10 @@ router.post("/draft", async (req, res) => {
       title,
       description,
       area_text,
+      street,
+      house_number,
+      postal_code,
+      city,
       hourly_or_fixed,
       hourly_rate,
       fixed_price,
@@ -288,8 +307,12 @@ router.post("/draft", async (req, res) => {
         client_id: clientIdNum,
         category_id: categoryIdNum,
         title,
-        description: description || null,
-        area_text: area_text || null,
+  description: description || null,
+  area_text: area_text || null,
+  street: street || null,
+  house_number: house_number || null,
+  postal_code: postal_code || null,
+  city: city || null,
         hourly_or_fixed: hourly_or_fixed || "hourly",
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
@@ -333,6 +356,7 @@ router.get("/client/:clientId", async (req, res) => {
         `
         id, client_id, category_id,
         title, description, area_text,
+        street, house_number, postal_code, city,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at,
         job_categories (
