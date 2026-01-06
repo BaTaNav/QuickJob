@@ -2,7 +2,7 @@ import * as React from 'react';
 import { StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { jobsAPI } from '../../../services/api';
+import { jobsAPI, studentAPI, getStudentId } from '../../../services/api';
 
 export default function JobDetail() {
   const params = useLocalSearchParams();
@@ -12,6 +12,7 @@ export default function JobDetail() {
   const [job, setJob] = React.useState<any | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
+  const [applying, setApplying] = React.useState(false);
 
   React.useEffect(() => {
     const load = async () => {
@@ -81,11 +82,85 @@ export default function JobDetail() {
         </Text>
       </View>
 
-      {job.status === 'open' && (
-        <Pressable style={styles.applyBtn} onPress={() => { /* TODO: apply flow */ }}>
-          <Text style={styles.applyBtnText}>Apply for this job</Text>
+      {job.status === 'open' ? (
+        <Pressable
+          style={[styles.applyBtn, applying && { opacity: 0.7 }]}
+          onPress={async () => {
+            if (!job || applying) return;
+            setApplying(true);
+            // optimistic update: mark as pending so client sees an applicant immediately
+            const previousStatus = job.status;
+            setJob((j: any) => ({ ...j, status: 'pending' }));
+            try {
+              // Prefer the student API endpoint which expects student id + job id
+              try {
+                const sid = await getStudentId();
+                if (!sid) {
+                  throw new Error('No student id found; please log in');
+                }
+
+                // Prefer student API, but keep a fallback. Capture server response.
+                let applyResult: any = null;
+                try {
+                  applyResult = await studentAPI.applyForJob(Number(sid), job.id);
+                } catch (innerErr) {
+                  console.warn('[Apply] studentAPI failed, trying fallback:', innerErr);
+                  const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+                  const res = await fetch(`${API_BASE}/jobs/${job.id}/apply`, { method: 'POST' });
+                  try {
+                    applyResult = await res.json();
+                  } catch (_e) {
+                    applyResult = null;
+                  }
+                }
+
+                console.log('[Apply] server response:', applyResult);
+
+                // Refresh job from API so UI reflects server state (DB result)
+                try {
+                  const fresh = await jobsAPI.getJob(job.id);
+                  console.log('[Apply] refreshed job from server:', fresh);
+                  setJob(fresh);
+                } catch (refreshErr) {
+                  console.warn('[Apply] failed to refresh job after apply:', refreshErr);
+                }
+              } catch (innerErr) {
+                // Fallback: try jobs endpoint if backend exposes one
+                console.warn('[Apply] primary apply attempt failed:', innerErr);
+                const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+                try {
+                  const res = await fetch(`${API_BASE}/jobs/${job.id}/apply`, { method: 'POST' });
+                  try { const json = await res.json(); console.log('[Apply] fallback response:', json); } catch(_){}
+                  // attempt refresh even after fallback
+                  try {
+                    const fresh = await jobsAPI.getJob(job.id);
+                    setJob(fresh);
+                  } catch (refreshErr) { console.warn('[Apply] refresh after fallback failed', refreshErr); }
+                } catch (fallbackErr) {
+                  console.error('[Apply] fallback also failed:', fallbackErr);
+                  throw fallbackErr;
+                }
+              }
+              // keep status as 'pending' — client's flow will accept/deny later
+            } catch (err: any) {
+              console.error('Apply failed', err);
+              // revert optimistic update on error
+              setJob((j: any) => ({ ...j, status: previousStatus }));
+              setError(err?.message || 'Failed to apply');
+              alert('Apply failed. Please try again.');
+            } finally {
+              setApplying(false);
+            }
+          }}
+          disabled={applying}
+        >
+          <Text style={styles.applyBtnText}>{applying ? 'Applying…' : 'Apply for this job'}</Text>
         </Pressable>
-      )}
+      ) : job.status === 'pending' ? (
+        <View style={{ marginTop: 16 }}>
+          <Text style={{ color: '#7A7F85' }}>Application pending</Text>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
