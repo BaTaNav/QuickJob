@@ -1,6 +1,11 @@
 const express = require("express");
 const { supabase } = require("../supabaseClient");
 const router = express.Router();
+const multer = require("multer");
+
+// Configure Multer to store files in memory
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 /**
  * Helper: Map job row to clean object
@@ -19,6 +24,7 @@ function mapJobRow(row) {
     start_time: row.start_time,
     status: row.status,
     created_at: row.created_at,
+    image_url: row.image_url, 
     category: row.job_categories
       ? {
           id: row.job_categories.id,
@@ -30,6 +36,44 @@ function mapJobRow(row) {
       : null,
   };
 }
+
+/**
+ * POST /jobs/upload-image
+ * Uploads an image file to Supabase Storage (Bucket: 'job-images')
+ */
+router.post("/upload-image", upload.single("image"), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    // 1. Generate a unique filename
+    const fileExt = file.originalname.split(".").pop();
+    const fileName = `job-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    // 2. Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from("job-images") // Make sure this bucket exists in Supabase
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+
+    if (error) throw error;
+
+    // 3. Get Public URL
+    const { data: publicUrlData } = supabase.storage
+      .from("job-images")
+      .getPublicUrl(filePath);
+
+    res.status(200).json({ url: publicUrlData.publicUrl });
+  } catch (error) {
+    console.error("Upload error:", error);
+    res.status(500).json({ error: "Failed to upload image" });
+  }
+});
 
 /**
  * GET /jobs/available
@@ -48,7 +92,7 @@ router.get("/available", async (req, res) => {
         id, client_id, category_id,
         title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
+        start_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -64,7 +108,7 @@ router.get("/available", async (req, res) => {
     res.json({
       jobs,
       message: jobs.length === 0 ? "No jobs available at the moment" : null,
-      count: jobs.length
+      count: jobs.length,
     });
   } catch (err) {
     console.error("Error fetching available jobs:", err);
@@ -87,7 +131,7 @@ router.get("/:id", async (req, res) => {
         id, client_id, category_id,
         title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
+        start_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -96,7 +140,7 @@ router.get("/:id", async (req, res) => {
       .eq("id", jobId)
       .single();
 
-    if (error?.code === 'PGRST116' || !data) {
+    if (error?.code === "PGRST116" || !data) {
       return res.status(404).json({ error: "No job found with this ID" });
     }
     if (error) throw error;
@@ -126,7 +170,7 @@ router.get("/search", async (req, res) => {
         id, client_id, category_id,
         title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
+        start_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -136,7 +180,9 @@ router.get("/search", async (req, res) => {
 
     // Add filters
     if (searchTerm) {
-      query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+      query = query.or(
+        `title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
+      );
     }
     if (location) {
       query = query.ilike("area_text", `%${location}%`);
@@ -155,7 +201,7 @@ router.get("/search", async (req, res) => {
     res.json({
       jobs,
       message: jobs.length === 0 ? "No jobs match your search criteria" : null,
-      count: jobs.length
+      count: jobs.length,
     });
   } catch (err) {
     console.error("Error searching jobs:", err);
@@ -179,6 +225,7 @@ router.post("/", async (req, res) => {
       hourly_rate,
       fixed_price,
       start_time,
+      image_url, // Receive image_url from frontend
     } = req.body;
 
     const clientIdNum = parseInt(client_id, 10);
@@ -187,13 +234,16 @@ router.post("/", async (req, res) => {
     // Validate required fields
     if (!clientIdNum || !categoryIdNum || !title || !start_time) {
       return res.status(400).json({
-        error: "Missing required fields: client_id, category_id, title, start_time",
+        error:
+          "Missing required fields: client_id, category_id, title, start_time",
       });
     }
 
     // Validate hourly_or_fixed and corresponding price
     if (hourly_or_fixed === "fixed" && !fixed_price) {
-      return res.status(400).json({ error: "Fixed price required for fixed jobs" });
+      return res
+        .status(400)
+        .json({ error: "Fixed price required for fixed jobs" });
     }
 
     // Insert job
@@ -211,6 +261,7 @@ router.post("/", async (req, res) => {
         start_time,
         status: "open",
         created_at: new Date().toISOString(),
+        image_url: image_url || null, // Save image URL
       })
       .select()
       .single();
@@ -244,6 +295,7 @@ router.post("/draft", async (req, res) => {
       hourly_rate,
       fixed_price,
       start_time,
+      image_url, // Support images in drafts too
     } = req.body;
 
     const clientIdNum = parseInt(client_id, 10);
@@ -270,6 +322,7 @@ router.post("/draft", async (req, res) => {
         start_time: start_time || null,
         status: "draft",
         created_at: new Date().toISOString(),
+        image_url: image_url || null,
       })
       .select()
       .single();
@@ -308,7 +361,7 @@ router.get("/client/:clientId", async (req, res) => {
         id, client_id, category_id,
         title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
+        start_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )

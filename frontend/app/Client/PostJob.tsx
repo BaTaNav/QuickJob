@@ -129,41 +129,29 @@ export default function PostJob() {
   const [language, setLanguage] = useState<"nl" | "fr" | "en">("nl");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // ... existing state ...
+  const [image, setImage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  
 
   // --- PASTE THIS BLOCK INSIDE THE COMPONENT ---
-  const [image, setImage] = useState<string | null>(null);
 
-  const pickImage = async () => {
+const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to make this work!');
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 1,
+      quality: 0.8,
     });
 
     if (!result.canceled) {
       setImage(result.assets[0].uri);
-    }
-  };
-
-  const uploadJobImage = async () => {
-    if (!image) return null;
-    try {
-      const arrayBuffer = await fetch(image).then((res) => res.arrayBuffer());
-      const fileExt = image.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      
-      const { error } = await supabase.storage
-        .from('job_images')
-        .upload(fileName, arrayBuffer, { contentType: `image/${fileExt}` });
-
-      if (error) throw error;
-
-      const { data } = supabase.storage.from('job_images').getPublicUrl(fileName);
-      return data.publicUrl;
-    } catch (err) {
-      console.error("Image upload failed:", err);
-      return null;
     }
   };
   // ---------------------------------------------
@@ -335,6 +323,47 @@ export default function PostJob() {
   const handlePostJob = async () => {
     if (!formData.client_id) return setError("Sessie verlopen");
 
+    // Inside handlePostJob, BEFORE the fetch request to /jobs
+    setUploading(true); // Start loading
+    let uploadedImageUrl = null;
+
+    try {
+      if (image) {
+        const formData = new FormData();
+        const filename = image.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename || '');
+        const type = match ? `image/${match[1]}` : `image`;
+
+        // @ts-ignore
+        formData.append('image', { uri: image, name: filename, type });
+
+        // Upload to your backend
+        const uploadRes = await fetch('http://YOUR_IP_ADDRESS:3000/jobs/upload-image', {
+          method: 'POST',
+          body: formData,
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        const uploadData = await uploadRes.json();
+        if (uploadData.url) {
+          uploadedImageUrl = uploadData.url;
+        }
+      }
+      
+      // Now create your jobData object
+      const jobData = {
+        // ... your existing fields (title, description, etc.) ...
+        image_url: uploadedImageUrl, // <--- ADD THIS FIELD
+      };
+
+      // ... Proceed with your existing fetch to create the job ...
+
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Failed to upload image");
+      setUploading(false);
+      return; 
+    }
     setLoading(true);
     try {
       let finalEndTime = formData.end_time;
@@ -485,8 +514,41 @@ export default function PostJob() {
                       accessibilityLabel="Titel van de opdracht"
                       accessibilityHint="Vul een korte titel in"
                     />
+                    
+                    
                   </View>
+                  
                 )}
+                {/* Image Picker UI */}
+      <View style={{ marginBottom: 20, alignItems: 'center' }}>
+        <TouchableOpacity 
+          onPress={pickImage} 
+          style={{
+            width: '100%', 
+            height: 150, 
+            backgroundColor: '#f0f0f0', 
+            borderRadius: 10, 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: '#ccc',
+            borderStyle: 'dashed'
+          }}
+        >
+          {image ? (
+            <Image source={{ uri: image }} style={{ width: '100%', height: '100%', borderRadius: 10 }} />
+          ) : (
+            <Text style={{ color: '#666' }}>+ Upload Job Photo</Text>
+          )}
+        </TouchableOpacity>
+        
+        {image && (
+          <TouchableOpacity onPress={() => setImage(null)} style={{ marginTop: 10 }}>
+            <Text style={{ color: 'red' }}>Remove Photo</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+                
 
                 {/* Location */}
                 <View style={styles.section}>
