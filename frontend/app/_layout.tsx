@@ -1,12 +1,12 @@
 import { useFonts } from 'expo-font';
-import { Stack, Link } from 'expo-router';
+import { Stack, Link, useRouter } from 'expo-router'; // useRouter toegevoegd
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View, Platform } from 'react-native'; // Platform toegevoegd
 import { useColorScheme } from '../components/useColorScheme';
-import { Handshake, RefreshCw, User } from 'lucide-react-native'; // Added User icon for profile
-import Colors from '../constants/Colors'; // Assuming this file exists and exports color palette
+import { Handshake, RefreshCw, User } from 'lucide-react-native'; 
+import Colors from '../constants/Colors'; 
 
 
 // Catch any errors thrown by the Layout component.
@@ -45,7 +45,19 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme(); // Hook to access the current color scheme
+  const colorScheme = useColorScheme(); 
+  const router = useRouter(); // Router ophalen
+
+  // Dwing de app naar de startpagina op Android
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      // Kleine vertraging om zeker te zijn dat alles ingeladen is
+      setTimeout(() => {
+        console.log("Forceer navigatie naar Home (/)");
+        router.replace('/');
+      }, 100);
+    }
+  }, []);
 
   // Placeholder for a refresh action in the native header (e.g., refetch data)
   const handleNativeHeaderRefresh = () => {

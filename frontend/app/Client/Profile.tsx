@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // API URL - use localhost for web, IP address for mobile
 const API_BASE_URL = Platform.OS === 'web' 
   ? 'http://localhost:3000' 
-  : 'http://10.2.88.141:3000';
+ : 'http://10.2.88.141:3000';
 
 export default function ClientProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');

@@ -7,11 +7,22 @@ export default function TabOneScreen() {
   const [role, setRole] = useState<"client" | "student">("client");
   const router = useRouter();
 
-  // Force Browser Tab Title on Web
+  // Force Browser Tab Title on Web AND Force Home on Android
   useEffect(() => {
     if (Platform.OS === 'web') {
       document.title = "QuickJob";
-    }}, []);
+    }
+    
+    // TIJDELIJKE FIX: Forceer navigatie naar home op Android bij opstarten
+    if (Platform.OS === 'android') {
+       // Kleine vertraging om zeker te zijn dat router klaar is
+       setTimeout(() => {
+         if (router.canGoBack()) {
+            router.dismissAll(); // Verwijder alle backgeschiedenis
+         }
+       }, 100); // 100ms vertraging
+    }
+  }, []);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
