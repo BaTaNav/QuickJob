@@ -1,123 +1,138 @@
 import { StyleSheet, TouchableOpacity, ScrollView, Platform, StatusBar } from "react-native";
 import { Text, View } from "react-native";
-import React, { useState, useEffect } from "react"; // Added useEffect
+import React, { useState, useEffect } from "react"; 
 import { useRouter, Stack } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context"; // <--- 1. Importeer dit
 
 export default function TabOneScreen() {
   const [role, setRole] = useState<"client" | "student">("client");
   const router = useRouter();
 
-  // Force Browser Tab Title on Web
+  // Force Browser Tab Title on Web AND Force Home on Android
   useEffect(() => {
     if (Platform.OS === 'web') {
       document.title = "QuickJob";
-    }}, []);
+    }
+    
+    // TIJDELIJKE FIX: Forceer navigatie naar home op Android bij opstarten
+    if (Platform.OS === 'android') {
+       // Kleine vertraging om zeker te zijn dat router klaar is
+       setTimeout(() => {
+         if (router.canGoBack()) {
+            router.dismissAll(); // Verwijder alle backgeschiedenis
+         }
+       }, 100); // 100ms vertraging
+    }
+  }, []);
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
-      
-      {/* Sets Native Navigation Header Title (Mobile) */}
-      <Stack.Screen options={{ title: "QuickJob", headerShown: false }} />
-      
-      {/* HEADER WITH AUTH BUTTONS */}
-      <View style={styles.header}>
-        <Text style={styles.logo}>QuickJob</Text>
-        <View style={styles.authButtons}>
-          <TouchableOpacity style={styles.loginBtn} onPress={() => router.push("/Login")}>
-            <Text style={styles.loginBtnText}>Login</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.signUpBtn} onPress={() => router.push("/Student/Signup")}>
-            <Text style={styles.signUpBtnText}>Sign Up</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* HERO SECTION */}
-      <View style={styles.heroSection}>
-        <View style={styles.regionBadge}>
-          <View style={styles.regionDot} />
-          <Text style={styles.regionText}>Vlaams-Brabant & Brussels</Text>
-        </View>
-
-        <Text style={styles.title}>
-          Find students{"\n"}for your tasks
-        </Text>
-
-        <Text style={styles.subtitle}>
-          Verified students help you with daily tasks in Flemish Brabant and Brussels.
-        </Text>
-
-        {/* CTA BUTTONS */}
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push("/Client/Signup")}>
-            <Text style={styles.primaryBtnText}>Post a job</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.push("/Student/Signup")}>
-            <Text style={styles.secondaryBtnText}>Become a student helper</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* FEATURES */}
-        <View style={styles.featuresRow}>
-          <Feature icon="✔" text="Verified students" />
-          <Feature icon="€" text="Secure payments" />
-          <Feature icon="⚡" text="Quick matching" />
-        </View>
-      </View>
-
-      {/* HOW IT WORKS SECTION */}
-      <View style={styles.howItWorksSection}>
-        <Text style={styles.sectionTitle}>How it works</Text>
+    // 2. Wrap alles in SafeAreaView met edges=['top']
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }} edges={['top']}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
         
-        {/* TOGGLE */}
-        <View style={styles.toggleWrap}>
-          <TouchableOpacity
-            style={[styles.toggleBtn, role === "client" && styles.toggleActive]}
-            onPress={() => setRole("client")}
-          >
-            <Text style={role === "client" ? styles.toggleActiveText : styles.toggleText}>
-              For Clients
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.toggleBtn, role === "student" && styles.toggleActive]}
-            onPress={() => setRole("student")}
-          >
-            <Text style={role === "student" ? styles.toggleActiveText : styles.toggleText}>
-              For Students
-            </Text>
-          </TouchableOpacity>
+        {/* Sets Native Navigation Header Title (Mobile) */}
+        <Stack.Screen options={{ title: "QuickJob", headerShown: false }} />
+        
+        {/* HEADER WITH AUTH BUTTONS */}
+        <View style={styles.header}>
+          <Text style={styles.logo}>QuickJob</Text>
+          <View style={styles.authButtons}>
+            <TouchableOpacity style={styles.loginBtn} onPress={() => router.push("/Login")}>
+              <Text style={styles.loginBtnText}>Login</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.signUpBtn} onPress={() => router.push("/Student/Signup")}>
+              <Text style={styles.signUpBtnText}>Sign Up</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* STEPS */}
-        <View style={styles.stepsWrap}>
-          {role === "client" ? (
-            <>
-              <Step num={1} title="Post your job" text="Describe what you need and when." />
-              <Step num={2} title="Choose a student" text="Review profiles and pick someone." />
-              <Step num={3} title="Get it done" text="Student arrives and completes the job." />
-            </>
-          ) : (
-            <>
-              <Step num={1} title="Create your profile" text="Sign up and upload your documents." />
-              <Step num={2} title="Apply to jobs" text="Choose nearby tasks that fit you." />
-              <Step num={3} title="Get paid" text="Complete jobs and receive payout." />
-            </>
-          )}
-        </View>
-      </View>
+        {/* HERO SECTION */}
+        <View style={styles.heroSection}>
+          <View style={styles.regionBadge}>
+            <View style={styles.regionDot} />
+            <Text style={styles.regionText}>Vlaams-Brabant & Brussels</Text>
+          </View>
 
-      {/* FOOTER CTA */}
-      <View style={styles.footerCta}>
-        <Text style={styles.footerTitle}>Ready to get started?</Text>
-        <Text style={styles.footerSubtitle}>Join thousands of clients and students already using QuickJob</Text>
-        <TouchableOpacity style={styles.footerBtn} onPress={() => router.push("/Student/Signup")}>
-          <Text style={styles.footerBtnText}>Get Started</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          <Text style={styles.title}>
+            Find students{"\n"}for your tasks
+          </Text>
+
+          <Text style={styles.subtitle}>
+            Verified students help you with daily tasks in Flemish Brabant and Brussels.
+          </Text>
+
+          {/* CTA BUTTONS */}
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push("/Client/Signup")}>
+              <Text style={styles.primaryBtnText}>Post a job</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.push("/Student/Signup")}>
+              <Text style={styles.secondaryBtnText}>Become a student helper</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* FEATURES */}
+          <View style={styles.featuresRow}>
+            <Feature icon="✔" text="Verified students" />
+            <Feature icon="€" text="Secure payments" />
+            <Feature icon="⚡" text="Quick matching" />
+          </View>
+        </View>
+
+        {/* HOW IT WORKS SECTION */}
+        <View style={styles.howItWorksSection}>
+          <Text style={styles.sectionTitle}>How it works</Text>
+          
+          {/* TOGGLE */}
+          <View style={styles.toggleWrap}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, role === "client" && styles.toggleActive]}
+              onPress={() => setRole("client")}
+            >
+              <Text style={role === "client" ? styles.toggleActiveText : styles.toggleText}>
+                For Clients
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.toggleBtn, role === "student" && styles.toggleActive]}
+              onPress={() => setRole("student")}
+            >
+              <Text style={role === "student" ? styles.toggleActiveText : styles.toggleText}>
+                For Students
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* STEPS */}
+          <View style={styles.stepsWrap}>
+            {role === "client" ? (
+              <>
+                <Step num={1} title="Post your job" text="Describe what you need and when." />
+                <Step num={2} title="Choose a student" text="Review profiles and pick someone." />
+                <Step num={3} title="Get it done" text="Student arrives and completes the job." />
+              </>
+            ) : (
+              <>
+                <Step num={1} title="Create your profile" text="Sign up and upload your documents." />
+                <Step num={2} title="Apply to jobs" text="Choose nearby tasks that fit you." />
+                <Step num={3} title="Get paid" text="Complete jobs and receive payout." />
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* FOOTER CTA */}
+        <View style={styles.footerCta}>
+          <Text style={styles.footerTitle}>Ready to get started?</Text>
+          <Text style={styles.footerSubtitle}>Join thousands of clients and students already using QuickJob</Text>
+          <TouchableOpacity style={styles.footerBtn} onPress={() => router.push("/Student/Signup")}>
+            <Text style={styles.footerBtnText}>Get Started</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
     
   );
 }
