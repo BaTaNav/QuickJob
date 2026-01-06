@@ -14,6 +14,7 @@ export default function StudentDashboard() {
   const [filterCategory, setFilterCategory] = React.useState('All');
   const [filterDate, setFilterDate] = React.useState('Any');
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
+  const [userLocation, setUserLocation] = React.useState<{ latitude: number; longitude: number } | null>(null);
   const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
   const router = useRouter();
 
@@ -35,6 +36,30 @@ export default function StudentDashboard() {
     fetchAvailable();
   }, [fetchAvailable]);
 
+  // Try to get user's current location (best-effort). Used only for distance filtering.
+  React.useEffect(() => {
+    const getLocation = () => {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const { latitude, longitude } = pos.coords;
+              setUserLocation({ latitude, longitude });
+            },
+            (err) => {
+              console.warn('Geolocation unavailable or denied:', err.message || err);
+              setUserLocation(null);
+            },
+            { enableHighAccuracy: false, timeout: 5000 }
+          );
+        }
+      } catch (e) {
+        console.warn('Geolocation check failed:', e);
+      }
+    };
+    getLocation();
+  }, []);
+
   const handleRefresh = () => {
     fetchAvailable();
   };
@@ -42,11 +67,11 @@ export default function StudentDashboard() {
   // Filter jobs based on selected filters
   const filteredJobs = React.useMemo(() => {
     let filtered = availableJobs;
-    
+
     if (filterCategory !== 'All') {
       filtered = filtered.filter(job => job.category === filterCategory);
     }
-    
+
     if (filterDate === 'Today') {
       const today = new Date().toDateString();
       filtered = filtered.filter(job => {
@@ -67,9 +92,34 @@ export default function StudentDashboard() {
         return new Date(job.start_time).toDateString() === new Date(selectedDate).toDateString();
       });
     }
-    
+
+    // Distance filtering: if we have user location and a positive range, compute Haversine and filter
+    const rangeKm = Number(filterRange) || 0;
+    if (userLocation && rangeKm > 0) {
+      const toRad = (v: number) => v * Math.PI / 180;
+      const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // km
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      };
+
+      filtered = filtered.filter(job => {
+        const lat = job.latitude != null ? Number(job.latitude) : null;
+        const lon = job.longitude != null ? Number(job.longitude) : null;
+        if (lat == null || lon == null) return false; // exclude jobs without coords when filtering by range
+        const dist = haversineKm(userLocation.latitude, userLocation.longitude, lat, lon);
+        (job as any)._distance_km = Math.round(dist * 10) / 10;
+        return dist <= rangeKm;
+      });
+    }
+
     return filtered;
-  }, [availableJobs, filterCategory, filterDate, selectedDate]);
+  }, [availableJobs, filterCategory, filterDate, selectedDate, userLocation, filterRange]);
 
   const mockJobs: Record<string, Array<any>> = {
     today: [],

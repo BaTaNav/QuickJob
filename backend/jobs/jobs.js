@@ -18,9 +18,12 @@ function mapJobRow(row) {
     house_number: row.house_number,
     postal_code: row.postal_code,
     city: row.city,
-    hourly_or_fixed: row.hourly_or_fixed,
+  hourly_or_fixed: row.hourly_or_fixed,
     hourly_rate: row.hourly_rate,
     fixed_price: row.fixed_price,
+  // Optional geocoded coordinates (may be null until DB columns are added/backfilled)
+  latitude: row.latitude || null,
+  longitude: row.longitude || null,
     start_time: row.start_time,
     status: row.status,
     created_at: row.created_at,
@@ -34,6 +37,36 @@ function mapJobRow(row) {
         }
       : null,
   };
+}
+
+/**
+ * Geocode a free-text or composed address using Nominatim (OpenStreetMap).
+ * Returns { latitude, longitude } or null on failure.
+ * NOTE: For production use, respect Nominatim usage policy and consider a paid geocoding service.
+ */
+async function geocodeAddress(address) {
+  if (!address) return null;
+  try {
+    const q = encodeURIComponent(address + ', Belgium');
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&addressdetails=0&countrycodes=be`;
+    const res = await fetch(url, {
+      headers: {
+        // Nominatim requires a valid User-Agent or Referer identifying the application
+        'User-Agent': 'QuickJob/1.0 (your-email@example.com)'
+      }
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    if (!Array.isArray(j) || j.length === 0) return null;
+    const first = j[0];
+    return {
+      latitude: parseFloat(first.lat),
+      longitude: parseFloat(first.lon),
+    };
+  } catch (err) {
+    console.warn('Geocoding failed:', err);
+    return null;
+  }
 }
 
 /**
@@ -70,8 +103,8 @@ router.get("/available", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text, street, house_number, postal_code, city,
-        hourly_or_fixed, hourly_rate, fixed_price,
+  title, description, area_text, street, house_number, postal_code, city, latitude, longitude,
+  hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at,
         job_categories (
           id, key, name_nl, name_fr, name_en
@@ -116,9 +149,8 @@ router.get("/:id", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text,
-        street, house_number, postal_code, city,
-        hourly_or_fixed, hourly_rate, fixed_price,
+  title, description, area_text, street, house_number, postal_code, city, latitude, longitude,
+  hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at,
         job_categories (
           id, key, name_nl, name_fr, name_en
@@ -157,6 +189,7 @@ router.get("/search", async (req, res) => {
         `
         id, client_id, category_id,
   title, description, area_text, street, house_number, postal_code, city,
+        latitude, longitude,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at,
         job_categories (
@@ -251,6 +284,9 @@ router.post("/", async (req, res) => {
     }
 
     // Insert job
+    // Attempt geocoding of the composed address (best-effort)
+    const geo = await geocodeAddress(composedAreaText);
+
     const { data: job, error: jobError } = await supabase
       .from("jobs")
       .insert({
@@ -263,6 +299,8 @@ router.post("/", async (req, res) => {
         house_number: house_number || null,
         postal_code: postal_code || null,
         city: city || null,
+        latitude: geo ? geo.latitude : null,
+        longitude: geo ? geo.longitude : null,
         hourly_or_fixed,
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
@@ -335,6 +373,9 @@ router.post("/draft", async (req, res) => {
       ? area_text
       : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
 
+    // Attempt geocoding for draft as well (best-effort)
+    const geoDraft = await geocodeAddress(composedAreaText);
+
     const { data: job, error: jobError } = await supabase
       .from("jobs")
       .insert({
@@ -347,6 +388,8 @@ router.post("/draft", async (req, res) => {
         house_number: house_number || null,
         postal_code: postal_code || null,
         city: city || null,
+        latitude: geoDraft ? geoDraft.latitude : null,
+        longitude: geoDraft ? geoDraft.longitude : null,
         hourly_or_fixed: hourly_or_fixed || "hourly",
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
@@ -390,7 +433,7 @@ router.get("/client/:clientId", async (req, res) => {
         `
         id, client_id, category_id,
         title, description, area_text,
-        street, house_number, postal_code, city,
+        street, house_number, postal_code, city, latitude, longitude,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at,
         job_categories (
