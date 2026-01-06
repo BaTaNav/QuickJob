@@ -14,6 +14,11 @@ function mapJobRow(row) {
     title: row.title,
     description: row.description,
     area_text: row.area_text,
+    // Structured address
+    street: row.street,
+    house_number: row.house_number,
+    postal_code: row.postal_code,
+    city: row.city,
     hourly_or_fixed: row.hourly_or_fixed,
     hourly_rate: row.hourly_rate,
     fixed_price: row.fixed_price,
@@ -69,7 +74,7 @@ router.get("/:studentId/dashboard", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text,
+        title, description, area_text, street, house_number, postal_code, city,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, end_time, status, created_at,
         job_categories (
@@ -316,7 +321,7 @@ router.get("/:studentId/applications", async (req, res) => {
         `
         id, student_id, job_id, status, applied_at, overlap_confirmed,
         jobs (
-          id, title, description, area_text, hourly_rate, fixed_price,
+          id, title, description, area_text, street, house_number, postal_code, city, hourly_rate, fixed_price,
           start_time, status, job_categories (name_en, name_nl, name_fr)
         )
       `

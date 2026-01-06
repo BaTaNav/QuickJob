@@ -80,6 +80,19 @@ export default function StudentDashboard() {
   };
 
   const jobs = mockJobs[tab] ?? [];
+  const formatJobAddress = (job: any) => {
+    // Prefer structured fields, fall back to area_text
+    const parts: string[] = [];
+    if (job.street) {
+      let s = job.street;
+      if (job.house_number) s += ` ${job.house_number}`;
+      parts.push(s);
+    }
+    if (job.postal_code) parts.push(job.postal_code);
+    if (job.city) parts.push(job.city);
+    if (parts.length > 0) return parts.join(' ');
+    return job.area_text || '';
+  };
 
 
   return (
@@ -240,7 +253,7 @@ export default function StudentDashboard() {
                 <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
                 <Text style={styles.jobMeta}>
                   {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
-                  {job.area_text ? ` • ${job.area_text}` : ''}
+                  {formatJobAddress(job) ? ` • ${formatJobAddress(job)}` : ''}
                   {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
                   {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
                 </Text>
