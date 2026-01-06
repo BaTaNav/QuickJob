@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// For mobile simulator: Use your computer's IP address
+// For mobile simulator: Use your computer's IP addressr
 const API_BASE_URL = Platform.OS === 'web' 
   ? 'http://localhost:3000' 
   : 'http://10.2.88.69:3000';
@@ -28,8 +29,10 @@ const getAuthToken = async () => {
 // Helper function to save auth token
 export const saveAuthToken = async (token: string) => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (Platform.OS === 'web') {
       localStorage.setItem('authToken', token);
+    } else {
+      await AsyncStorage.setItem('authToken', token); // Mobiele support
     }
   } catch (error) {
     console.error('Error saving auth token:', error);
@@ -39,8 +42,10 @@ export const saveAuthToken = async (token: string) => {
 // Helper function to save student ID
 export const saveStudentId = async (studentId: string) => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (Platform.OS === 'web') {
       localStorage.setItem('studentId', studentId);
+    } else {
+      await AsyncStorage.setItem('studentId', studentId); // Mobiele support
     }
   } catch (error) {
     console.error('Error saving student ID:', error);
@@ -50,10 +55,11 @@ export const saveStudentId = async (studentId: string) => {
 // Helper function to get student ID
 export const getStudentId = async () => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (Platform.OS === 'web') {
       return localStorage.getItem('studentId');
+    } else {
+      return await AsyncStorage.getItem('studentId'); // Mobiele support
     }
-    return null;
   } catch (error) {
     console.error('Error getting student ID:', error);
     return null;
@@ -63,8 +69,10 @@ export const getStudentId = async () => {
 // Helper function to save client ID
 export const saveClientId = async (clientId: string) => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (Platform.OS === 'web') {
       localStorage.setItem('clientId', clientId);
+    } else {
+      await AsyncStorage.setItem('clientId', clientId); // Mobiele support
     }
   } catch (error) {
     console.error('Error saving client ID:', error);
@@ -74,10 +82,11 @@ export const saveClientId = async (clientId: string) => {
 // Helper function to get client ID
 export const getClientId = async () => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (Platform.OS === 'web') {
       return localStorage.getItem('clientId');
+    } else {
+      return await AsyncStorage.getItem('clientId'); // Mobiele support
     }
-    return null;
   } catch (error) {
     console.error('Error getting client ID:', error);
     return null;
