@@ -76,6 +76,8 @@ export default function Login({ title = 'Login' }: Props) {
           router.replace('/Student/Dashboard');
         } else if (data.user?.role === 'client') {
           router.replace('/Client/DashboardClient');
+        } else if (data.user?.role === 'admin') {
+          router.replace('/Admin/DashboardAdmin');
         } else {
           router.replace('/');
         }
