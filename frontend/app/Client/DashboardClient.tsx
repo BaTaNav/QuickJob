@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusB
 import { useRouter } from 'expo-router';
 import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, CreditCard } from "lucide-react-native";
 import { jobsAPI, getClientId, paymentAPI } from "@/services/api";
-import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
+import { StripeProvider, useStripe } from '@/services/stripe';
 
 // Stripe publishable key (vervang met je ECHTE test key!)
 const STRIPE_PUBLISHABLE_KEY = 'pk_test_51Smd6rDqjNmnpUMj83qaNNTmmaiIwFOVCIyEA20VwOpimH1bW1hJuKFs2YloGA7j3XsP9vYP7rCNnqIdXdhxYFnV008lbOqttm';

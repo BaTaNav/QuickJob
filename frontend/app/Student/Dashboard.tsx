@@ -1,8 +1,8 @@
 import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator, Platform } from "react-native";
 import * as React from "react";
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { RefreshCw, MapPin, Clock, Briefcase } from 'lucide-react-native';
-import { jobsAPI } from '../../services/api';
+import { jobsAPI, studentAPI, getStudentId } from '../../services/api';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // Helper om te checken of we op web zitten
@@ -17,16 +17,18 @@ interface Job {
   fixed_price?: number;
   location: string;
   duration?: string;
-  category?: string;
+  category?: string | { name_en?: string; name_nl?: string; name_fr?: string };
   start_time?: string;
 }
 
 export default function StudentDashboard() {
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('available');
   const [availableJobs, setAvailableJobs] = React.useState<Job[]>([]);
+  const [pendingJobs, setPendingJobs] = React.useState<Job[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [filterCategory] = React.useState('All'); // setFilterCategory weggehaald als hij niet gebruikt wordt
   const router = useRouter();
+  const params = useLocalSearchParams();
 
   // Set tab from params on mount
   React.useEffect(() => {
@@ -47,14 +49,36 @@ export default function StudentDashboard() {
     }
   }, []);
 
+  const fetchPending = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const studentId = await getStudentId();
+      if (studentId) {
+        const apps = await studentAPI.getApplications(parseInt(studentId, 10));
+        // Map applications to Job structure if needed. Assuming apps have a 'job' property.
+        // Adjust this mapping based on actual API response structure.
+        const jobs = apps.map((app: any) => app.job).filter(Boolean); 
+        setPendingJobs(jobs);
+      }
+    } catch (err) {
+       console.log('Error fetching pending jobs:', err);
+    } finally {
+       setLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     fetchAvailable();
     fetchPending();
   }, [fetchAvailable, fetchPending]);
 
-  const filteredJobs = availableJobs.filter(job => 
-    filterCategory === 'All' || job.category === filterCategory
-  );
+  const filteredJobs = React.useMemo(() => {
+    const jobs = tab === 'pending' ? pendingJobs : availableJobs;
+    return jobs.filter(job => {
+      const catName = typeof job.category === 'object' ? job.category?.name_en : job.category;
+      return filterCategory === 'All' || catName === filterCategory;
+    });
+  }, [availableJobs, pendingJobs, tab, filterCategory]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFB" }} edges={['top']}>
@@ -130,7 +154,11 @@ export default function StudentDashboard() {
                     {job.category && (
                       <View style={styles.detailRow}>
                         <Briefcase size={14} color="#64748B" />
-                        <Text style={styles.detailText}>{job.category}</Text>
+                        <Text style={styles.detailText}>
+                          {typeof job.category === 'object'
+                            ? (job.category as any).name_en || (job.category as any).name_nl || 'Category'
+                            : job.category}
+                        </Text>
                       </View>
                     )}
                   </View>

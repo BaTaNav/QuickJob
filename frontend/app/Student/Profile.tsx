@@ -6,7 +6,7 @@ import { studentAPI, authAPI, getStudentId } from '@/services/api';
 
 const API_BASE_URL = Platform.OS === 'web' 
   ? 'http://localhost:3000' 
-  : 'http://10.2.88.69:3000';
+  : 'http://192.168.129.7:3000';
 
 export default function StudentProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
