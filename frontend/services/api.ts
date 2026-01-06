@@ -441,3 +441,61 @@ export const authAPI = {
     }
   },
 };
+
+// Payment API Endpoints (voeg toe aan het einde van het bestand)
+export const paymentAPI = {
+  // Create payment intent for a job
+  async createPaymentIntent(data: {
+    student_id: number;
+    job_id: number;
+    client_id: number;
+    amount: number;
+    currency?: string;
+    description?: string;
+  }) {
+    try {
+      const url = `${API_BASE_URL}/payments/create-payment-intent`;
+      logRequest('POST', url);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Payment API Error]', response.status, errorText);
+        throw new Error(`Failed to create payment intent: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('[Payment API Success]', result);
+      return result;
+    } catch (error: any) {
+      console.error('[Payment API Exception]', error);
+      throw new Error(error.message || 'Payment failed');
+    }
+  },
+
+  // Get payment status
+  async getPaymentStatus(paymentIntentId: string) {
+    try {
+      const url = `${API_BASE_URL}/payments/payment/${paymentIntentId}`;
+      logRequest('GET', url);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get payment status: ${response.status}`);
+      }
+      
+      return response.json();
+    } catch (error: any) {
+      console.error('[Payment Status Error]', error);
+      throw error;
+    }
+  },
+};
