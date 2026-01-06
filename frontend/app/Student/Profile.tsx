@@ -1,8 +1,12 @@
 import * as React from 'react';
-import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator } from 'react-native';
+import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator, Platform } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { studentAPI, authAPI, getStudentId } from '@/services/api';
+
+const API_BASE_URL = Platform.OS === 'web' 
+  ? 'http://localhost:3000' 
+  : 'http://10.2.88.69:3000';
 
 export default function StudentProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
