@@ -242,10 +242,13 @@ export const studentAPI = {
 
 // Jobs API Endpoints
 export const jobsAPI = {
-  // Get available jobs
-  async getAvailableJobs(status = 'open', limit = 50) {
+  // Get available jobs (optionally exclude those already applied by a student)
+  async getAvailableJobs(status = 'open', limit = 50, studentId?: number) {
     try {
-      const url = `${API_BASE_URL}/jobs/available?status=${status}&limit=${limit}`;
+      let url = `${API_BASE_URL}/jobs/available?status=${status}&limit=${limit}`;
+      if (studentId) {
+        url += `&studentId=${studentId}`;
+      }
       logRequest('GET', url);
       
       const response = await fetch(url);

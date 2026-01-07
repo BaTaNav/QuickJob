@@ -25,7 +25,8 @@ export default function StudentDashboard() {
     try {
       setLoading(true);
       setError('');
-      const data = await jobsAPI.getAvailableJobs('open', 50);
+      const sid = await getStudentId();
+      const data = await jobsAPI.getAvailableJobs('open', 50, sid ? Number(sid) : undefined);
       setAvailableJobs(data || []);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load jobs';
