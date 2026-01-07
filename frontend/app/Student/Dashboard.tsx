@@ -15,7 +15,7 @@ export default function StudentDashboard() {
   const [filterDate, setFilterDate] = React.useState('Any');
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
   const [userLocation, setUserLocation] = React.useState<{ latitude: number; longitude: number } | null>(null);
-  const [includeUnknownCoords, setIncludeUnknownCoords] = React.useState(false);
+  const [showAllJobs, setShowAllJobs] = React.useState(false);
   const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
   const router = useRouter();
 
@@ -110,7 +110,10 @@ export default function StudentDashboard() {
       });
     }
 
-    // Distance filtering: if we have user location and a positive range, compute Haversine and filter
+  // Distance filtering: if the 'show all' toggle is ON, skip distance filtering entirely.
+  if (showAllJobs) return filtered;
+
+  // Otherwise, if we have user location and a positive range, compute Haversine and filter
     const rangeKm = Number(filterRange) || 0;
     if (userLocation && rangeKm > 0) {
       const toRad = (v: number) => v * Math.PI / 180;
@@ -129,8 +132,8 @@ export default function StudentDashboard() {
         const lat = job.latitude != null ? Number(job.latitude) : null;
         const lon = job.longitude != null ? Number(job.longitude) : null;
         if (lat == null || lon == null) {
-          // If the caller explicitly asked to include jobs without coords, keep them.
-          return includeUnknownCoords;
+          // Without coordinates we can't compute distance — exclude these when filtering by range
+          return false;
         }
         const dist = haversineKm(userLocation.latitude, userLocation.longitude, lat, lon);
         (job as any)._distance_km = Math.round(dist * 10) / 10;
@@ -300,6 +303,7 @@ export default function StudentDashboard() {
                   value={String(filterRange)}
                   onChange={(e: any) => setFilterRange(Number(e.target.value || 0))}
                   style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0', width: 100 }}
+                  disabled={showAllJobs}
                 />
               ) : (
                 <TextInput
@@ -307,14 +311,15 @@ export default function StudentDashboard() {
                   value={String(filterRange)}
                   onChangeText={(t) => setFilterRange(Number(t || 0))}
                   style={[styles.dateInput, { minWidth: 100 }]}
+                  editable={!showAllJobs}
                 />
               )}
 
-              <TouchableOpacity style={[styles.filterBtn, includeUnknownCoords && styles.filterBtnActive]} onPress={() => setIncludeUnknownCoords(!includeUnknownCoords)}>
-                <Text style={includeUnknownCoords ? styles.filterBtnTextActive : styles.filterBtnText}>{includeUnknownCoords ? 'Include unknown' : 'Exclude unknown'}</Text>
+              <TouchableOpacity style={[styles.filterBtn, showAllJobs && styles.filterBtnActive]} onPress={() => setShowAllJobs(!showAllJobs)}>
+                <Text style={showAllJobs ? styles.filterBtnTextActive : styles.filterBtnText}>{showAllJobs ? 'Show all jobs' : 'Filter by distance'}</Text>
               </TouchableOpacity>
             </View>
-            <Text style={{ fontSize: 12, color: '#64748B', marginTop: 6 }}>Uses your location (best-effort).</Text>
+            <Text style={{ fontSize: 12, color: '#64748B', marginTop: 6 }}>{showAllJobs ? 'Showing all jobs (distance filter off).' : 'Uses your location (best-effort).'}</Text>
           </View>
         </View>
       )}
