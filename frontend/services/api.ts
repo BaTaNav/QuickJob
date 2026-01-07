@@ -452,3 +452,37 @@ export const authAPI = {
     }
   },
 };
+
+// Admin API
+export const adminAPI = {
+  async getPendingStudents() {
+    const url = `${API_BASE_URL}/admin/students/pending`;
+    logRequest('GET', url);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load pending students');
+    return data.students || data;
+  },
+
+  async getVerifiedStudents() {
+    const url = `${API_BASE_URL}/admin/students/verified`;
+    logRequest('GET', url);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load verified students');
+    return data.students || data;
+  },
+
+  async verifyStudent(id: number, status: 'verified' | 'rejected') {
+    const url = `${API_BASE_URL}/admin/students/${id}/verify`;
+    logRequest('PATCH', url);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update verification status');
+    return data.student || data;
+  },
+};
