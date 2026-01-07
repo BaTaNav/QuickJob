@@ -15,6 +15,7 @@ export default function StudentDashboard() {
   const [filterDate, setFilterDate] = React.useState('Any');
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
   const [userLocation, setUserLocation] = React.useState<{ latitude: number; longitude: number } | null>(null);
+  const [includeUnknownCoords, setIncludeUnknownCoords] = React.useState(false);
   const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
   const router = useRouter();
 
@@ -127,7 +128,10 @@ export default function StudentDashboard() {
       filtered = filtered.filter(job => {
         const lat = job.latitude != null ? Number(job.latitude) : null;
         const lon = job.longitude != null ? Number(job.longitude) : null;
-        if (lat == null || lon == null) return false; // exclude jobs without coords when filtering by range
+        if (lat == null || lon == null) {
+          // If the caller explicitly asked to include jobs without coords, keep them.
+          return includeUnknownCoords;
+        }
         const dist = haversineKm(userLocation.latitude, userLocation.longitude, lat, lon);
         (job as any)._distance_km = Math.round(dist * 10) / 10;
         return dist <= rangeKm;
@@ -285,6 +289,33 @@ export default function StudentDashboard() {
               </View>
             )}
           </View>
+
+          <View style={[styles.filterGroup, { maxWidth: 220 }]}>
+            <Text style={styles.filterLabel}>Distance (km)</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {Platform.OS === 'web' ? (
+                <input
+                  type="number"
+                  min={0}
+                  value={String(filterRange)}
+                  onChange={(e: any) => setFilterRange(Number(e.target.value || 0))}
+                  style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0', width: 100 }}
+                />
+              ) : (
+                <TextInput
+                  keyboardType="numeric"
+                  value={String(filterRange)}
+                  onChangeText={(t) => setFilterRange(Number(t || 0))}
+                  style={[styles.dateInput, { minWidth: 100 }]}
+                />
+              )}
+
+              <TouchableOpacity style={[styles.filterBtn, includeUnknownCoords && styles.filterBtnActive]} onPress={() => setIncludeUnknownCoords(!includeUnknownCoords)}>
+                <Text style={includeUnknownCoords ? styles.filterBtnTextActive : styles.filterBtnText}>{includeUnknownCoords ? 'Include unknown' : 'Exclude unknown'}</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 12, color: '#64748B', marginTop: 6 }}>Uses your location (best-effort).</Text>
+          </View>
         </View>
       )}
 
@@ -350,6 +381,12 @@ export default function StudentDashboard() {
             <>
               <Text style={styles.emptyTitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'No available jobs match your filters' : 'No available jobs'}</Text>
               <Text style={styles.emptySubtitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'Try broadening your filters to find more jobs.' : 'Available jobs will appear here.'}</Text>
+              {/* Helpful hint when no jobs are returned at all */}
+              {availableJobs.length === 0 && (
+                <Text style={{ marginTop: 10, color: '#9CA3AF', fontSize: 13, textAlign: 'center', maxWidth: 320 }}>
+                  If you expect jobs but see none, the backend server might be offline. Start the backend with: node server.js from the `backend` folder.
+                </Text>
+              )}
             </>
           )}
 

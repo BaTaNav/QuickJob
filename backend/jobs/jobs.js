@@ -49,16 +49,19 @@ async function geocodeAddress(address) {
   try {
     const q = encodeURIComponent(address + ', Belgium');
     const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&addressdetails=0&countrycodes=be`;
+    // Log the geocoding request for debugging (remove or reduce verbosity in production)
+    console.log('Geocoding request URL:', url);
     const res = await fetch(url, {
       headers: {
         // Nominatim requires a valid User-Agent or Referer identifying the application
-        'User-Agent': 'QuickJob/1.0 (your-email@example.com)'
+        'User-Agent': 'QuickJob/1.0 (contact@quickjob.be)'
       }
     });
     if (!res.ok) return null;
     const j = await res.json();
     if (!Array.isArray(j) || j.length === 0) return null;
     const first = j[0];
+    console.log('Geocoding result:', first);
     return {
       latitude: parseFloat(first.lat),
       longitude: parseFloat(first.lon),
@@ -283,9 +286,10 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Fixed price required for fixed jobs" });
     }
 
-    // Insert job
-    // Attempt geocoding of the composed address (best-effort)
-    const geo = await geocodeAddress(composedAreaText);
+  // Insert job
+  // Attempt geocoding of the composed address (best-effort)
+  console.log('Composed area_text for geocoding:', composedAreaText);
+  const geo = await geocodeAddress(composedAreaText);
 
     const { data: job, error: jobError } = await supabase
       .from("jobs")
