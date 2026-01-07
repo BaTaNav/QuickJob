@@ -4,6 +4,7 @@ import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { authAPI, getClientId } from '@/services/api';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API URL - use localhost for web, IP address for mobile
 const API_BASE_URL = Platform.OS === 'web' 

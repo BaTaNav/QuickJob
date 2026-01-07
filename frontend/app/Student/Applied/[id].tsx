@@ -1,4 +1,4 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Text, View, ActivityIndicator, Alert } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Text, View, ActivityIndicator, Alert, Image } from "react-native";
 import * as React from "react";
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
@@ -103,6 +103,7 @@ export default function ApplicationDetail() {
   const job = application.jobs;
 
   return (
+    
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* Status Badge */}
       <View style={styles.statusBadge}>
@@ -113,9 +114,17 @@ export default function ApplicationDetail() {
           {application.status === 'rejected' && 'Rejected'}
         </Text>
       </View>
+      
 
       {/* Job Title */}
       <Text style={styles.jobTitle}>{job?.title || 'Job'}</Text>
+                    {job?.image_url && (
+                <Image
+                  source={{ uri: job.image_url }}
+                  style={styles.jobImage}
+                  resizeMode="cover"
+                />
+              )}
 
       {/* Job Details */}
       <View style={styles.detailsContainer}>
@@ -123,6 +132,7 @@ export default function ApplicationDetail() {
           <Text style={styles.detailLabel}>Description</Text>
           <Text style={styles.detailValue}>{job?.description || 'No description'}</Text>
         </View>
+        
 
         {job?.area_text && (
           <View style={styles.detailRow}>
@@ -288,5 +298,13 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     fontWeight: '600',
     fontSize: 16,
+  },
+
+    jobImage: {
+    width: '20%',
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 20,
+    backgroundColor: '#f0f0f0',
   },
 });

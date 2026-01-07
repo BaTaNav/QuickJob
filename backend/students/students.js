@@ -21,6 +21,7 @@ function mapJobRow(row) {
     end_time: row.end_time,
     status: row.status,
     created_at: row.created_at,
+    image_url: row.image_url || null,
     category: row.job_categories
       ? {
           id: row.job_categories.id,
@@ -71,7 +72,7 @@ router.get("/:studentId/dashboard", async (req, res) => {
         id, client_id, category_id,
         title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, end_time, status, created_at,
+        start_time, end_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -316,7 +317,7 @@ router.get("/:studentId/applications", async (req, res) => {
         `
         id, student_id, job_id, status, applied_at, overlap_confirmed,
         jobs (
-          id, title, description, area_text, hourly_rate, fixed_price,
+          id, title, description, area_text, hourly_rate, fixed_price, image_url,
           start_time, status, job_categories (name_en, name_nl, name_fr)
         )
       `

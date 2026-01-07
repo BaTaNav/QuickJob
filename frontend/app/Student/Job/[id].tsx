@@ -18,7 +18,7 @@ export default function JobDetail() {
   const [studentId, setStudentId] = React.useState<number | null>(null);
   const [applicationStatus, setApplicationStatus] = React.useState<string | null>(null); // 'pending', 'accepted', etc.
   const [applicationId, setApplicationId] = React.useState<number | null>(null);
-  
+
   // Action Loading States
   const [applying, setApplying] = React.useState(false);
   const [cancelling, setCancelling] = React.useState(false);
@@ -66,7 +66,7 @@ export default function JobDetail() {
     try {
       setApplying(true);
       await studentAPI.applyForJob(Number(studentId), Number(idParam));
-      
+
       setApplicationStatus('pending'); // Update UI locally
       Alert.alert('Succes!', 'Je sollicitatie is verstuurd. Je vindt deze terug bij Pending.');
       router.push('/Student/Dashboard'); // Optional: redirect back
@@ -131,13 +131,12 @@ export default function JobDetail() {
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <Text style={styles.category}>{job.category?.name_nl || job.category?.name_en || 'Categorie'}</Text>
       <Text style={styles.pageTitle}>{job.title}</Text>
-      
+
       <Text style={styles.jobMeta}>
         {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
         {job.area_text ? ` • ${job.area_text}` : ''}
       </Text>
 
-      {/* Image Display */}
       {job?.image_url && (
         <Image
           source={{ uri: job.image_url }}
@@ -159,8 +158,8 @@ export default function JobDetail() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Budget</Text>
         <Text style={styles.sectionText}>
-          {job.hourly_or_fixed === 'fixed' && job.fixed_price 
-            ? `Vaste prijs: €${job.fixed_price}` 
+          {job.hourly_or_fixed === 'fixed' && job.fixed_price
+            ? `Vaste prijs: €${job.fixed_price}`
             : `Uurloon: €${job.hourly_rate || 'N/A'}`}
         </Text>
       </View>
@@ -187,7 +186,7 @@ export default function JobDetail() {
           <View style={styles.statusContainer}>
             <Text style={styles.pendingText}>Je hebt gesolliciteerd (Pending)</Text>
             <Pressable onPress={handleCancel} disabled={cancelling}>
-               <Text style={styles.cancelLink}>{cancelling ? 'Bezig...' : 'Annuleren'}</Text>
+              <Text style={styles.cancelLink}>{cancelling ? 'Bezig...' : 'Annuleren'}</Text>
             </Pressable>
           </View>
         )}
@@ -274,7 +273,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   backLink: {
-    color: '#176B51', 
+    color: '#176B51',
     marginTop: 12,
     fontWeight: '600',
   },

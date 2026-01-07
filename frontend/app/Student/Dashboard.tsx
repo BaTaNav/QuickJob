@@ -1,13 +1,28 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View,Image, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, Image, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
 import * as React from "react";
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock } from 'lucide-react-native';
 import { jobsAPI, studentAPI, getStudentId } from '../../services/api';
 
+function JobImage({ uri }: { uri?: string }) {
+  const [errored, setErrored] = React.useState(false);
+  // Do not render a placeholder when image is missing — render nothing instead
+  if (!uri || errored) return null;
+
+  return (
+    <Image
+      source={{ uri }}
+      style={styles.jobImage}
+      resizeMode="cover"
+      onError={() => setErrored(true)}
+    />
+  );
+}
+
 export default function StudentDashboard() {
   const params = useLocalSearchParams();
   const initialTab = (params.tab as 'today' | 'upcoming' | 'available' | 'pending' | 'archive') || 'available';
-  
+
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>(initialTab);
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
   const [pendingApplications, setPendingApplications] = React.useState<any[]>([]);
@@ -18,7 +33,7 @@ export default function StudentDashboard() {
   const categoryOptions = React.useMemo(() => {
     const map = new Map<string, { id: number | null; name: string }>();
 
-    
+
     map.set('All', { id: null, name: 'All' });
 
     // start with defaults (no id)
@@ -118,17 +133,17 @@ export default function StudentDashboard() {
   // Filter jobs based on selected filters and exclude already applied jobs
   const filteredJobs = React.useMemo(() => {
     let filtered = availableJobs;
-    
+
     // Get IDs of jobs the student has already applied to
     const appliedJobIds = new Set(pendingApplications.map(app => app.job_id));
-    
+
     // Exclude jobs already applied to
     filtered = filtered.filter(job => !appliedJobIds.has(job.id));
-    
+
     if (filterCategory !== 'All') {
       filtered = filtered.filter(job => job.category === filterCategory);
     }
-    
+
     if (filterDate === 'Today') {
       const today = new Date().toDateString();
       filtered = filtered.filter(job => {
@@ -149,7 +164,7 @@ export default function StudentDashboard() {
         return new Date(job.start_time).toDateString() === new Date(selectedDate).toDateString();
       });
     }
-    
+
     return filtered;
   }, [availableJobs, pendingApplications, filterCategory, filterDate, selectedDate]);
 
@@ -238,9 +253,9 @@ export default function StudentDashboard() {
             <Text style={styles.filterLabel}>Category</Text>
             <View style={styles.filterPills}>
               {['All', 'Hospitality', 'Retail', 'Office', 'Event', 'Other'].map((cat) => (
-                <TouchableOpacity 
-                  key={cat} 
-                  style={[styles.filterBtn, filterCategory === cat && styles.filterBtnActive]} 
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.filterBtn, filterCategory === cat && styles.filterBtnActive]}
                   onPress={() => setFilterCategory(cat)}
                 >
                   <Text style={filterCategory === cat ? styles.filterBtnTextActive : styles.filterBtnText}>{cat}</Text>
@@ -253,9 +268,9 @@ export default function StudentDashboard() {
             <Text style={styles.filterLabel}>Date</Text>
             <View style={styles.filterPills}>
               {['Any', 'Today', 'This week', 'Specific'].map((dateOpt) => (
-                <TouchableOpacity 
-                  key={dateOpt} 
-                  style={[styles.filterBtn, filterDate === dateOpt && styles.filterBtnActive]} 
+                <TouchableOpacity
+                  key={dateOpt}
+                  style={[styles.filterBtn, filterDate === dateOpt && styles.filterBtnActive]}
                   onPress={() => setFilterDate(dateOpt)}
                 >
                   <Text style={filterDate === dateOpt ? styles.filterBtnTextActive : styles.filterBtnText}>{dateOpt}</Text>
@@ -266,18 +281,18 @@ export default function StudentDashboard() {
             {filterDate === 'Specific' && (
               <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 {Platform.OS === 'web' ? (
-                  <input 
-                    type="date" 
-                    value={selectedDate || ''} 
-                    onChange={(e: any) => setSelectedDate(e.target.value)} 
-                    style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }} 
+                  <input
+                    type="date"
+                    value={selectedDate || ''}
+                    onChange={(e: any) => setSelectedDate(e.target.value)}
+                    style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }}
                   />
                 ) : (
-                  <TextInput 
-                    placeholder="YYYY-MM-DD" 
-                    value={selectedDate || ''} 
-                    onChangeText={setSelectedDate} 
-                    style={styles.dateInput} 
+                  <TextInput
+                    placeholder="YYYY-MM-DD"
+                    value={selectedDate || ''}
+                    onChangeText={setSelectedDate}
+                    style={styles.dateInput}
                   />
                 )}
 
@@ -315,15 +330,21 @@ export default function StudentDashboard() {
             {tab === 'pending' ? (
               // Render pending applications
               pendingApplications.map((app: any) => (
-                <Pressable 
-                  key={app.id} 
-                  style={styles.jobCard} 
-                  onPress={() => router.push(`/Student/Applied/${app.id}` as never)} 
+                <Pressable
+                  key={app.id}
+                  style={styles.jobCard}
+
+                  onPress={() => router.push(`/Student/Applied/${app.id}` as never)}
+
                 >
+                  <JobImage uri={app.jobs?.image_url} />
                   <View style={styles.pendingHeader}>
                     <Clock size={16} color="#F59E0B" />
                     <Text style={styles.pendingBadge}>Pending Review</Text>
                   </View>
+
+
+
                   <Text style={styles.jobTitle}>{app.jobs?.title || 'Job'}</Text>
                   <Text style={styles.jobDescription}>{app.jobs?.description || 'Geen beschrijving'}</Text>
                   <Text style={styles.jobMeta}>
@@ -331,24 +352,20 @@ export default function StudentDashboard() {
                     {app.jobs?.start_time ? ` • Starts: ${new Date(app.jobs.start_time).toLocaleDateString('nl-BE')}` : ''}
                     {app.jobs?.area_text ? ` • ${app.jobs.area_text}` : ''}
                   </Text>
+
                 </Pressable>
+
               ))
             ) : (
               // Render available jobs
               filteredJobs.map((job: any) => (
-                <Pressable 
-                  key={job.id} 
-                  style={styles.jobCard} 
-                  onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
+                <Pressable
+                  key={job.id}
+                  style={styles.jobCard}
+                  onPress={() => router.push(`/Student/Job/${job.id}` as never)}
                 >
-                  {/* Add Image Here */}
-  {job.image_url && (
-    <Image 
-      source={{ uri: job.image_url }} 
-      style={styles.jobImage}
-    />
-  )}
-                <Text style={styles.jobTitle}>{job.title}</Text>
+                  <JobImage uri={job.image_url} />
+                  <Text style={styles.jobTitle}>{job.title}</Text>
                   <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
                   <Text style={styles.jobMeta}>
                     {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
@@ -513,16 +530,16 @@ const styles = StyleSheet.create({
     color: "#7A7F85",
     marginBottom: 0,
   },
-  headerRefresh: { 
-    padding: 6, 
-    borderRadius: 999, 
+  headerRefresh: {
+    padding: 6,
+    borderRadius: 999,
     backgroundColor: '#F7F9FC',
     // Added shadow for visual depth
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 1.5,
-    elevation: 2, 
+    elevation: 2,
   },
 
   /* DOCUMENT VERIFICATION BANNER */
@@ -562,7 +579,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  
+
 
   /* TABS */
   tabs: {
@@ -616,13 +633,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   jobImage: {
-  width: '20%',
-  height: 300,
-  borderTopLeftRadius: 12,
-  borderTopRightRadius: 12,
-  marginBottom: 10,
-},
-  
+    width: '20%',
+    height: 300,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    marginBottom: 10,
+    resizeMode: "cover",
+  },
+
   jobCard: {
     paddingVertical: 12,
     borderBottomWidth: 1,
