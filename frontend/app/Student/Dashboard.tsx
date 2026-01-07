@@ -37,23 +37,39 @@ export default function StudentDashboard() {
   }, [fetchAvailable]);
 
   // Try to get user's current location (best-effort). Used only for distance filtering.
+  // Guarded so any runtime quirk won't throw a ReferenceError if the setter is unavailable.
   React.useEffect(() => {
     const getLocation = () => {
       try {
-        if (typeof navigator !== 'undefined' && navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              const { latitude, longitude } = pos.coords;
-              setUserLocation({ latitude, longitude });
-            },
-            (err) => {
-              console.warn('Geolocation unavailable or denied:', err.message || err);
-              setUserLocation(null);
-            },
-            { enableHighAccuracy: false, timeout: 5000 }
-          );
+        if (typeof navigator !== 'undefined' && navigator.geolocation && typeof navigator.geolocation.getCurrentPosition === 'function') {
+          const onSuccess = (pos: any) => {
+            try {
+              const { latitude, longitude } = pos.coords ?? {};
+              if (typeof setUserLocation === 'function') {
+                setUserLocation({ latitude, longitude });
+              }
+            } catch (err) {
+              // Defensive: don't let a setter error bubble up
+              // (some bundlers/environments might not have the closure as expected)
+              // eslint-disable-next-line no-console
+              console.warn('Failed to set userLocation:', err);
+            }
+          };
+
+          const onError = (err: any) => {
+            // eslint-disable-next-line no-console
+            console.warn('Geolocation unavailable or denied:', err?.message ?? err);
+            try {
+              if (typeof setUserLocation === 'function') setUserLocation(null);
+            } catch (e) {
+              // ignore
+            }
+          };
+
+          navigator.geolocation.getCurrentPosition(onSuccess, onError, { enableHighAccuracy: false, timeout: 5000 });
         }
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.warn('Geolocation check failed:', e);
       }
     };
