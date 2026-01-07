@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, Alert } from 'react-native';
 import * as Linking from 'expo-linking';
 
+const API_BASE_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://10.2.88.146:3000';
+
 const Signup = () => {
   const [formData, setFormData] = useState({
     fullName: '',
@@ -38,7 +40,7 @@ const Signup = () => {
 
       setLoading(true);
 
-      const response = await fetch('http://localhost:3000/clients/register-client', {
+      const response = await fetch(`${API_BASE_URL}/clients/register-client`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

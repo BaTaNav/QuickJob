@@ -488,9 +488,7 @@ const styles = StyleSheet.create({
 
   // Jobs
   jobCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     backgroundColor: '#fff',
     padding: 16,
     borderRadius: 12,
@@ -498,14 +496,13 @@ const styles = StyleSheet.create({
     borderColor: '#E6EEF0',
     marginBottom: 12,
   },
-  jobImage: {
-  width: '100%',
-  height: 150,
-  borderRadius: 8,
-  marginBottom: 10,
-},
-  jobMeta: { fontSize: 13, color: '#64748B', marginTop: 4 },
-  jobAction: { backgroundColor: '#176B51', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  jobMeta: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginTop: 6,
+    gap: 8 
+  },
+  jobAction: { backgroundColor: '#176B51', paddingHorizontal: 12, paddingVertical: 8 },
   jobActionText: { color: '#fff', fontWeight: '700' },
 
   // Date input

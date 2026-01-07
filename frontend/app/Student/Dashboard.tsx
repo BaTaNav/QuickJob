@@ -253,21 +253,22 @@ export default function StudentDashboard() {
 
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
-      {/* HEADER */}
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.pageTitle}>Student Dashboard</Text>
-          <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFB" }} edges={['top']}>
+      <ScrollView 
+        style={{ flex: 1 }} 
+        contentContainerStyle={[styles.container, !isWeb && styles.containerMobile]}
+      >
+        {/* HEADER */}
+        <View style={[styles.headerRow, !isWeb && styles.headerRowMobile]}>
+          <View>
+            <Text style={styles.pageTitle}>Student Dashboard</Text>
+            <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
+          </View>
+          
+          <Pressable onPress={fetchAvailable} style={styles.refreshBtn}>
+             <RefreshCw size={20} color="#64748B" />
+          </Pressable>
         </View>
-
-        <Pressable
-          onPress={handleRefresh} // Use the simplified native refresh handler
-          style={styles.headerRefresh}
-        >
-          <RefreshCw size={18} color="#64748B" />
-        </Pressable>
-      </View>
 
       {/* DOCUMENT BANNER (hidden by default while testing) */}
       {false && ( // Conditional rendering is correct
@@ -310,67 +311,62 @@ export default function StudentDashboard() {
         </ScrollView>
       </View>
 
-      {/* FILTERS */}
-      <View style={styles.tabFilterRow}>
-        <View />
-        <View style={styles.filterToggleContainer}>
-          <TouchableOpacity style={styles.filterToggleBtn} onPress={() => setShowFilters(!showFilters)}>
-            <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Show filters'}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {showFilters && (
-        <View style={styles.filterRow}>
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Category</Text>
-            <View style={styles.filterPills}>
-              {['All', 'Hospitality', 'Retail', 'Office', 'Event', 'Other'].map((cat) => (
+        {/* CONTENT */}
+        {loading ? (
+          <ActivityIndicator size="large" color="#176B51" style={{ marginTop: 40 }} />
+        ) : (
+          <View style={[styles.jobsGrid, !isWeb && styles.jobsListMobile]}>
+            {filteredJobs.length === 0 ? (
+              <Text style={styles.emptyText}>No jobs found in this category.</Text>
+            ) : (
+              filteredJobs.map((job: Job) => (
                 <TouchableOpacity 
-                  key={cat} 
-                  style={[styles.filterBtn, filterCategory === cat && styles.filterBtnActive]} 
-                  onPress={() => setFilterCategory(cat)}
+                  key={job.id} 
+                  style={[
+                    styles.jobCard,
+                    /* Web override voor width */
+                    isWeb ? { width: '48%' } : styles.jobCardMobile
+                  ]}
+                  onPress={() => router.push(`/Student/Job/${job.id}`)}
                 >
-                  <Text style={filterCategory === cat ? styles.filterBtnTextActive : styles.filterBtnText}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+                  <View style={styles.jobHeader}>
+                    <Text style={styles.jobTitle}>{job.title}</Text>
+                    <View style={styles.priceBadge}>
+                      <Text style={styles.priceText}>€{job.hourly_rate || job.fixed_price}</Text>
+                    </View>
+                  </View>
 
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Date</Text>
-            <View style={styles.filterPills}>
-              {['Any', 'Today', 'This week', 'Specific'].map((dateOpt) => (
-                <TouchableOpacity 
-                  key={dateOpt} 
-                  style={[styles.filterBtn, filterDate === dateOpt && styles.filterBtnActive]} 
-                  onPress={() => setFilterDate(dateOpt)}
-                >
-                  <Text style={filterDate === dateOpt ? styles.filterBtnTextActive : styles.filterBtnText}>{dateOpt}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  <View style={styles.jobDetails}>
+                    <View style={styles.detailRow}>
+                      <MapPin size={14} color="#64748B" />
+                      <Text style={styles.detailText}>{job.area_text || job.location || 'Unknown location'}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                       <Clock size={14} color="#64748B" />
+                       <Text style={styles.detailText}>
+                         {job.duration ? `${job.duration} hrs` : 'Flexible'}
+                       </Text>
+                    </View>
+                    {job.category && (
+                      <View style={styles.detailRow}>
+                        <Briefcase size={14} color="#64748B" />
+                        <Text style={styles.detailText}>
+                          {job.category.name_nl || job.category.name_en || 'General'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
 
-            {filterDate === 'Specific' && (
-              <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {Platform.OS === 'web' ? (
-                  <input 
-                    type="date" 
-                    value={selectedDate || ''} 
-                    onChange={(e: any) => setSelectedDate(e.target.value)} 
-                    style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }} 
-                  />
-                ) : (
-                  <TextInput 
-                    placeholder="YYYY-MM-DD" 
-                    value={selectedDate || ''} 
-                    onChangeText={setSelectedDate} 
-                    style={styles.dateInput} 
-                  />
-                )}
-
-                <TouchableOpacity onPress={() => { setSelectedDate(null); setFilterDate('Any'); }} style={styles.clearDateBtn}>
-                  <Text style={styles.clearDateText}>Clear</Text>
+                  <Text style={styles.jobDesc} numberOfLines={2}>
+                    {job.description}
+                  </Text>
+                  
+                  <View style={styles.cardFooter}>
+                    <Text style={styles.postedTime}>
+                         {job.start_time ? new Date(job.start_time).toLocaleDateString() : 'Flexible date'}
+                    </Text>
+                    <Text style={styles.viewLink}>View Details →</Text>
+                  </View>
                 </TouchableOpacity>
               </View>
             )}
@@ -610,78 +606,72 @@ export default function StudentDashboard() {
   );
 }
 
-/* STYLES */
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    paddingBottom: 10,
-    backgroundColor: "#fff",
+    padding: 30, // Web padding
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  // Mobiele override
+  containerMobile: {
+    padding: 16, // Minder padding op mobiel
+    maxWidth: '100%',
   },
 
-  /* HEADER */
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 24,
   },
+  headerRowMobile: {
+    marginBottom: 16,
+  },
+
   pageTitle: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "700",
-    marginTop: 10,
     color: "#1B1B1B",
   },
   pageSubtitle: {
     fontSize: 16,
     color: "#7A7F85",
-    marginBottom: 0,
+    marginTop: 4,
   },
-  headerRefresh: { 
-    padding: 6, 
-    borderRadius: 999, 
-    backgroundColor: '#F7F9FC',
-    // Added shadow for visual depth
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1.5,
-    elevation: 2, 
+  refreshBtn: {
+    padding: 10,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
 
-  /* DOCUMENT VERIFICATION BANNER */
-  banner: {
-    backgroundColor: "#FFF4D9",
-    borderLeftWidth: 4,
-    borderLeftColor: "#FFB01F",
-    padding: 18,
-    borderRadius: 12,
-    marginBottom: 28,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 3,
+  /* TABS */
+  tabContainer: {
+    marginBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  bannerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 8,
-    color: "#664D0E",
+  tabScroll: {
+    gap: 24,
+    paddingBottom: 2, // Ruimte voor border
   },
-  bannerText: {
-    fontSize: 14,
-    color: "#7C7C7C",
-    marginBottom: 16,
-    lineHeight: 20,
+  tabItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
-  bannerBtn: {
-    backgroundColor: "#FFB01F",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    alignSelf: "flex-start",
-    borderRadius: 8,
+  tabItemActive: {
+    borderBottomColor: '#176B51',
   },
-  bannerBtnText: {
-    color: "#fff",
+  tabText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#64748B",
+  },
+  tabTextActive: {
+    color: "#176B51",
     fontWeight: "600",
   },
 
@@ -725,11 +715,8 @@ const styles = StyleSheet.create({
   tabText: { color: "#7A7F85", fontWeight: "500" },
   tabActiveText: { color: "#fff", fontWeight: "600" },
 
-  /* JOB LIST */
-  jobsContainer: {
-    borderWidth: 1,
-    borderColor: '#E4E6EB',
-    borderRadius: 12,
+  /* CARD STYLE */
+  jobCard: {
     backgroundColor: '#fff',
     padding: 12,
     marginBottom: 12,
@@ -783,132 +770,89 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E4E6EB",
     borderRadius: 12,
-    backgroundColor: "#fff",
-    paddingHorizontal: 18,
-  },
-  emptyState: {
-    paddingVertical: 90,
-    alignItems: "center",
+    padding: 20,
     borderWidth: 1,
-    borderColor: "#E4E6EB",
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    paddingHorizontal: 18,
+    borderColor: '#E2E8F0',
+    // Web: fallback width (wordt overschreven in JSX voor '48%')
+    width: '100%', 
+    minWidth: 300,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  emptyIcon: {
-    fontSize: 42,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 19,
-    fontWeight: "700",
-    marginBottom: 6,
-    color: "#1B1B1B",
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#7A7F85",
-    textAlign: "center",
-    lineHeight: 20,
-    maxWidth: 260,
+  // Mobiel: Volledige breedte
+  jobCardMobile: {
+    width: '100%',
+    minWidth: 0,
+    padding: 16,
   },
 
-  /* FOOTER */
-  footer: {
-    marginTop: 60,
-    paddingTop: 40,
-    paddingBottom: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    padding: 20,
+  jobHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
-  footerSection: {
-    marginBottom: 24,
-  },
-  footerTitle: {
-    fontSize: 20,
+  jobTitle: {
+    fontSize: 18,
     fontWeight: "700",
-    color: "#176B51",
-    marginBottom: 8,
-  },
-  footerDescription: {
-    fontSize: 14,
-    color: "#6B7280",
-    lineHeight: 20,
-  },
-  footerLinks: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 24,
-  },
-  footerColumn: {
+    color: "#1E293B",
     flex: 1,
+    marginRight: 10,
   },
-  footerColumnTitle: {
+  priceBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  priceText: {
+    color: '#059669',
+    fontWeight: "700",
     fontSize: 14,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 12,
   },
-  footerLink: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginBottom: 8,
-  },
-  footerSocial: {
-    marginBottom: 24,
-    alignItems: "center",
-  },
-  footerSocialTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 12,
-  },
-  socialIcons: {
-    flexDirection: "row",
-    justifyContent: "center",
+
+  jobDetails: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
+    marginBottom: 12,
   },
-  socialIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  socialIconText: {
-    fontSize: 20,
-  },
-  footerContact: {
-    alignItems: "center",
-    marginBottom: 20,
-    gap: 8,
-  },
-  footerContactText: {
+  detailText: {
     fontSize: 13,
-    color: "#6B7280",
+    color: "#64748B",
   },
-  footerBottom: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+
+  jobDesc: {
+    fontSize: 14,
+    color: "#475569",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 'auto',
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: '#F1F5F9',
   },
-  footerCopyright: {
+  postedTime: {
     fontSize: 12,
-    color: "#9CA3AF",
+    color: "#94A3B8",
   },
-  footerVersion: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    fontWeight: "500",
+  viewLink: {
+    fontSize: 14,
+    color: "#176B51",
+    fontWeight: "600",
   },
 });
