@@ -348,6 +348,14 @@ router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (
     const applicationId = parseInt(req.params.applicationId);
     const { status } = req.body;
 
+    console.log(`[PATCH applications] studentId=${studentId}, applicationId=${applicationId}, status=${status}`);
+
+    // Validate IDs
+    if (isNaN(studentId) || isNaN(applicationId)) {
+      console.error(`[PATCH applications] Invalid IDs: studentId=${studentId}, applicationId=${applicationId}`);
+      return res.status(400).json({ error: "Invalid student ID or application ID" });
+    }
+
     // TODO: Verify the user is updating their own application when JWT is enabled
     // if (req.user.id !== studentId.toString()) {
     //   return res.status(403).json({ error: "Unauthorized" });
@@ -358,21 +366,46 @@ router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (
       return res.status(400).json({ error: "Only cancellation is allowed from student side" });
     }
 
+    // First check if application exists
+    const { data: existingApp, error: checkError } = await supabase
+      .from("job_applications")
+      .select("id, student_id, status")
+      .eq("id", applicationId)
+      .single();
+
+    if (checkError) {
+      console.error(`[PATCH applications] Check error:`, checkError);
+      return res.status(404).json({ error: "Application not found" });
+    }
+
+    if (!existingApp) {
+      console.error(`[PATCH applications] Application not found: id=${applicationId}`);
+      return res.status(404).json({ error: "Application not found" });
+    }
+
+    if (existingApp.student_id !== studentId) {
+      console.error(`[PATCH applications] Student mismatch: expected=${studentId}, actual=${existingApp.student_id}`);
+      return res.status(403).json({ error: "Not authorized to update this application" });
+    }
+
+    // Now update
     const { data, error } = await supabase
       .from("job_applications")
       .update({ status: "cancelled" })
       .eq("id", applicationId)
-      .eq("student_id", studentId)
       .select()
       .single();
 
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: "Application not found" });
+    if (error) {
+      console.error("[PATCH applications] Update error:", error);
+      throw error;
+    }
 
+    console.log("[PATCH applications] Successfully cancelled application:", data);
     res.json(data);
   } catch (err) {
-    console.error("Error updating application:", err);
-    res.status(500).json({ error: "Failed to update application" });
+    console.error("[PATCH applications] Unexpected error:", err);
+    res.status(500).json({ error: "Failed to update application", details: err.message });
   }
 });
 

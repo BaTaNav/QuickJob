@@ -58,30 +58,6 @@ export const getStudentId = async () => {
   }
 };
 
-// Helper function to save client ID
-export const saveClientId = async (clientId: string) => {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem('clientId', clientId);
-    }
-  } catch (error) {
-    console.error('Error saving client ID:', error);
-  }
-};
-
-// Helper function to get client ID
-export const getClientId = async () => {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('clientId');
-    }
-    return null;
-  } catch (error) {
-    console.error('Error getting client ID:', error);
-    return null;
-  }
-};
-
 // Student API Endpoints
 export const studentAPI = {
   // Get student dashboard
@@ -194,8 +170,7 @@ export const studentAPI = {
       body: JSON.stringify({ status: 'cancelled' }),
     });
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to cancel application');
+      throw new Error('Failed to cancel application');
     }
     return response.json();
   },
@@ -267,68 +242,6 @@ export const jobsAPI = {
     }
   },
 
-  // Get jobs for a specific client
-  async getClientJobs(clientId: string | number, status?: string) {
-    try {
-      let url = `${API_BASE_URL}/jobs/client/${clientId}`;
-      if (status) url += `?status=${status}`;
-      logRequest('GET', url);
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[API Error]', response.status, errorText);
-        throw new Error(`Failed to fetch client jobs: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      const jobs = data.jobs || data;
-      console.log('[API Success] Client jobs:', jobs?.length || 0, 'jobs');
-      return jobs;
-    } catch (error: any) {
-      console.error('[API Exception]', error);
-      throw new Error(error.message || 'Network error - is the backend running?');
-    }
-  },
-
-  // Create a new job
-  async createJob(jobData: {
-    client_id: string;
-    category_id: number;
-    title: string;
-    description?: string;
-    area_text?: string;
-    hourly_or_fixed: 'hourly' | 'fixed';
-    hourly_rate?: number | null;
-    fixed_price?: number | null;
-    start_time: string;
-    end_time?: string;
-  }) {
-    try {
-      const url = `${API_BASE_URL}/jobs`;
-      logRequest('POST', url);
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(jobData),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create job');
-      }
-      
-      const data = await response.json();
-      console.log('[API Success] Job created:', data);
-      return data;
-    } catch (error: any) {
-      console.error('[API Exception]', error);
-      throw new Error(error.message || 'Failed to create job');
-    }
-  },
-
   // Get specific job
   async getJob(jobId: number) {
     const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`);
@@ -356,89 +269,38 @@ export const jobsAPI = {
   },
 };
 
-// Auth API
+// Auth API (placeholder - implement with your auth provider)
 export const authAPI = {
   async login(email: string, password: string) {
-    try {
-      const url = `${API_BASE_URL}/auth/login`;
-      logRequest('POST', url);
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Login failed');
-      }
-
-      const data = await response.json();
-      console.log('[API Success] Login successful:', data);
-      
-      // Save student ID for future API calls
-      if (data.user.role === 'student') {
-        await saveStudentId(data.user.id.toString());
-        // Clear any client ID to avoid mixups
-        if (typeof window !== 'undefined' && window.localStorage) {
-          localStorage.removeItem('clientId');
-        }
-      }
-
-      // Save client ID when role is client
-      if (data.user.role === 'client') {
-        await saveClientId(data.user.id.toString());
-        if (typeof window !== 'undefined' && window.localStorage) {
-          localStorage.removeItem('studentId');
-        }
-      }
-      
-      return data;
-    } catch (error: any) {
-      console.error('[API Exception] Login failed:', error);
-      throw new Error(error.message || 'Login failed');
-    }
+    // This should connect to your authentication backend
+    // For now, return mock data
+    return {
+      token: 'mock_token',
+      user: {
+        id: 1,
+        email,
+        role: 'student',
+      },
+    };
   },
 
-  async registerStudent(data: { email: string; password: string; phone?: string; school_name?: string; field_of_study?: string; academic_year?: string }) {
-    try {
-      const url = `${API_BASE_URL}/auth/register/student`;
-      logRequest('POST', url);
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Registration failed');
-      }
-
-      const result = await response.json();
-      console.log('[API Success] Registration successful:', result);
-      
-      // Auto-login after registration
-      await saveStudentId(result.user.id.toString());
-      
-      return result;
-    } catch (error: any) {
-      console.error('[API Exception] Registration failed:', error);
-      throw new Error(error.message || 'Registration failed');
-    }
+  async signup(data: any) {
+    // This should connect to your authentication backend
+    // For now, return mock data
+    return {
+      token: 'mock_token',
+      user: {
+        id: 1,
+        email: data.email,
+        role: 'student',
+      },
+    };
   },
 
   async logout() {
     if (typeof window !== 'undefined' && window.localStorage) {
       localStorage.removeItem('authToken');
       localStorage.removeItem('studentId');
-      localStorage.removeItem('clientId');
     }
   },
 };
