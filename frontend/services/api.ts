@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // For mobile simulator: Use your computer's IP addressr
 const API_BASE_URL = Platform.OS === 'web' 
   ? 'http://localhost:3000' 
-  : 'http://10.2.88.69:3000';
+  : 'http://10.2.88.146:3000';
 
 // Add logging for debugging
 const logRequest = (method: string, url: string) => {
