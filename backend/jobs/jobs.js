@@ -234,43 +234,6 @@ router.get("/available", async (req, res) => {
 });
 
 /**
- * GET /jobs/:id
- * Get a specific job with full details
- */
-router.get("/:id", async (req, res) => {
-  try {
-    const jobId = parseInt(req.params.id);
-
-    const { data, error } = await supabase
-      .from("jobs")
-      .select(
-        `
-        id, client_id, category_id,
-        title, description, area_text, street, house_number, postal_code, city, latitude, longitude,
-        hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at, image_url,
-        job_categories (
-          id, key, name_nl, name_fr, name_en
-        )
-      `
-      )
-      .eq("id", jobId)
-      .single();
-
-    if (error?.code === "PGRST116" || !data) {
-      return res.status(404).json({ error: "No job found with this ID" });
-    }
-    if (error) throw error;
-
-    const job = mapJobRow(data);
-    res.json(job);
-  } catch (err) {
-    console.error("Error fetching job:", err);
-    res.status(500).json({ error: "Failed to fetch job" });
-  }
-});
-
-/**
  * GET /jobs/search?q=term&location=city&category=cat_id
  * Search jobs by title, description, location
  */
@@ -622,46 +585,66 @@ router.get("/:jobId/applicants", async (req, res) => {
       return res.status(404).json({ error: "Job not found" });
     }
 
-    // Get all applications for this job with student info
+    // Get all applications for this job
     const { data: applications, error: appError } = await supabase
       .from("job_applications")
-      .select(`
-        id, status, applied_at,
-        student_profiles (
-          id,
-          school_name,
-          field_of_study,
-          academic_year,
-          avatar_url,
-          verification_status
-        ),
-        users:student_id (
-          id,
-          email,
-          phone
-        )
-      `)
+      .select("id, status, applied_at, student_id")
       .eq("job_id", jobId)
       .in("status", ["pending", "accepted"])
       .order("applied_at", { ascending: false });
 
     if (appError) throw appError;
 
-    const applicants = applications?.map(app => ({
-      application_id: app.id,
-      status: app.status,
-      applied_at: app.applied_at,
-      student: {
-        id: app.users?.id,
-        email: app.users?.email,
-        phone: app.users?.phone,
-        school_name: app.student_profiles?.school_name,
-        field_of_study: app.student_profiles?.field_of_study,
-        academic_year: app.student_profiles?.academic_year,
-        avatar_url: app.student_profiles?.avatar_url,
-        verification_status: app.student_profiles?.verification_status,
-      }
-    })) || [];
+    // For each application, fetch the student profile and user info
+    let applicants = [];
+    if (applications && applications.length > 0) {
+      const studentIds = applications.map(app => app.student_id);
+      
+      // Fetch all student profiles
+      const { data: profiles, error: profileError } = await supabase
+        .from("student_profiles")
+        .select("id, school_name, field_of_study, academic_year, avatar_url, verification_status")
+        .in("id", studentIds);
+
+      if (profileError) throw profileError;
+
+      // Fetch all users
+      const { data: users, error: userError } = await supabase
+        .from("users")
+        .select("id, email, phone")
+        .in("id", studentIds);
+
+      if (userError) throw userError;
+
+      // Create lookup maps
+      const profileMap = {};
+      const userMap = {};
+      
+      profiles?.forEach(profile => {
+        profileMap[profile.id] = profile;
+      });
+      
+      users?.forEach(user => {
+        userMap[user.id] = user;
+      });
+
+      // Build applicant list
+      applicants = applications.map(app => ({
+        application_id: app.id,
+        status: app.status,
+        applied_at: app.applied_at,
+        student: {
+          id: app.student_id,
+          email: userMap[app.student_id]?.email,
+          phone: userMap[app.student_id]?.phone,
+          school_name: profileMap[app.student_id]?.school_name,
+          field_of_study: profileMap[app.student_id]?.field_of_study,
+          academic_year: profileMap[app.student_id]?.academic_year,
+          avatar_url: profileMap[app.student_id]?.avatar_url,
+          verification_status: profileMap[app.student_id]?.verification_status,
+        }
+      }));
+    }
 
     res.json({
       job_id: jobId,
@@ -805,6 +788,44 @@ router.delete("/:jobId", async (req, res) => {
   } catch (err) {
     console.error("Error deleting job:", err);
     res.status(500).json({ error: "Failed to delete job" });
+  }
+});
+
+/**
+ * GET /jobs/:id
+ * Get a specific job with full details
+ * NOTE: This must be AFTER specific routes like /client/:clientId and /:jobId/applicants
+ */
+router.get("/:id", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.id);
+
+    const { data, error } = await supabase
+      .from("jobs")
+      .select(
+        `
+        id, client_id, category_id,
+        title, description, area_text, street, house_number, postal_code, city, latitude, longitude,
+        hourly_or_fixed, hourly_rate, fixed_price,
+        start_time, status, created_at, image_url,
+        job_categories (
+          id, key, name_nl, name_fr, name_en
+        )
+      `
+      )
+      .eq("id", jobId)
+      .single();
+
+    if (error?.code === "PGRST116" || !data) {
+      return res.status(404).json({ error: "No job found with this ID" });
+    }
+    if (error) throw error;
+
+    const job = mapJobRow(data);
+    res.json(job);
+  } catch (err) {
+    console.error("Error fetching job:", err);
+    res.status(500).json({ error: "Failed to fetch job" });
   }
 });
 

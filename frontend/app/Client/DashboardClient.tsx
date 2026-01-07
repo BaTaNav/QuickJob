@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Image } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Image, Modal } from "react-native";
 import { useRouter } from 'expo-router';
-import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase } from "lucide-react-native";
+import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, Users, X } from "lucide-react-native";
 import { jobsAPI, getClientId } from "@/services/api";
 
 export default function DashboardClient() {
@@ -9,6 +9,10 @@ export default function DashboardClient() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<any>(null);
+  const [applicants, setApplicants] = useState<any[]>([]);
+  const [loadingApplicants, setLoadingApplicants] = useState(false);
+  const [showApplicantsModal, setShowApplicantsModal] = useState(false);
   const router = useRouter();
 
   // Fetch jobs from backend
@@ -33,6 +37,35 @@ export default function DashboardClient() {
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
+
+  // Fetch applicants for a job
+  const fetchApplicants = useCallback(async (jobId: number) => {
+    try {
+      setLoadingApplicants(true);
+      const data = await jobsAPI.getJobApplicants(jobId);
+      setApplicants(data.applicants || []);
+      setShowApplicantsModal(true);
+    } catch (err: any) {
+      console.error('Error fetching applicants:', err);
+      alert(err?.message || 'Failed to load applicants');
+    } finally {
+      setLoadingApplicants(false);
+    }
+  }, []);
+
+  // Handle application status update
+  const handleUpdateApplication = useCallback(async (jobId: number, applicationId: number, status: 'accepted' | 'rejected') => {
+    try {
+      await jobsAPI.updateApplicationStatus(jobId, applicationId, status);
+      // Refresh applicants list
+      await fetchApplicants(jobId);
+      // Refresh jobs list to update counts
+      await fetchJobs();
+    } catch (err: any) {
+      console.error('Error updating application:', err);
+      alert(err?.message || 'Failed to update application');
+    }
+  }, [fetchApplicants, fetchJobs]);
 
   // Filter jobs by status
   const openJobs = jobs.filter(j => j.status === 'open');
@@ -131,8 +164,20 @@ export default function DashboardClient() {
           {job.hourly_or_fixed === 'fixed' 
             ? `€${job.fixed_price || 0}` 
             : `€${job.hourly_rate || 0}/uur`}
-        </Text>
-      </View>
+        </Text>        {(job.applicant_count > 0 || job.pending_applicants > 0 || job.accepted_applicants > 0) && (
+          <TouchableOpacity 
+            style={styles.viewApplicantsBtn}
+            onPress={() => {
+              setSelectedJob(job);
+              fetchApplicants(job.id);
+            }}
+          >
+            <Users size={16} color="#176B51" />
+            <Text style={styles.viewApplicantsText}>
+              {job.applicant_count || 0} applicant{job.applicant_count !== 1 ? 's' : ''}
+            </Text>
+          </TouchableOpacity>
+        )}      </View>
     </View>
   );
 
@@ -237,6 +282,108 @@ export default function DashboardClient() {
               </TouchableOpacity>
             </View>
           )}
+
+          {/* Applicants Modal */}
+          <Modal
+            visible={showApplicantsModal}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowApplicantsModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    Applicants {selectedJob ? `- ${selectedJob.title}` : ''}
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowApplicantsModal(false)}>
+                    <X size={24} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+
+                {loadingApplicants && (
+                  <View style={styles.modalLoading}>
+                    <ActivityIndicator size="large" color="#176B51" />
+                    <Text style={styles.loadingText}>Loading applicants...</Text>
+                  </View>
+                )}
+
+                {!loadingApplicants && applicants.length === 0 && (
+                  <View style={styles.emptyApplicants}>
+                    <Users size={48} color="#CBD5E1" />
+                    <Text style={styles.emptyApplicantsText}>No applicants yet</Text>
+                  </View>
+                )}
+
+                {!loadingApplicants && applicants.length > 0 && (
+                  <ScrollView style={styles.applicantsList}>
+                    {applicants.map((applicant) => (
+                      <View key={applicant.application_id} style={styles.applicantCard}>
+                        <View style={styles.applicantHeader}>
+                          {applicant.student?.avatar_url ? (
+                            <Image 
+                              source={{ uri: applicant.student.avatar_url }} 
+                              style={styles.applicantAvatar}
+                            />
+                          ) : (
+                            <View style={styles.applicantAvatarPlaceholder}>
+                              <User size={24} color="#64748B" />
+                            </View>
+                          )}
+                          <View style={styles.applicantInfo}>
+                            <Text style={styles.applicantEmail}>{applicant.student?.email}</Text>
+                            {applicant.student?.school_name && (
+                              <Text style={styles.applicantDetail}>🎓 {applicant.student.school_name}</Text>
+                            )}
+                            {applicant.student?.field_of_study && (
+                              <Text style={styles.applicantDetail}>📚 {applicant.student.field_of_study}</Text>
+                            )}
+                            {applicant.student?.academic_year && (
+                              <Text style={styles.applicantDetail}>📅 {applicant.student.academic_year}</Text>
+                            )}
+                            {applicant.student?.phone && (
+                              <Text style={styles.applicantDetail}>📞 {applicant.student.phone}</Text>
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.applicantStatus}>
+                          <View style={[
+                            styles.statusBadge,
+                            applicant.status === 'pending' ? styles.statusPending : 
+                            applicant.status === 'accepted' ? styles.statusAccepted : 
+                            styles.statusRejected
+                          ]}>
+                            <Text style={styles.statusText}>{applicant.status}</Text>
+                          </View>
+                          <Text style={styles.appliedDate}>
+                            Applied: {new Date(applicant.applied_at).toLocaleDateString('nl-BE')}
+                          </Text>
+                        </View>
+
+                        {applicant.status === 'pending' && selectedJob && (
+                          <View style={styles.applicantActions}>
+                            <TouchableOpacity 
+                              style={styles.acceptBtn}
+                              onPress={() => handleUpdateApplication(selectedJob.id, applicant.application_id, 'accepted')}
+                            >
+                              <Text style={styles.acceptBtnText}>Accept</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                              style={styles.rejectBtn}
+                              onPress={() => handleUpdateApplication(selectedJob.id, applicant.application_id, 'rejected')}
+                            >
+                              <Text style={styles.rejectBtnText}>Reject</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+          </Modal>
 
           {/* FOOTER */}
           <View style={styles.footer}>
@@ -618,11 +765,28 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: "#F1F5F9",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   jobPrice: {
     fontSize: 15,
     fontWeight: "700",
     color: "#176B51",
+  },
+  viewApplicantsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+  },
+  viewApplicantsText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#176B51',
   },
   loadingWrapper: {
     alignItems: "center",
@@ -729,5 +893,140 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "500",
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a2e4c',
+    flex: 1,
+  },
+  modalLoading: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyApplicants: {
+    padding: 60,
+    alignItems: 'center',
+  },
+  emptyApplicantsText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#64748B',
+  },
+  applicantsList: {
+    padding: 16,
+  },
+  applicantCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  applicantHeader: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  applicantAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginRight: 12,
+  },
+  applicantAvatarPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  applicantInfo: {
+    flex: 1,
+  },
+  applicantEmail: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1a2e4c',
+    marginBottom: 4,
+  },
+  applicantDetail: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 2,
+  },
+  applicantStatus: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statusPending: {
+    backgroundColor: '#FEF3C7',
+  },
+  statusAccepted: {
+    backgroundColor: '#DCFCE7',
+  },
+  statusRejected: {
+    backgroundColor: '#FEE2E2',
+  },
+  appliedDate: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  applicantActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  acceptBtn: {
+    flex: 1,
+    backgroundColor: '#176B51',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  acceptBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  rejectBtn: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  rejectBtnText: {
+    color: '#64748B',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
