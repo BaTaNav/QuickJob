@@ -43,38 +43,27 @@ export default function StudentDashboard() {
   const [pendingApplications, setPendingApplications] = React.useState<any[]>([]);
   const [dashboardData, setDashboardData] = React.useState<any>({ today: [], upcoming: [], pending: [], archive: [] });
 
-  // Keep the original default categories, but augment with categories discovered from jobs
-  const DEFAULT_CATEGORIES = ['Hospitality', 'Retail', 'Office', 'Event', 'Other', 'Gardening', 'Pet care'];
+  // Canonical job categories (kept in sync with PostJob.JOB_CATEGORIES)
+  const JOB_CATEGORIES = [
+    { id: 1, key: 'cleaning', name_nl: 'Schoonmaak', name_fr: 'Nettoyage', name_en: 'Cleaning' },
+    { id: 2, key: 'garden', name_nl: 'Tuinwerk', name_fr: 'Jardinage', name_en: 'Gardening' },
+    { id: 3, key: 'repair', name_nl: 'Reparatie', name_fr: 'Réparation', name_en: 'Repair' },
+    { id: 4, key: 'moving', name_nl: 'Verhuizing', name_fr: 'Déménagement', name_en: 'Moving' },
+    { id: 5, key: 'handyman', name_nl: 'Klusjeswerk', name_fr: 'Bricolage', name_en: 'Handyman' },
+    { id: 6, key: 'petcare', name_nl: 'Dierenverzorging', name_fr: 'Soins pour animaux', name_en: 'Pet care' },
+  ];
+
+  // Only show categories available in PostJob (canonical list). Prepend an 'All' option.
   const categoryOptions = React.useMemo(() => {
-    const map = new Map<string, { id: number | null; name: string }>();
-
-    
-    map.set('All', { id: null, name: 'All' });
-
-    // start with defaults (no id)
-    DEFAULT_CATEGORIES.forEach((name) => map.set(name, { id: null, name }));
-
-    // merge discovered categories from jobs; prefer attaching id when available
-    availableJobs.forEach((job) => {
-      const cat = job?.category;
-      const name = cat?.name_en || 'Other';
-      const id = cat?.id ?? null;
-      const existing = map.get(name);
-      if (existing) {
-        // if existing has no id and we discovered an id, update it
-        if (!existing.id && id) map.set(name, { id, name });
-      } else {
-        map.set(name, { id, name });
-      }
-    });
-
-    return Array.from(map.values());
-  }, [availableJobs]);
+    const opts: Array<{ id: number | null; name: string }> = [{ id: null, name: 'All' }];
+    JOB_CATEGORIES.forEach((c) => opts.push({ id: c.id, name: c.name_en }));
+    return opts;
+  }, []);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [showFilters, setShowFilters] = React.useState(false);
   const [filterRange, setFilterRange] = React.useState(20);
-  const [filterCategory, setFilterCategory] = React.useState('All');
+  const [filterCategory, setFilterCategory] = React.useState<number | 'All'>('All');
   const [filterDate, setFilterDate] = React.useState('Any');
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
   const [userLocation, setUserLocation] = React.useState<{ latitude: number; longitude: number } | null>(null);
@@ -199,7 +188,10 @@ export default function StudentDashboard() {
     filtered = filtered.filter(job => !appliedJobIds.has(job.id));
     
     if (filterCategory !== 'All') {
-      filtered = filtered.filter(job => job.category === filterCategory);
+      filtered = filtered.filter(job => {
+        const catId = job?.category?.id ?? null;
+        return catId === filterCategory;
+      });
     }
 
     if (filterDate === 'Today') {
@@ -299,9 +291,19 @@ export default function StudentDashboard() {
             <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
           </View>
           
-          <Pressable onPress={fetchAvailable} style={styles.refreshBtn}>
-             <RefreshCw size={20} color="#64748B" />
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable onPress={fetchAvailable} style={styles.refreshBtn}>
+              <RefreshCw size={20} color="#64748B" />
+            </Pressable>
+
+            <Pressable onPress={() => setShowFilters(s => !s)} style={styles.filterToggleBtn}>
+              <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Filters'}</Text>
+            </Pressable>
+
+            <Pressable onPress={() => setShowAllJobs(v => !v)} style={[styles.filterToggleBtn, { backgroundColor: showAllJobs ? '#176B51' : undefined }]}> 
+              <Text style={[styles.filterToggleText, showAllJobs ? { color: '#fff' } : {}]}>{showAllJobs ? 'Showing all' : 'Show all'}</Text>
+            </Pressable>
+          </View>
         </View>
 
       {/* DOCUMENT BANNER (hidden by default while testing) */}
@@ -344,6 +346,56 @@ export default function StudentDashboard() {
           </TouchableOpacity>
         </ScrollView>
       </View>
+
+      {showFilters && (
+        <View style={styles.filterRow}>
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Category</Text>
+            <View style={styles.filterPills}>
+              {categoryOptions.map((opt) => (
+                <Pressable
+                  key={`${opt.id ?? opt.name}`}
+                  onPress={() => setFilterCategory(opt.id === null ? 'All' : (opt.id as number))}
+                  style={[
+                    styles.filterBtn,
+                    (opt.id === null && filterCategory === 'All') || (opt.id !== null && filterCategory === opt.id) ? styles.filterBtnActive : undefined,
+                  ]}
+                >
+                  <Text style={(opt.id === null && filterCategory === 'All') || (opt.id !== null && filterCategory === opt.id) ? styles.filterBtnTextActive : styles.filterBtnText}>{opt.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Radius (km)</Text>
+            <TextInput
+              style={styles.dateInput}
+              keyboardType="numeric"
+              value={String(filterRange)}
+              onChangeText={(t) => setFilterRange(Number(t) || 0)}
+            />
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Date</Text>
+            <View style={styles.filterPills}>
+              {['Any', 'Today', 'This week', 'Specific'].map((d) => (
+                <Pressable
+                  key={d}
+                  onPress={() => setFilterDate(d)}
+                  style={[styles.filterBtn, filterDate === d && styles.filterBtnActive]}
+                >
+                  <Text style={filterDate === d ? styles.filterBtnTextActive : styles.filterBtnText}>{d}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {filterDate === 'Specific' && (
+              <TextInput style={[styles.dateInput, { marginTop: 8 }]} placeholder="YYYY-MM-DD" value={selectedDate ?? ''} onChangeText={setSelectedDate} />
+            )}
+          </View>
+        </View>
+      )}
 
         {/* CONTENT */}
         {loading ? (

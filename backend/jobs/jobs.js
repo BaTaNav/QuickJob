@@ -411,8 +411,8 @@ router.post("/", async (req, res) => {
  * POST /jobs/draft
  * Save a draft job (status=draft)
  */
-// POST /jobs - Create a new job
-router.post("/", async (req, res) => {
+// POST /jobs/draft - Save a draft job (status=draft)
+router.post("/draft", async (req, res) => {
   try {
     const {
       client_id,
@@ -479,7 +479,7 @@ router.post("/", async (req, res) => {
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
         start_time,
-        status: "open",
+        status: "draft",
         created_at: new Date().toISOString(),
         image_url: image_url || null,
       })
