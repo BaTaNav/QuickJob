@@ -134,97 +134,9 @@ export default function PostJob() {
   const [image, setImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-const renderCenteredPicker = (
-  visible: boolean,
-  setVisible: (v: boolean) => void,
-  dateValue: Date,
-  setDateValue: (d: Date) => void,
-  mode: "date" | "time"
-) => {
-  const [manualText, setManualText] = useState("");
 
-  useEffect(() => {
-    if (visible) {
-      // Pre-fill manual input when opening
-      setManualText(
-        mode === "time"
-          ? dateValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-          : dateValue.toISOString().split('T')[0]
-      );
-    }
-  }, [visible]);
+  // --- PASTE THIS BLOCK INSIDE THE COMPONENT ---
 
-  const handleManualInput = (text: string) => {
-    setManualText(text);
-    if (mode === "time") {
-      // Simple HH:MM validation and parsing
-      const [hours, minutes] = text.split(':').map(Number);
-      if (!isNaN(hours) && !isNaN(minutes) && hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60) {
-        const newDate = new Date(dateValue);
-        newDate.setHours(hours);
-        newDate.setMinutes(minutes);
-        setDateValue(newDate);
-      }
-    } else {
-      // Date parsing (YYYY-MM-DD)
-      const parsedDate = new Date(text);
-      if (!isNaN(parsedDate.getTime())) {
-        setDateValue(parsedDate);
-      }
-    }
-  };
-
-  return (
-    <Modal
-      animationType="fade"
-      transparent={true}
-      visible={visible}
-      onRequestClose={() => setVisible(false)}
-    >
-      <View style={styles.centeredModalView}>
-        <View style={styles.modalContent}>
-          <Text style={styles.label}>
-            {mode === "time" ? "Set Time" : "Set Date"}
-          </Text>
-
-          {/* Manual Keyboard Input */}
-          <TextInput
-            style={styles.manualInput}
-            placeholder={mode === "time" ? "HH:MM" : "YYYY-MM-DD"}
-            value={manualText}
-            onChangeText={handleManualInput}
-            keyboardType={mode === "time" ? "numbers-and-punctuation" : "default"}
-          />
-
-          {/* Wheel Picker */}
-          <DateTimePicker
-            value={dateValue}
-            mode={mode}
-            display="spinner" // Forces centered spinner style on iOS
-            onChange={(e, d) => {
-              if (d) {
-                setDateValue(d);
-                setManualText(
-                  mode === "time"
-                    ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-                    : d.toISOString().split('T')[0]
-                );
-              }
-            }}
-            style={{ width: "100%", height: 150 }}
-          />
-
-          <TouchableOpacity
-            style={styles.confirmButton}
-            onPress={() => setVisible(false)}
-          >
-            <Text style={styles.confirmButtonText}>Confirm</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-};
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -249,13 +161,75 @@ const renderCenteredPicker = (
   // Native Pickers State
   const [pickerMode, setPickerMode] = useState<"date" | "startTime" | "endTime" | null>(null);
 
-  // Web Modal State
-  const [webModal, setWebModal] = React.useState<null | { mode: 'date' | 'time'; target: 'date' | 'start' | 'end'; value: string }>(null);
+  // Web Modal State (coords will be used to position modal near the trigger on web)
+  const [webModal, setWebModal] = React.useState<null | { mode: 'date' | 'time'; target: 'date' | 'start' | 'end'; value: string; coords?: { top: number; left: number; width?: number } }>(null);
   const webModalInputRef = React.useRef<any>(null);
 
-  // Open Web Modal (Centering Logic is in Styles)
+  // Refs to anchor the popup to the DOM nodes on web
+  const dateSelectorRef = React.useRef<any>(null);
+  const startTimeRef = React.useRef<any>(null);
+  const endTimeRef = React.useRef<any>(null);
+
+  // Open Web Modal (Positioning logic attempts to anchor to the trigger on web)
   const openWebModal = (mode: 'date' | 'time', target: 'date' | 'start' | 'end', initialDate: Date | null) => {
     const value = mode === 'date' ? formatDateForInput(initialDate || new Date()) : formatTimeForInput(initialDate || new Date());
+
+    if (Platform.OS === 'web') {
+      try {
+        let el: any = null;
+        if (target === 'date') el = dateSelectorRef.current;
+        else if (target === 'start') el = startTimeRef.current;
+        else el = endTimeRef.current;
+
+        if (el && typeof el.getBoundingClientRect === 'function') {
+          const rect = el.getBoundingClientRect();
+
+          // Pin modal above the trigger (user preference) and clamp to viewport
+          const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+          const cardHeight = 320; // estimated card height (include header/actions)
+          const smallGap = 8; // gap between trigger and modal
+
+          let top: number;
+          let left: number;
+          const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+
+          if (target === 'date') {
+            // Pin modal to top of the viewport (below header) and center it horizontally
+            const preferredCardWidth = Math.min(520, Math.floor(rect.width || (viewportWidth * 0.95)));
+            const topMargin = 64; // distance below top of viewport (adjust to position below header)
+
+            top = Math.max(8, Math.floor((window.scrollY || 0) + topMargin));
+            const maxTop = (viewportHeight + (window.scrollY || 0)) - cardHeight - 8;
+            top = Math.min(top, maxTop);
+
+            left = Math.floor((viewportWidth - preferredCardWidth) / 2);
+            left = Math.max(8, Math.min(left, viewportWidth - preferredCardWidth - 8));
+
+            // Store width so we can set the modal card size to match
+            setWebModal({ mode, target, value, coords: { top, left, width: preferredCardWidth } });
+            return;
+          } else {
+            // Default: center over the trigger and clamp to viewport
+            top = Math.floor((rect.top + (window.scrollY || 0)) - cardHeight - smallGap);
+            top = Math.max(8, top);
+            const maxTop = (viewportHeight + (window.scrollY || 0)) - cardHeight - 8;
+            top = Math.min(top, maxTop);
+
+            const cardWidth = Math.min(420, Math.floor(viewportWidth * 0.95));
+            left = Math.floor((rect.left + (window.scrollX || 0)) + rect.width / 2 - cardWidth / 2);
+            left = Math.max(8, Math.min(left, viewportWidth - cardWidth - 8));
+
+            setWebModal({ mode, target, value, coords: { top, left, width: cardWidth } });
+            return;
+          }
+        }
+      } catch (err) {
+        // Fall back to centered modal if anything fails
+        console.warn('Could not compute anchor for web modal', err);
+      }
+    }
+
+    // Default (centered) behavior
     setWebModal({ mode, target, value });
   };
 
@@ -413,10 +387,10 @@ const renderCenteredPicker = (
   // Add this constant at the TOP of your file (outside the component) if not already there
   const API_URL = 'http://localhost:3000'; // Use your computer's IP if on real device
 
-// ... imports remain the same
+  // ... imports remain the same
 
- 
-const handlePostJob = async () => {
+
+  const handlePostJob = async () => {
     // 1. Validation
     if (!formData.client_id) {
       Alert.alert("Error", "Sessie verlopen. Log opnieuw in.");
@@ -435,7 +409,7 @@ const handlePostJob = async () => {
       if (image) {
         const uploadBody = new FormData();
         const filename = image.split('/').pop() || 'upload.jpg';
-        
+
         if (Platform.OS === 'web') {
           // --- WEB SPECIFIC LOGIC ---
           // On web, we must fetch the URI and convert to a Blob
@@ -446,7 +420,7 @@ const handlePostJob = async () => {
           // --- MOBILE SPECIFIC LOGIC ---
           const match = /\.(\w+)$/.exec(filename);
           const type = match ? `image/${match[1]}` : `image/jpeg`;
-          
+
           // @ts-ignore
           uploadBody.append('image', {
             uri: image,
@@ -463,11 +437,11 @@ const handlePostJob = async () => {
         });
 
         const uploadData = await uploadRes.json();
-        
+
         if (!uploadRes.ok) {
-           throw new Error(uploadData.error || "Image upload failed");
+          throw new Error(uploadData.error || "Image upload failed");
         }
-        
+
         if (uploadData.url) {
           uploadedImageUrl = uploadData.url;
         }
@@ -687,6 +661,7 @@ const handlePostJob = async () => {
                 <View style={styles.card}>
                   <Text style={styles.label}>Datum</Text>
                   <TouchableOpacity
+                    ref={dateSelectorRef}
                     style={styles.dateSelector}
                     onPress={() => {
                       if (Platform.OS === 'web') {
@@ -716,6 +691,7 @@ const handlePostJob = async () => {
                   <View style={[styles.card, { flex: 1 }]}>
                     <Text style={styles.label}>Starttijd</Text>
                     <TouchableOpacity
+                      ref={startTimeRef}
                       style={styles.timeSelector}
                       onPress={() => {
                         if (Platform.OS === 'web') {
@@ -745,7 +721,7 @@ const handlePostJob = async () => {
                   <View style={[styles.card, { flex: 1 }]}>
                     <Text style={styles.label}>Eindtijd (optioneel)</Text>
                     <TouchableOpacity
-
+                      ref={endTimeRef}
                       style={styles.timeSelector}
                       onPress={() => {
                         if (Platform.OS === 'web') {
@@ -959,7 +935,10 @@ const handlePostJob = async () => {
             {Platform.OS === 'web' && webModal && (
               <Pressable style={styles.webModalOverlay} onPress={() => cancelWebModal()}>
                 <Pressable
-                  style={styles.webModalCard}
+                  style={[
+                    styles.webModalCard,
+                    webModal?.coords ? { position: 'absolute', top: webModal.coords.top, left: webModal.coords.left, width: webModal.coords.width } : { alignSelf: 'center' }
+                  ]}
                   onPress={(e: any) => e.stopPropagation()}
                 >
                   <TouchableOpacity onPress={cancelWebModal} style={{ position: 'absolute', top: 10, right: 10, padding: 6 }} accessibilityLabel="Close picker">
@@ -985,11 +964,6 @@ const handlePostJob = async () => {
                     onKeyDown={(e: any) => { if (e.key === 'Enter') confirmWebModal(); if (e.key === 'Escape') cancelWebModal(); }}
                     style={styles.webModalInput as any}
                   />
-                  <TouchableOpacity onPress={pickImage} style={styles.imagePicker}>
-                    <Text style={styles.imagePickerText}>
-                      {image ? "Change Photo" : "Add Photo"}
-                    </Text>
-                  </TouchableOpacity>
 
                   {image && (
                     <Image source={{ uri: image }} style={{ width: '100%', height: 200, borderRadius: 10, marginTop: 10 }} />
@@ -1067,15 +1041,7 @@ const handlePostJob = async () => {
       </KeyboardAvoidingView>
 
       {/* --- Native Modals --- */}
-      {Platform.OS !== 'web' && pickerMode && DateTimePicker && (
-        <DateTimePicker
-          value={formData.start_time}
-          mode={pickerMode === 'date' ? 'date' : 'time'}
-          is24Hour={true}
-          display="spinner"
-          onChange={onDateTimeChange}
-        />
-      )}
+
     </SafeAreaView>
   );
 }
@@ -1578,77 +1544,45 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  /* Web modal picker styles */
+/* Web modal picker styles */
   webModalOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'flex-start', // 1. Align content to the TOP of the screen
+    alignItems: 'center',         // 2. Center content HORIZONTALLY
+    backgroundColor: 'rgba(0,0,0,0.5)',
     zIndex: 9999,
-    padding: 16,
   },
   webModalCard: {
-    width: 'min(420px, 95vw)',
-    maxWidth: '95vw',
+    width: '90%',
+    maxWidth: 400,
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    alignSelf: 'center',
-    boxSizing: 'border-box' as any,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 12,
-  },
-  centeredModalView: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContent: {
-    backgroundColor: "white",
     borderRadius: 20,
-    padding: 35,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
     shadowOpacity: 0.25,
     shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
     elevation: 5,
-    width: "80%",
+    
+    // 3. Pushes the card down from the very top of the screen.
+    // Adjust '170' up or down to match the exact vertical position of your "Starttijd" field.
+    marginTop: 170, 
   },
-  manualInput: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
-    width: "100%",
-    marginVertical: 10,
-    fontSize: 16,
-    textAlign: "center",
+  webModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111',
+    textAlign: 'center',
+    marginBottom: 8
   },
-  confirmButton: {
-    backgroundColor: "#000",
-    borderRadius: 10,
-    padding: 10,
-    elevation: 2,
-    marginTop: 10,
-    minWidth: 100,
+  webModalInput: {
+    fontSize: 18,
+    padding: 10, marginTop: 12,
+    width: 280, borderWidth: 1,
+    borderColor: '#ccc', borderRadius: 6,
+    textAlign: 'center'
   },
-  confirmButtonText: {
-    color: "white",
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  webModalTitle: { fontSize: 18, fontWeight: '700', color: '#111', textAlign: 'center', marginBottom: 8 },
-  webModalInput: { fontSize: 18, padding: 12, marginTop: 12, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: '#ccc', borderRadius: 6, textAlign: 'center' },
   webModalButtonPrimary: { backgroundColor: '#176B51', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
   webModalButtonSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#F3F4F6' },
 });
