@@ -1,8 +1,38 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View,Image, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, Image, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as React from "react";
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock } from 'lucide-react-native';
+import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock, MapPin, Briefcase } from 'lucide-react-native';
 import { jobsAPI, studentAPI, getStudentId } from '../../services/api';
+
+// Platform detection
+const isWeb = Platform.OS === 'web';
+
+// Job type definition
+interface Job {
+  id: number;
+  title: string;
+  description?: string;
+  hourly_rate?: number;
+  fixed_price?: number;
+  duration?: number;
+  area_text?: string;
+  location?: string;
+  start_time?: string;
+  image_url?: string;
+  latitude?: number;
+  longitude?: number;
+  hourly_or_fixed?: 'hourly' | 'fixed';
+  category?: {
+    id?: number;
+    name_en?: string;
+    name_nl?: string;
+  };
+  street?: string;
+  house_number?: string;
+  postal_code?: string;
+  city?: string;
+}
 
 export default function StudentDashboard() {
   const params = useLocalSearchParams();
@@ -227,7 +257,7 @@ export default function StudentDashboard() {
     return filtered;
   }, [availableJobs, pendingApplications, filterCategory, filterDate, selectedDate, userLocation, filterRange]);
 
-  const mockJobs: Record<string, Array<any>> = {
+  const mockJobs: Record<'today' | 'upcoming' | 'available' | 'pending' | 'archive', Array<any>> = {
     today: [],
     upcoming: [],
     available: availableJobs,
@@ -236,6 +266,10 @@ export default function StudentDashboard() {
   };
 
   const jobs = mockJobs[tab] ?? [];
+  
+  // Bepaal welke lijst getoond moet worden
+  const displayJobs = tab === 'available' ? filteredJobs : jobs;
+  
   const formatJobAddress = (job: any) => {
     // Prefer structured fields, fall back to area_text
     const parts: string[] = [];
@@ -253,21 +287,22 @@ export default function StudentDashboard() {
 
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
-      {/* HEADER */}
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.pageTitle}>Student Dashboard</Text>
-          <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFB" }} edges={['top']}>
+      <ScrollView 
+        style={{ flex: 1 }} 
+        contentContainerStyle={[styles.container, !isWeb && styles.containerMobile]}
+      >
+        {/* HEADER */}
+        <View style={[styles.headerRow, !isWeb && styles.headerRowMobile]}>
+          <View>
+            <Text style={styles.pageTitle}>Student Dashboard</Text>
+            <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
+          </View>
+          
+          <Pressable onPress={fetchAvailable} style={styles.refreshBtn}>
+             <RefreshCw size={20} color="#64748B" />
+          </Pressable>
         </View>
-
-        <Pressable
-          onPress={handleRefresh} // Use the simplified native refresh handler
-          style={styles.headerRefresh}
-        >
-          <RefreshCw size={18} color="#64748B" />
-        </Pressable>
-      </View>
 
       {/* DOCUMENT BANNER (hidden by default while testing) */}
       {false && ( // Conditional rendering is correct
@@ -310,176 +345,106 @@ export default function StudentDashboard() {
         </ScrollView>
       </View>
 
-      {/* FILTERS */}
-      <View style={styles.tabFilterRow}>
-        <View />
-        <View style={styles.filterToggleContainer}>
-          <TouchableOpacity style={styles.filterToggleBtn} onPress={() => setShowFilters(!showFilters)}>
-            <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Show filters'}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {showFilters && (
-        <View style={styles.filterRow}>
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Category</Text>
-            <View style={styles.filterPills}>
-              {['All', 'Hospitality', 'Retail', 'Office', 'Event', 'Other'].map((cat) => (
+        {/* CONTENT */}
+        {loading ? (
+          <ActivityIndicator size="large" color="#176B51" style={{ marginTop: 40 }} />
+        ) : displayJobs.length > 0 ? (
+          tab === 'available' ? (
+            <View style={[styles.jobsGrid, !isWeb && styles.jobsListMobile]}>
+              {displayJobs.map((job: Job) => (
                 <TouchableOpacity 
-                  key={cat} 
-                  style={[styles.filterBtn, filterCategory === cat && styles.filterBtnActive]} 
-                  onPress={() => setFilterCategory(cat)}
-                >
-                  <Text style={filterCategory === cat ? styles.filterBtnTextActive : styles.filterBtnText}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Date</Text>
-            <View style={styles.filterPills}>
-              {['Any', 'Today', 'This week', 'Specific'].map((dateOpt) => (
-                <TouchableOpacity 
-                  key={dateOpt} 
-                  style={[styles.filterBtn, filterDate === dateOpt && styles.filterBtnActive]} 
-                  onPress={() => setFilterDate(dateOpt)}
-                >
-                  <Text style={filterDate === dateOpt ? styles.filterBtnTextActive : styles.filterBtnText}>{dateOpt}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {filterDate === 'Specific' && (
-              <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {Platform.OS === 'web' ? (
-                  <input 
-                    type="date" 
-                    value={selectedDate || ''} 
-                    onChange={(e: any) => setSelectedDate(e.target.value)} 
-                    style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }} 
-                  />
-                ) : (
-                  <TextInput 
-                    placeholder="YYYY-MM-DD" 
-                    value={selectedDate || ''} 
-                    onChangeText={setSelectedDate} 
-                    style={styles.dateInput} 
-                  />
-                )}
-
-                <TouchableOpacity onPress={() => { setSelectedDate(null); setFilterDate('Any'); }} style={styles.clearDateBtn}>
-                  <Text style={styles.clearDateText}>Clear</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-
-          <View style={[styles.filterGroup, { maxWidth: 220 }]}>
-            <Text style={styles.filterLabel}>Distance (km)</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {Platform.OS === 'web' ? (
-                <input
-                  type="number"
-                  min={0}
-                  value={String(filterRange)}
-                  onChange={(e: any) => setFilterRange(Number(e.target.value || 0))}
-                  style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0', width: 100 }}
-                  disabled={showAllJobs}
-                />
-              ) : (
-                <TextInput
-                  keyboardType="numeric"
-                  value={String(filterRange)}
-                  onChangeText={(t) => setFilterRange(Number(t || 0))}
-                  style={[styles.dateInput, { minWidth: 100 }]}
-                  editable={!showAllJobs}
-                />
-              )}
-
-              <TouchableOpacity style={[styles.filterBtn, showAllJobs && styles.filterBtnActive]} onPress={() => setShowAllJobs(!showAllJobs)}>
-                <Text style={showAllJobs ? styles.filterBtnTextActive : styles.filterBtnText}>{showAllJobs ? 'Show all jobs' : 'Filter by distance'}</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={{ fontSize: 12, color: '#64748B', marginTop: 6 }}>{showAllJobs ? 'Showing all jobs (distance filter off).' : 'Uses your location (best-effort).'}</Text>
-          </View>
-        </View>
-      )}
-
-      {/* JOB LIST or EMPTY STATE */}
-      {loading && (
-        <View style={styles.loadingState}>
-          <ActivityIndicator color="#176B51" />
-          <Text style={styles.emptySubtitle}>Jobs ophalen...</Text>
-        </View>
-      )}
-
-      {!loading && error ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>⚠️</Text>
-          <Text style={styles.emptyTitle}>Kon jobs niet laden</Text>
-          <Text style={styles.emptySubtitle}>{error}</Text>
-          <TouchableOpacity style={styles.bannerBtn} onPress={handleRefresh}>
-            <Text style={styles.bannerBtnText}>Opnieuw proberen</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {!loading && !error && jobs.length > 0 ? (
-        <View style={styles.jobsContainer}>
-          <View style={styles.jobsList}>
-            {tab === 'pending' ? (
-              // Render pending applications
-              pendingApplications.map((app: any) => (
-                <Pressable 
-                  key={app.id} 
-                  style={styles.jobCard} 
-                  onPress={() => router.push(`/Student/Applied/${app.id}` as never)} 
-                >
-                  <View style={styles.pendingHeader}>
-                    <Clock size={16} color="#F59E0B" />
-                    <Text style={styles.pendingBadge}>Pending Review</Text>
-                  </View>
-                  <Text style={styles.jobTitle}>{app.jobs?.title || 'Job'}</Text>
-                  <Text style={styles.jobDescription}>{app.jobs?.description || 'Geen beschrijving'}</Text>
-                  <Text style={styles.jobMeta}>
-                    Applied: {new Date(app.applied_at).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    {app.jobs?.start_time ? ` • Starts: ${new Date(app.jobs.start_time).toLocaleDateString('nl-BE')}` : ''}
-                    {app.jobs?.area_text ? ` • ${app.jobs.area_text}` : ''}
-                  </Text>
-                </Pressable>
-              ))
-            ) : (
-              // Render available jobs
-              filteredJobs.map((job: any) => (
-                <Pressable 
                   key={job.id} 
-                  style={styles.jobCard} 
-                  onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
+                  style={[
+                    styles.jobCard,
+                    isWeb ? { width: '48%' } : styles.jobCardMobile
+                  ]}
+                  onPress={() => router.push(`/Student/Job/${job.id}`)}
                 >
-                  {/* Add Image Here */}
-  {job.image_url && (
-    <Image 
-      source={{ uri: job.image_url }} 
-      style={styles.jobImage}
-    />
-  )}
-                <Text style={styles.jobTitle}>{job.title}</Text>
-                  <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
-                  <Text style={styles.jobMeta}>
-                    {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
-                    {formatJobAddress(job) ? ` • ${formatJobAddress(job)}` : ''}
-                    {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
-                    {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
+                  <View style={styles.jobHeader}>
+                    <Text style={styles.jobTitle}>{job.title}</Text>
+                    <View style={styles.priceBadge}>
+                      <Text style={styles.priceText}>€{job.hourly_rate || job.fixed_price}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.jobDetails}>
+                    <View style={styles.detailRow}>
+                      <MapPin size={14} color="#64748B" />
+                      <Text style={styles.detailText}>{job.area_text || job.location || 'Unknown location'}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                       <Clock size={14} color="#64748B" />
+                       <Text style={styles.detailText}>
+                         {job.duration ? `${job.duration} hrs` : 'Flexible'}
+                       </Text>
+                    </View>
+                    {job.category && (
+                      <View style={styles.detailRow}>
+                        <Briefcase size={14} color="#64748B" />
+                        <Text style={styles.detailText}>
+                          {job.category.name_nl || job.category.name_en || 'General'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <Text style={styles.jobDesc} numberOfLines={2}>
+                    {job.description}
                   </Text>
-                </Pressable>
-              ))
-            )}
-          </View>
-        </View>
-      ) : (
-        <View style={styles.emptyState}>
+                  
+                  <View style={styles.cardFooter}>
+                    <Text style={styles.postedTime}>
+                         {job.start_time ? new Date(job.start_time).toLocaleDateString() : 'Flexible date'}
+                    </Text>
+                    <Text style={styles.viewLink}>View Details →</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.jobsContainer}>
+              <View style={styles.jobsList}>
+                {displayJobs.map((item: any) => {
+                  const isPending = tab === 'pending';
+                  const job = isPending ? item.jobs : item;
+                  
+                  return (
+                    <Pressable 
+                      key={item.id} 
+                      style={styles.jobCard} 
+                      onPress={() => router.push(isPending ? `/Student/Applied/${item.id}` : `/Student/Job/${item.id}` as any)}
+                    >
+                      {isPending && (
+                        <View style={styles.pendingHeader}>
+                          <Clock size={16} color="#F59E0B" />
+                          <Text style={styles.pendingBadge}>Pending Review</Text>
+                        </View>
+                      )}
+                      
+                      {job?.image_url && (
+                        <Image 
+                          source={{ uri: job.image_url }} 
+                          style={styles.jobImage}
+                        />
+                      )}
+                      
+                      <Text style={styles.jobTitle}>{job?.title || 'Job'}</Text>
+                      <Text style={styles.jobDescription}>{job?.description || 'Geen beschrijving'}</Text>
+                      <Text style={styles.jobMeta}>
+                        {isPending && `Applied: ${new Date(item.applied_at).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                        {job?.start_time ? ` • ${isPending ? 'Starts: ' : ''}${new Date(job.start_time).toLocaleString('nl-BE')}` : ''}
+                        {formatJobAddress(job) ? ` • ${formatJobAddress(job)}` : ''}
+                        {job?.hourly_or_fixed === 'fixed' && job?.fixed_price ? ` • €${job.fixed_price}` : ''}
+                        {job?.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )
+        ) : (
+          <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>📄</Text>
           {/* Conditional Empty State Messages */}
           {tab === 'today' && (
@@ -523,7 +488,7 @@ export default function StudentDashboard() {
             </>
           )}
         </View>
-      )}
+        )}
 
       {/* FOOTER */}
       <View style={styles.footer}>
@@ -605,83 +570,78 @@ export default function StudentDashboard() {
           <Text style={styles.footerVersion}>v1.0.0</Text>
         </View>
       </View>
-
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
-/* STYLES */
+
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    paddingBottom: 10,
-    backgroundColor: "#fff",
+    padding: 30, // Web padding
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  // Mobiele override
+  containerMobile: {
+    padding: 16, // Minder padding op mobiel
+    maxWidth: '100%',
   },
 
-  /* HEADER */
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 24,
   },
+  headerRowMobile: {
+    marginBottom: 16,
+  },
+
   pageTitle: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "700",
-    marginTop: 10,
     color: "#1B1B1B",
   },
   pageSubtitle: {
     fontSize: 16,
     color: "#7A7F85",
-    marginBottom: 0,
+    marginTop: 4,
   },
-  headerRefresh: { 
-    padding: 6, 
-    borderRadius: 999, 
-    backgroundColor: '#F7F9FC',
-    // Added shadow for visual depth
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1.5,
-    elevation: 2, 
+  refreshBtn: {
+    padding: 10,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
 
-  /* DOCUMENT VERIFICATION BANNER */
-  banner: {
-    backgroundColor: "#FFF4D9",
-    borderLeftWidth: 4,
-    borderLeftColor: "#FFB01F",
-    padding: 18,
-    borderRadius: 12,
-    marginBottom: 28,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 3,
+  /* TABS */
+  tabContainer: {
+    marginBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  bannerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 8,
-    color: "#664D0E",
+  tabScroll: {
+    gap: 24,
+    paddingBottom: 2, // Ruimte voor border
   },
-  bannerText: {
-    fontSize: 14,
-    color: "#7C7C7C",
-    marginBottom: 16,
-    lineHeight: 20,
+  tabItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
-  bannerBtn: {
-    backgroundColor: "#FFB01F",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    alignSelf: "flex-start",
-    borderRadius: 8,
+  tabItemActive: {
+    borderBottomColor: '#176B51',
   },
-  bannerBtnText: {
-    color: "#fff",
+  tabText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#64748B",
+  },
+  tabTextActive: {
+    color: "#176B51",
     fontWeight: "600",
   },
 
@@ -722,14 +682,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#F59E0B',
   },
-  tabText: { color: "#7A7F85", fontWeight: "500" },
   tabActiveText: { color: "#fff", fontWeight: "600" },
 
-  /* JOB LIST */
-  jobsContainer: {
-    borderWidth: 1,
-    borderColor: '#E4E6EB',
-    borderRadius: 12,
+  /* CARD STYLE */
+  jobCard: {
     backgroundColor: '#fff',
     padding: 12,
     marginBottom: 12,
@@ -746,11 +702,6 @@ const styles = StyleSheet.create({
   marginBottom: 10,
 },
   
-  jobCard: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF0F2',
-  },
   jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
   jobDescription: { fontSize: 14, color: '#4A4A4A', marginBottom: 6 },
   jobMeta: { color: '#7A7F85', fontSize: 13 },
@@ -783,132 +734,248 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E4E6EB",
     borderRadius: 12,
-    backgroundColor: "#fff",
-    paddingHorizontal: 18,
+    padding: 20,
+    // Web: fallback width (wordt overschreven in JSX voor '48%')
+    width: '100%', 
+    minWidth: 300,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
+  // Mobiel: Volledige breedte
+  jobCardMobile: {
+    width: '100%',
+    minWidth: 0,
+    padding: 16,
+  },
+
+  jobHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  priceBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  priceText: {
+    color: '#059669',
+    fontWeight: "700",
+    fontSize: 14,
+  },
+
+  jobDetails: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 12,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  detailText: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+
+  jobDesc: {
+    fontSize: 14,
+    color: "#475569",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 'auto',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  postedTime: {
+    fontSize: 12,
+    color: "#94A3B8",
+  },
+  viewLink: {
+    fontSize: 14,
+    color: "#176B51",
+    fontWeight: "600",
+  },
+
+  /* BANNER */
+  banner: {
+    backgroundColor: '#FEF3C7',
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  bannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 8,
+  },
+  bannerText: {
+    fontSize: 14,
+    color: '#78350F',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  bannerBtn: {
+    backgroundColor: '#F59E0B',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  bannerBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+
+  /* EMPTY STATE */
   emptyState: {
-    paddingVertical: 90,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E4E6EB",
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    paddingHorizontal: 18,
+    paddingVertical: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyIcon: {
-    fontSize: 42,
+    fontSize: 48,
     marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 19,
-    fontWeight: "700",
-    marginBottom: 6,
-    color: "#1B1B1B",
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    maxWidth: 300,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: "#7A7F85",
-    textAlign: "center",
-    lineHeight: 20,
-    maxWidth: 260,
+    color: '#64748B',
+    textAlign: 'center',
+    maxWidth: 300,
+  },
+
+  /* JOBS GRID & LIST */
+  jobsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginBottom: 24,
+  },
+  jobsListMobile: {
+    flexDirection: 'column',
+    gap: 0,
+  },
+  jobsContainer: {
+    marginBottom: 40,
   },
 
   /* FOOTER */
   footer: {
     marginTop: 60,
     paddingTop: 40,
-    paddingBottom: 20,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    padding: 20,
+    borderTopColor: '#E2E8F0',
   },
   footerSection: {
-    marginBottom: 24,
+    marginBottom: 40,
   },
   footerTitle: {
     fontSize: 20,
-    fontWeight: "700",
-    color: "#176B51",
-    marginBottom: 8,
+    fontWeight: '700',
+    color: '#1B1B1B',
+    marginBottom: 12,
   },
   footerDescription: {
     fontSize: 14,
-    color: "#6B7280",
+    color: '#64748B',
     lineHeight: 20,
+    maxWidth: 300,
   },
   footerLinks: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 40,
+    flexWrap: 'wrap',
+    gap: 32,
   },
   footerColumn: {
     flex: 1,
+    minWidth: 150,
   },
   footerColumnTitle: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#1F2937",
+    fontWeight: '700',
+    color: '#1B1B1B',
     marginBottom: 12,
   },
   footerLink: {
     fontSize: 13,
-    color: "#6B7280",
+    color: '#64748B',
     marginBottom: 8,
   },
   footerSocial: {
-    marginBottom: 24,
-    alignItems: "center",
+    marginBottom: 40,
   },
   footerSocialTitle: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#1F2937",
+    fontWeight: '700',
+    color: '#1B1B1B',
     marginBottom: 12,
   },
   socialIcons: {
-    flexDirection: "row",
-    justifyContent: "center",
+    flexDirection: 'row',
     gap: 12,
   },
   socialIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  socialIconText: {
-    fontSize: 20,
+    borderRadius: 8,
+    backgroundColor: '#F4F6F7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   footerContact: {
-    alignItems: "center",
-    marginBottom: 20,
-    gap: 8,
+    marginBottom: 24,
   },
   footerContactText: {
     fontSize: 13,
-    color: "#6B7280",
+    color: '#64748B',
+    marginBottom: 8,
   },
   footerBottom: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 20,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: '#E2E8F0',
   },
   footerCopyright: {
     fontSize: 12,
-    color: "#9CA3AF",
+    color: '#94A3B8',
   },
   footerVersion: {
     fontSize: 12,
-    color: "#9CA3AF",
-    fontWeight: "500",
+    color: '#94A3B8',
   },
 });

@@ -99,396 +99,143 @@ router.get("/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
+    // Haal de basis users info op
+    const { data: user, error: userError } = await supabase
       .from("users")
-      .select("id, email, role, phone, preferred_language, two_factor_enabled, created_at")
+      .select("id, email, role, phone, preferred_language, created_at")
       .eq("id", id)
       .single();
 
-    if (error && error.code === "PGRST116") {
-      return res.status(404).json({ error: "User niet gevonden." });
+    if (userError && userError.code === "PGRST116") {
+      return res.status(404).json({ error: "Gebruiker niet gevonden." });
     }
-    if (error) throw error;
+    if (userError) throw userError;
 
-    res.status(200).json({ user: data });
+    let profileData = null;
+
+    // Haal extra profielinfo op afhankelijk van de rol
+    if (user.role === 'student') {
+        // CORRECTIE: tabelnaam is student_profiles
+        const { data: student, error: studentError } = await supabase
+            .from("student_profiles")
+            .select("*")
+            .eq("id", id) 
+            .single();
+        if (!studentError) profileData = student;
+    } else if (user.role === 'client') {
+        const { data: client, error: clientError } = await supabase
+            .from("clients")
+            .select("*")
+            .eq("id", id)
+            .single();
+        if (!clientError) profileData = client;
+    }
+
+    res.status(200).json({ user, profile: profileData });
   } catch (error) {
     console.error("Get user error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// PATCH /admin/users/:id - Update user
-router.patch("/users/:id", async (req, res) => {
+// ==================== STUDENT VERIFICATION ====================
+
+// GET /admin/students/pending
+router.get("/students/pending", async (req, res) => {
   try {
-    const { id } = req.params;
-    const { email, password, phone, preferred_language, two_factor_enabled } = req.body;
-
-    // Check if user exists
-    const { data: existing, error: existingError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("id", id)
-      .single();
-
-    if (existingError && existingError.code === "PGRST116") {
-      return res.status(404).json({ error: "User niet gevonden." });
-    }
-    if (existingError) throw existingError;
-
-    // Build updates
-    const updates = {};
-    if (email) updates.email = email;
-    if (phone !== undefined) updates.phone = phone;
-    if (preferred_language) updates.preferred_language = preferred_language;
-    if (two_factor_enabled !== undefined) updates.two_factor_enabled = two_factor_enabled;
-    
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updates.password_hash = await bcrypt.hash(password, salt);
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ error: "Geen velden om te updaten." });
-    }
-
     const { data, error } = await supabase
-      .from("users")
-      .update(updates)
-      .eq("id", id)
-      .select("id, email, role, phone, preferred_language, two_factor_enabled, created_at")
-      .single();
+      .from("student_profiles")
+      .select(`
+        *,
+        user:users!id (email, phone, created_at)
+      `)
+      .eq("verification_status", "pending");
+      // .order("created_at", { ascending: false }); // VERWIJDERD: kolom bestaat niet
 
     if (error) throw error;
 
-    res.status(200).json({
-      message: "User succesvol geüpdatet.",
-      user: data,
+    // Sorteer in JavaScript op user.created_at als backup
+    const students = data.map(s => ({
+        ...s,
+        email: s.user?.email,
+        phone: s.user?.phone || s.phone,
+        created_at: s.user?.created_at
+    })).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    res.status(200).json({ 
+      count: students.length,
+      students: students 
     });
   } catch (error) {
-    console.error("Update user error:", error);
+    console.error("Get pending students error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// DELETE /admin/users/:id - Delete user
-router.delete("/users/:id", async (req, res) => {
+// GET /admin/students/verified
+router.get("/students/verified", async (req, res) => {
   try {
-    const { id } = req.params;
-
     const { data, error } = await supabase
-      .from("users")
-      .delete()
-      .eq("id", id)
-      .select("id, email, role")
-      .single();
+      .from("student_profiles")
+      .select(`
+        *,
+        user:users!id (email, phone, created_at)
+      `)
+      .eq("verification_status", "verified")
+      .limit(50); 
+      // .order("created_at", { ascending: false }); // VERWIJDERD
 
-    if (error && error.code === "PGRST116") {
-      return res.status(404).json({ error: "User niet gevonden." });
-    }
     if (error) throw error;
 
-    res.status(200).json({
-      message: "User succesvol verwijderd.",
-      deleted_user: data,
+    const students = data.map(s => ({
+        ...s,
+        email: s.user?.email,
+        phone: s.user?.phone || s.phone,
+        created_at: s.user?.created_at
+    })).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));;
+
+    res.status(200).json({ 
+      count: students.length,
+      students: students 
     });
   } catch (error) {
-    console.error("Delete user error:", error);
+    console.error("Get verified students error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// PATCH /admin/users/:id/role - Change user role
-router.patch("/users/:id/role", async (req, res) => {
+// PATCH /admin/students/:id/verify
+router.patch("/students/:id/verify", async (req, res) => {
   try {
     const { id } = req.params;
-    const { role } = req.body;
+    const { status } = req.body;
 
-    const allowedRoles = ["student", "client", "admin"];
-    if (!role || !allowedRoles.includes(role)) {
-      return res.status(400).json({ 
-        error: "Ongeldige role. Kies uit: student, client, admin" 
-      });
+    if (!['verified', 'rejected'].includes(status)) {
+        return res.status(400).json({ error: "Invalid status. Use 'verified' or 'rejected'" });
     }
 
+    // Update status (zonder admin_comments)
     const { data, error } = await supabase
-      .from("users")
-      .update({ role })
+      .from("student_profiles")
+      .update({ 
+          verification_status: status
+      })
       .eq("id", id)
-      .select("id, email, role, created_at")
-      .single();
-
-    if (error && error.code === "PGRST116") {
-      return res.status(404).json({ error: "User niet gevonden." });
-    }
-    if (error) throw error;
-
-    res.status(200).json({
-      message: `Role succesvol gewijzigd naar ${role}.`,
-      user: data,
-    });
-  } catch (error) {
-    console.error("Change role error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==================== STUDENT MANAGEMENT ====================
-
-// GET /admin/students - Get all students
-router.get("/students", async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from("users")
-      .select("id, email, role, phone, preferred_language, two_factor_enabled, created_at")
-      .eq("role", "student")
-      .order("created_at", { ascending: false });
+      .select();
 
     if (error) throw error;
 
     res.status(200).json({ 
-      total: data.length,
-      students: data 
+      message: `Student successfully ${status}`,
+      student: data 
     });
   } catch (error) {
-    console.error("Get students error:", error);
+    console.error("Verify student error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// GET /admin/students/:id - Get one student
-router.get("/students/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const { data, error } = await supabase
-      .from("users")
-      .select("id, email, role, phone, preferred_language, two_factor_enabled, created_at")
-      .eq("id", id)
-      .eq("role", "student")
-      .single();
-
-    if (error && error.code === "PGRST116") {
-      return res.status(404).json({ error: "Student niet gevonden." });
-    }
-    if (error) throw error;
-
-    res.status(200).json({ student: data });
-  } catch (error) {
-    console.error("Get student error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// PATCH /admin/students/:id - Update student
-router.patch("/students/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { email, password, phone, preferred_language, two_factor_enabled } = req.body;
-
-    const { data: existing, error: existingError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("id", id)
-      .eq("role", "student")
-      .single();
-
-    if (existingError && existingError.code === "PGRST116") {
-      return res.status(404).json({ error: "Student niet gevonden." });
-    }
-    if (existingError) throw existingError;
-
-    const updates = {};
-    if (email) updates.email = email;
-    if (phone !== undefined) updates.phone = phone;
-    if (preferred_language) updates.preferred_language = preferred_language;
-    if (two_factor_enabled !== undefined) updates.two_factor_enabled = two_factor_enabled;
-    
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updates.password_hash = await bcrypt.hash(password, salt);
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ error: "Geen velden om te updaten." });
-    }
-
-    const { data, error } = await supabase
-      .from("users")
-      .update(updates)
-      .eq("id", id)
-      .eq("role", "student")
-      .select("id, email, role, phone, preferred_language, two_factor_enabled, created_at")
-      .single();
-
-    if (error) throw error;
-
-    res.status(200).json({
-      message: "Student succesvol geüpdatet.",
-      student: data,
-    });
-  } catch (error) {
-    console.error("Update student error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// DELETE /admin/students/:id - Delete student
-router.delete("/students/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const { data, error } = await supabase
-      .from("users")
-      .delete()
-      .eq("id", id)
-      .eq("role", "student")
-      .select("id, email")
-      .single();
-
-    if (error && error.code === "PGRST116") {
-      return res.status(404).json({ error: "Student niet gevonden." });
-    }
-    if (error) throw error;
-
-    res.status(200).json({
-      message: "Student succesvol verwijderd.",
-      deleted_student: data,
-    });
-  } catch (error) {
-    console.error("Delete student error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==================== CLIENT MANAGEMENT ====================
-
-// GET /admin/clients - Get all clients
-router.get("/clients", async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from("users")
-      .select("id, email, role, phone, preferred_language, two_factor_enabled, created_at")
-      .eq("role", "client")
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
-    res.status(200).json({ 
-      total: data.length,
-      clients: data 
-    });
-  } catch (error) {
-    console.error("Get clients error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GET /admin/clients/:id - Get one client
-router.get("/clients/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const { data, error } = await supabase
-      .from("users")
-      .select("id, email, role, phone, preferred_language, two_factor_enabled, created_at")
-      .eq("id", id)
-      .eq("role", "client")
-      .single();
-
-    if (error && error.code === "PGRST116") {
-      return res.status(404).json({ error: "Client niet gevonden." });
-    }
-    if (error) throw error;
-
-    res.status(200).json({ client: data });
-  } catch (error) {
-    console.error("Get client error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// PATCH /admin/clients/:id - Update client
-router.patch("/clients/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { email, password, phone, preferred_language, two_factor_enabled } = req.body;
-
-    const { data: existing, error: existingError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("id", id)
-      .eq("role", "client")
-      .single();
-
-    if (existingError && existingError.code === "PGRST116") {
-      return res.status(404).json({ error: "Client niet gevonden." });
-    }
-    if (existingError) throw existingError;
-
-    const updates = {};
-    if (email) updates.email = email;
-    if (phone !== undefined) updates.phone = phone;
-    if (preferred_language) updates.preferred_language = preferred_language;
-    if (two_factor_enabled !== undefined) updates.two_factor_enabled = two_factor_enabled;
-    
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updates.password_hash = await bcrypt.hash(password, salt);
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ error: "Geen velden om te updaten." });
-    }
-
-    const { data, error } = await supabase
-      .from("users")
-      .update(updates)
-      .eq("id", id)
-      .eq("role", "client")
-      .select("id, email, role, phone, preferred_language, two_factor_enabled, created_at")
-      .single();
-
-    if (error) throw error;
-
-    res.status(200).json({
-      message: "Client succesvol geüpdatet.",
-      client: data,
-    });
-  } catch (error) {
-    console.error("Update client error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// DELETE /admin/clients/:id - Delete client
-router.delete("/clients/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const { data, error } = await supabase
-      .from("users")
-      .delete()
-      .eq("id", id)
-      .eq("role", "client")
-      .select("id, email")
-      .single();
-
-    if (error && error.code === "PGRST116") {
-      return res.status(404).json({ error: "Client niet gevonden." });
-    }
-    if (error) throw error;
-
-    res.status(200).json({
-      message: "Client succesvol verwijderd.",
-      deleted_client: data,
-    });
-  } catch (error) {
-    console.error("Delete client error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==================== JOB MANAGEMENT ====================
+// ==================== JOBS MANAGEMENT ====================
 
 // GET /admin/jobs - Get all jobs
 router.get("/jobs", async (req, res) => {
@@ -648,8 +395,6 @@ router.patch("/jobs/:id/status", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-// ==================== APPLICATION MANAGEMENT ====================
 
 // ==================== APPLICATION MANAGEMENT ====================
 
