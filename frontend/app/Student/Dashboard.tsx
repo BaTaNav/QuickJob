@@ -15,9 +15,10 @@ interface Job {
   description: string;
   hourly_rate?: number;
   fixed_price?: number;
-  location: string;
+  location?: string;
+  area_text?: string;
   duration?: string;
-  category?: string;
+  category?: any; 
   start_time?: string;
 }
 
@@ -45,7 +46,7 @@ export default function StudentDashboard() {
   }, [fetchAvailable]);
 
   const filteredJobs = availableJobs.filter(job => 
-    filterCategory === 'All' || job.category === filterCategory
+    filterCategory === 'All' || (job.category && (job.category.name_en === filterCategory || job.category.name_nl === filterCategory))
   );
 
   return (
@@ -111,7 +112,7 @@ export default function StudentDashboard() {
                   <View style={styles.jobDetails}>
                     <View style={styles.detailRow}>
                       <MapPin size={14} color="#64748B" />
-                      <Text style={styles.detailText}>{job.location}</Text>
+                      <Text style={styles.detailText}>{job.area_text || job.location || 'Unknown location'}</Text>
                     </View>
                     <View style={styles.detailRow}>
                        <Clock size={14} color="#64748B" />
@@ -122,7 +123,9 @@ export default function StudentDashboard() {
                     {job.category && (
                       <View style={styles.detailRow}>
                         <Briefcase size={14} color="#64748B" />
-                        <Text style={styles.detailText}>{job.category}</Text>
+                        <Text style={styles.detailText}>
+                          {job.category.name_nl || job.category.name_en || 'General'}
+                        </Text>
                       </View>
                     )}
                   </View>
