@@ -316,12 +316,25 @@ export const jobsAPI = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(jobData),
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create job');
+        // Try to surface the full response body for easier debugging (may be JSON or plain text)
+        let text = '';
+        try {
+          text = await response.text();
+        } catch (e) {
+          text = `<unable to read response body: ${e}>`;
+        }
+        console.error(`[API Error] POST ${url} returned ${response.status}: ${text}`);
+        // Attempt to parse JSON error if present
+        try {
+          const parsed = JSON.parse(text);
+          throw new Error(parsed.error || parsed.message || text || 'Failed to create job');
+        } catch (e) {
+          throw new Error(text || 'Failed to create job');
+        }
       }
-      
+
       const data = await response.json();
       console.log('[API Success] Job created:', data);
       return data;

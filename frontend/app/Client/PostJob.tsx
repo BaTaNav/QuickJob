@@ -416,7 +416,9 @@ const handlePostJob = async () => {
         }
 
         // Upload to backend
-        const uploadRes = await fetch(`${API_URL}/jobs/upload-image`, {
+        const uploadUrl = `${API_URL}/jobs/upload-image`;
+        console.log('Uploading image to', uploadUrl);
+        const uploadRes = await fetch(uploadUrl, {
           method: 'POST',
           body: uploadBody,
           // IMPORTANT: Do NOT set Content-Type header manually here

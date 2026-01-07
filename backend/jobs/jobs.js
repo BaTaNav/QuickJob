@@ -1,11 +1,21 @@
 const express = require("express");
 const supabase = require("../supabaseClient");
 const router = express.Router();
-const multer = require("multer");
 
-// Configure Multer to store files in memory
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+// Multer (optional): use try/catch so the server can still start when multer
+// is not installed (helps development). If missing, the /jobs/upload-image
+// route will return 501 with a helpful message.
+let multer;
+let upload = null;
+try {
+  multer = require("multer");
+  // Configure Multer to store files in memory
+  const storage = multer.memoryStorage();
+  upload = multer({ storage: storage });
+} catch (e) {
+  // multer is optional for local development; log a clear message.
+  console.warn('Multer is not installed. Image upload endpoint will be disabled. To enable, run `npm install multer` in the backend folder.');
+}
 
 /**
  * Helper: Map job row to clean object
@@ -53,47 +63,53 @@ function mapJobRow(row) {
  * POST /jobs/upload-image
  * Uploads an image file to Supabase Storage (Bucket: 'job-images')
  */
-router.post("/upload-image", upload.single("image"), async (req, res) => {
-  try {
-    const file = req.file;
-    if (!file) {
-      return res.status(400).json({ error: "No file uploaded" });
+if (upload) {
+  router.post("/upload-image", upload.single("image"), async (req, res) => {
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      console.log("Attempting to upload:", file.originalname); // Log 1
+
+      // 1. Generate a unique filename
+      const fileExt = file.originalname.split(".").pop();
+      const fileName = `job-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // 2. Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from("job-images") // <--- MUST MATCH YOUR SUPABASE BUCKET NAME
+        .upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
+
+      if (error) {
+        console.error("Supabase Storage Error:", error); // Log 2: Print actual error to terminal
+        throw error;
+      }
+
+      // 3. Get Public URL
+      const { data: publicUrlData } = supabase.storage
+        .from("job-images")
+        .getPublicUrl(filePath);
+
+      console.log("Upload success, URL:", publicUrlData.publicUrl); // Log 3
+
+      res.status(200).json({ url: publicUrlData.publicUrl });
+    } catch (error) {
+      console.error("Server Upload Error:", error.message);
+      // Send the ACTUAL error message to the frontend
+      res.status(500).json({ error: error.message, details: error });
     }
-
-    console.log("Attempting to upload:", file.originalname); // Log 1
-
-    // 1. Generate a unique filename
-    const fileExt = file.originalname.split(".").pop();
-    const fileName = `job-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `${fileName}`;
-
-    // 2. Upload to Supabase Storage
-    const { data, error } = await supabase.storage
-      .from("job-images") // <--- MUST MATCH YOUR SUPABASE BUCKET NAME
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: false,
-      });
-
-    if (error) {
-      console.error("Supabase Storage Error:", error); // Log 2: Print actual error to terminal
-      throw error;
-    }
-
-    // 3. Get Public URL
-    const { data: publicUrlData } = supabase.storage
-      .from("job-images")
-      .getPublicUrl(filePath);
-
-    console.log("Upload success, URL:", publicUrlData.publicUrl); // Log 3
-
-    res.status(200).json({ url: publicUrlData.publicUrl });
-  } catch (error) {
-    console.error("Server Upload Error:", error.message);
-    // Send the ACTUAL error message to the frontend
-    res.status(500).json({ error: error.message, details: error });
-  }
-});
+  });
+} else {
+  router.post("/upload-image", async (req, res) => {
+    res.status(501).json({ error: 'Image upload disabled on server. Install multer in backend: npm install multer' });
+  });
+}
 
 /**
  * Geocode a free-text or composed address using Nominatim (OpenStreetMap).
@@ -341,23 +357,6 @@ router.post("/", async (req, res) => {
       ? area_text
       : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
 
-    // Require structured address fields (at least one) instead of relying solely on area_text.
-    const hasStructuredAddress = (street && String(street).trim() !== '') ||
-      (house_number && String(house_number).trim() !== '') ||
-      (postal_code && String(postal_code).trim() !== '') ||
-      (city && String(city).trim() !== '');
-
-    if (!hasStructuredAddress) {
-      return res.status(400).json({
-        error: "Missing structured address. Please provide at least one of: street, house_number, postal_code or city.",
-      });
-    }
-
-    // If area_text is not provided, compose a best-effort area_text from structured fields for backward compatibility
-    const composedAreaText = area_text && String(area_text).trim() !== ''
-      ? area_text
-      : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
-
     // Validate hourly_or_fixed and corresponding price
     if (hourly_or_fixed === "fixed" && !fixed_price) {
       return res
@@ -439,18 +438,6 @@ router.post("/", async (req, res) => {
     if (!clientIdNum || !categoryIdNum || !title || !start_time) {
       return res.status(400).json({
         error: "Missing required fields: client_id, category_id, title, start_time",
-      });
-    }
-
-    // For drafts, also encourage structured address. If none provided, reject to enforce the new pattern.
-    const hasStructuredAddress = (street && String(street).trim() !== '') ||
-      (house_number && String(house_number).trim() !== '') ||
-      (postal_code && String(postal_code).trim() !== '') ||
-      (city && String(city).trim() !== '');
-
-    if (!hasStructuredAddress) {
-      return res.status(400).json({
-        error: "Missing structured address for draft. Please provide at least one of: street, house_number, postal_code or city.",
       });
     }
 
