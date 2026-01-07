@@ -37,6 +37,11 @@ export default function ClientProfile() {
     router.replace('/');
   }
 
+  function handleGoToDashboard() {
+    // Navigate to client dashboard
+    router.push('/Client/DashboardClient' as never);
+  }
+
   // Load profile
   React.useEffect(() => {
     async function loadProfile() {
@@ -261,6 +266,9 @@ export default function ClientProfile() {
 
             {isWeb && (
               <RNView>
+                <Pressable style={styles.editBtn} onPress={handleGoToDashboard}>
+                  <Text style={styles.editBtnText}>Go to Dashboard</Text>
+                </Pressable>
                 <Pressable style={[styles.editBtn, { backgroundColor: '#B00020' }]} onPress={handleLogout}>
                   <Text style={styles.editBtnText}>Log out</Text>
                 </Pressable>
@@ -313,9 +321,14 @@ export default function ClientProfile() {
                 <Text style={styles.value}>{clientProfile?.first_job_needs_approval ? 'Yes' : 'No'}</Text>
                 
                 {!isWeb && (
-                  <Pressable style={[styles.editBtn, { backgroundColor: '#B00020', marginTop: 32 }]} onPress={handleLogout}>
-                    <Text style={styles.editBtnText}>Log out</Text>
-                  </Pressable>
+                  <>
+                    <Pressable style={[styles.editBtn, { marginTop: 32 }]} onPress={handleGoToDashboard}>
+                      <Text style={styles.editBtnText}>Go to Dashboard</Text>
+                    </Pressable>
+                    <Pressable style={[styles.editBtn, { backgroundColor: '#B00020', marginTop: 12 }]} onPress={handleLogout}>
+                      <Text style={styles.editBtnText}>Log out</Text>
+                    </Pressable>
+                  </>
                 )}
               </RNView>
             ) : (

@@ -1,8 +1,9 @@
 import * as React from 'react';
 import { StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Alert, Platform, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text, View } from '@/components/Themed';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { jobsAPI, studentAPI, getStudentId } from '../../../services/api';
+import { jobsAPI, studentAPI, getStudentId, saveStudentId } from '../../../services/api';
 
 export default function JobDetail() {
   const params = useLocalSearchParams();
@@ -24,6 +25,34 @@ export default function JobDetail() {
   // Action Loading States
   const [applying, setApplying] = React.useState(false);
   const [cancelling, setCancelling] = React.useState(false);
+
+  // Attempt to repair session without logging out: derive studentId from stored user
+  const repairStudentSession = React.useCallback(async (): Promise<number | null> => {
+    try {
+      let userJson: string | null = null;
+      if (typeof window !== 'undefined' && window.localStorage) {
+        userJson = localStorage.getItem('user');
+      } else {
+        userJson = await AsyncStorage.getItem('user');
+      }
+      if (!userJson) {
+        console.warn('No stored user found to repair session');
+        return null;
+      }
+      const user = JSON.parse(userJson);
+      if (user && user.role === 'student' && user.id) {
+        await saveStudentId(String(user.id));
+        setStudentId(Number(user.id));
+        console.log('Repaired session with studentId from user:', user.id);
+        return Number(user.id);
+      }
+      console.warn('Stored user is not a student or missing id');
+      return null;
+    } catch (e) {
+      console.warn('Failed to repair session:', e);
+      return null;
+    }
+  }, []);
 
   React.useEffect(() => {
     const loadData = async () => {
@@ -82,11 +111,11 @@ export default function JobDetail() {
             await studentAPI.getProfile(sidNum);
             setStudentId(sidNum);
           } catch (e) {
-            console.warn('Stored studentId is invalid, clearing and forcing re-login');
-            if (typeof window !== 'undefined' && window.localStorage) {
-              localStorage.removeItem('studentId');
+            console.warn('Stored studentId is invalid, attempting session repair without logout');
+            const repairedId = await repairStudentSession();
+            if (!repairedId) {
+              Alert.alert('Sessiefout', 'Je sessie lijkt ongeldig. Ga naar Profiel en druk op "Login" als nodig.');
             }
-            Alert.alert('Sessiefout', 'Je sessie is verlopen of ongeldig. Log opnieuw in en probeer opnieuw.');
           }
 
           // Check if student has already applied to this job
@@ -127,11 +156,12 @@ export default function JobDetail() {
       try {
         await studentAPI.getProfile(Number(studentId));
       } catch (e) {
-        Alert.alert('Sessiefout', 'Je sessie is verlopen of ongeldig. Log opnieuw in en probeer opnieuw.');
-        if (typeof window !== 'undefined' && window.localStorage) {
-          localStorage.removeItem('studentId');
+        console.warn('Profile validation failed; trying session repair');
+        const repairedId = await repairStudentSession();
+        if (!repairedId) {
+          Alert.alert('Sessiefout', 'Je sessie lijkt ongeldig. Probeer opnieuw of ga naar Login.');
+          return;
         }
-        return;
       }
 
       setApplying(true);
@@ -147,10 +177,22 @@ export default function JobDetail() {
       
       // Check for specific error cases
       if (err?.message?.includes('foreign key') || err?.message?.includes('not present in table')) {
-        errorMessage = 'Je account is niet correct ingelogd. Log opnieuw in en probeer het nogmaals.';
-        // Clear invalid student ID
-        if (typeof window !== 'undefined' && window.localStorage) {
-          localStorage.removeItem('studentId');
+        console.warn('FK/session error on apply; attempting one-time session repair');
+        const beforeId = studentId;
+        const repairedId = await repairStudentSession();
+        if (repairedId && repairedId !== beforeId) {
+          try {
+            await studentAPI.applyForJob(Number(repairedId), Number(idParam));
+            setApplicationStatus('pending');
+            Alert.alert('Succes!', 'Je sollicitatie is verstuurd na sessieherstel.');
+            router.push('/Student/Dashboard');
+            return; // Done after successful retry
+          } catch (retryErr: any) {
+            console.error('Retry after repair failed:', retryErr);
+            errorMessage = retryErr?.message || 'Kon niet solliciteren (na herstel).';
+          }
+        } else {
+          errorMessage = 'Je account is niet correct ingelogd. Herstel mislukt; probeer opnieuw in te loggen.';
         }
       }
       
