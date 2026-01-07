@@ -274,6 +274,40 @@ router.post("/:studentId/apply", /* verifyJwt, */ async (req, res) => {
       return res.status(400).json({ error: "job_id is required" });
     }
 
+    // Validate student exists
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("id", studentId)
+      .eq("role", "student")
+      .single();
+
+    if (userError?.code === 'PGRST116' || !userData) {
+      return res.status(404).json({ error: "Student account not found or invalid. Please re-login." });
+    }
+    if (userError) {
+      console.error("[APPLY] User validation error:", userError);
+      return res.status(500).json({ error: "Failed to validate student" });
+    }
+
+    // Validate job exists and is open
+    const { data: jobData, error: jobError } = await supabase
+      .from("jobs")
+      .select("id, status")
+      .eq("id", job_id)
+      .single();
+
+    if (jobError?.code === 'PGRST116' || !jobData) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+    if (jobError) {
+      console.error("[APPLY] Job validation error:", jobError);
+      return res.status(500).json({ error: "Failed to validate job" });
+    }
+    if (jobData.status !== 'open') {
+      return res.status(400).json({ error: "Job is not open for applications" });
+    }
+
     // Check if already applied
     const { data: existingApp } = await supabase
       .from("job_applications")
@@ -298,7 +332,14 @@ router.post("/:studentId/apply", /* verifyJwt, */ async (req, res) => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("[APPLY] Insert error:", error);
+      // Surface clearer message for FK violations
+      if (error.code === '23503') {
+        return res.status(400).json({ error: "Invalid account state. Please re-login as student and try again." });
+      }
+      throw error;
+    }
 
     res.status(201).json(data);
   } catch (err) {

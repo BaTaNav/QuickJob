@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Image, Modal } from "react-native";
 import { useRouter } from 'expo-router';
-import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, Users, X } from "lucide-react-native";
+import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, Users, X, CheckCircle, XCircle, Mail, Phone, GraduationCap, BookOpen, Calendar } from "lucide-react-native";
 import { jobsAPI, getClientId } from "@/services/api";
 
 export default function DashboardClient() {
@@ -316,67 +316,98 @@ export default function DashboardClient() {
                 )}
 
                 {!loadingApplicants && applicants.length > 0 && (
-                  <ScrollView style={styles.applicantsList}>
+                  <ScrollView style={styles.applicantsList} showsVerticalScrollIndicator={false}>
                     {applicants.map((applicant) => (
                       <View key={applicant.application_id} style={styles.applicantCard}>
                         <View style={styles.applicantHeader}>
-                          {applicant.student?.avatar_url ? (
-                            <Image 
-                              source={{ uri: applicant.student.avatar_url }} 
-                              style={styles.applicantAvatar}
-                            />
-                          ) : (
-                            <View style={styles.applicantAvatarPlaceholder}>
-                              <User size={24} color="#64748B" />
-                            </View>
-                          )}
+                          <View style={styles.avatarContainer}>
+                            {applicant.student?.avatar_url ? (
+                              <Image 
+                                source={{ uri: applicant.student.avatar_url }} 
+                                style={styles.applicantAvatar}
+                              />
+                            ) : (
+                              <View style={styles.applicantAvatarPlaceholder}>
+                                <User size={28} color="#fff" />
+                              </View>
+                            )}
+                            {applicant.student?.verification_status === 'verified' && (
+                              <View style={styles.verifiedBadge}>
+                                <CheckCircle size={18} color="#10B981" fill="#fff" />
+                              </View>
+                            )}
+                          </View>
                           <View style={styles.applicantInfo}>
-                            <Text style={styles.applicantEmail}>{applicant.student?.email}</Text>
+                            <View style={styles.nameRow}>
+                              <Mail size={14} color="#64748B" />
+                              <Text style={styles.applicantEmail}>{applicant.student?.email}</Text>
+                            </View>
+                            {applicant.student?.phone && (
+                              <View style={styles.detailRow}>
+                                <Phone size={14} color="#64748B" />
+                                <Text style={styles.applicantDetail}>{applicant.student.phone}</Text>
+                              </View>
+                            )}
                             {applicant.student?.school_name && (
-                              <Text style={styles.applicantDetail}>🎓 {applicant.student.school_name}</Text>
+                              <View style={styles.detailRow}>
+                                <GraduationCap size={14} color="#64748B" />
+                                <Text style={styles.applicantDetail}>{applicant.student.school_name}</Text>
+                              </View>
                             )}
                             {applicant.student?.field_of_study && (
-                              <Text style={styles.applicantDetail}>📚 {applicant.student.field_of_study}</Text>
+                              <View style={styles.detailRow}>
+                                <BookOpen size={14} color="#64748B" />
+                                <Text style={styles.applicantDetail}>{applicant.student.field_of_study}</Text>
+                              </View>
                             )}
                             {applicant.student?.academic_year && (
-                              <Text style={styles.applicantDetail}>📅 {applicant.student.academic_year}</Text>
-                            )}
-                            {applicant.student?.phone && (
-                              <Text style={styles.applicantDetail}>📞 {applicant.student.phone}</Text>
+                              <View style={styles.detailRow}>
+                                <Calendar size={14} color="#64748B" />
+                                <Text style={styles.applicantDetail}>{applicant.student.academic_year}</Text>
+                              </View>
                             )}
                           </View>
                         </View>
 
-                        <View style={styles.applicantStatus}>
-                          <View style={[
-                            styles.statusBadge,
-                            applicant.status === 'pending' ? styles.statusPending : 
-                            applicant.status === 'accepted' ? styles.statusAccepted : 
-                            styles.statusRejected
-                          ]}>
-                            <Text style={styles.statusText}>{applicant.status}</Text>
+                        <View style={styles.applicantFooter}>
+                          <View style={styles.statusContainer}>
+                            <View style={[
+                              styles.statusBadge,
+                              applicant.status === 'pending' ? styles.statusPending : 
+                              applicant.status === 'accepted' ? styles.statusAccepted : 
+                              styles.statusRejected
+                            ]}>
+                              <Text style={[
+                                styles.statusText,
+                                applicant.status === 'pending' ? styles.statusTextPending : 
+                                applicant.status === 'accepted' ? styles.statusTextAccepted : 
+                                styles.statusTextRejected
+                              ]}>{applicant.status.toUpperCase()}</Text>
+                            </View>
+                            <Text style={styles.appliedDate}>
+                              {new Date(applicant.applied_at).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' })}
+                            </Text>
                           </View>
-                          <Text style={styles.appliedDate}>
-                            Applied: {new Date(applicant.applied_at).toLocaleDateString('nl-BE')}
-                          </Text>
-                        </View>
 
-                        {applicant.status === 'pending' && selectedJob && (
-                          <View style={styles.applicantActions}>
-                            <TouchableOpacity 
-                              style={styles.acceptBtn}
-                              onPress={() => handleUpdateApplication(selectedJob.id, applicant.application_id, 'accepted')}
-                            >
-                              <Text style={styles.acceptBtnText}>Accept</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity 
-                              style={styles.rejectBtn}
-                              onPress={() => handleUpdateApplication(selectedJob.id, applicant.application_id, 'rejected')}
-                            >
-                              <Text style={styles.rejectBtnText}>Reject</Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
+                          {applicant.status === 'pending' && selectedJob && (
+                            <View style={styles.applicantActions}>
+                              <TouchableOpacity 
+                                style={styles.acceptBtn}
+                                onPress={() => handleUpdateApplication(selectedJob.id, applicant.application_id, 'accepted')}
+                              >
+                                <CheckCircle size={18} color="#fff" />
+                                <Text style={styles.acceptBtnText}>Accept</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity 
+                                style={styles.rejectBtn}
+                                onPress={() => handleUpdateApplication(selectedJob.id, applicant.application_id, 'rejected')}
+                              >
+                                <XCircle size={18} color="#EF4444" />
+                                <Text style={styles.rejectBtnText}>Reject</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
                       </View>
                     ))}
                   </ScrollView>
@@ -898,27 +929,36 @@ const styles = StyleSheet.create({
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
+    backgroundColor: '#F9FAFB',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
+    paddingBottom: 16,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#1a2e4c',
     flex: 1,
   },
@@ -939,94 +979,159 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   applicantCard: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   applicantHeader: {
     flexDirection: 'row',
-    marginBottom: 12,
+    marginBottom: 16,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 14,
   },
   applicantAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: 12,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 3,
+    borderColor: '#E8F5E9',
   },
   applicantAvatarPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#E5E7EB',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#176B51',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   applicantInfo: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
   },
   applicantEmail: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#1a2e4c',
-    marginBottom: 4,
   },
   applicantDetail: {
     fontSize: 13,
     color: '#64748B',
-    marginBottom: 2,
+    fontWeight: '500',
   },
-  applicantStatus: {
+  applicantFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 14,
+    gap: 12,
+  },
+  statusContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
   statusPending: {
     backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
   },
   statusAccepted: {
     backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#10B981',
   },
   statusRejected: {
     backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+  },
+  statusTextPending: {
+    color: '#D97706',
+  },
+  statusTextAccepted: {
+    color: '#059669',
+  },
+  statusTextRejected: {
+    color: '#DC2626',
   },
   appliedDate: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#94A3B8',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   applicantActions: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
+    gap: 10,
   },
   acceptBtn: {
     flex: 1,
-    backgroundColor: '#176B51',
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: '#10B981',
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   acceptBtnText: {
     color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: 0.5,
   },
   rejectBtn: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: '#fff',
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 2,
+    borderColor: '#EF4444',
   },
   rejectBtnText: {
-    color: '#64748B',
-    fontWeight: '600',
-    fontSize: 14,
+    color: '#EF4444',
+    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: 0.5,
   },
 });

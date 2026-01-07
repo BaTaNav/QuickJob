@@ -72,11 +72,36 @@ export default function JobDetail() {
 
         // 2. Fetch Current Student ID
         const sid = await getStudentId();
+        console.log('Retrieved studentId from storage:', sid);
+        
         if (sid) {
-          setStudentId(Number(sid));
-          // Optional: You could check here if the student already applied to this job
-          // const status = await studentAPI.checkApplicationStatus(sid, idParam);
-          // setApplicationStatus(status);
+          const sidNum = Number(sid);
+          
+          // Validate student profile exists (guards against stale IDs)
+          try {
+            await studentAPI.getProfile(sidNum);
+            setStudentId(sidNum);
+          } catch (e) {
+            console.warn('Stored studentId is invalid, clearing and forcing re-login');
+            if (typeof window !== 'undefined' && window.localStorage) {
+              localStorage.removeItem('studentId');
+            }
+            Alert.alert('Sessiefout', 'Je sessie is verlopen of ongeldig. Log opnieuw in en probeer opnieuw.');
+          }
+
+          // Check if student has already applied to this job
+          try {
+            const applications = await studentAPI.getApplications(sidNum);
+            const existingApp = applications.find((app: any) => app.job_id === Number(idParam));
+            if (existingApp) {
+              setApplicationStatus(existingApp.status);
+              setApplicationId(existingApp.id);
+            }
+          } catch (err) {
+            console.warn('Could not fetch applications:', err);
+          }
+        } else {
+          console.warn('No student ID found in storage - user may not be logged in');
         }
 
       } catch (err: any) {
@@ -94,7 +119,21 @@ export default function JobDetail() {
       Alert.alert('Error', 'Je moet ingelogd zijn om te solliciteren');
       return;
     }
+    
+    console.log('Applying with studentId:', studentId, 'for jobId:', idParam);
+    
     try {
+      // Validate profile before attempting apply
+      try {
+        await studentAPI.getProfile(Number(studentId));
+      } catch (e) {
+        Alert.alert('Sessiefout', 'Je sessie is verlopen of ongeldig. Log opnieuw in en probeer opnieuw.');
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.removeItem('studentId');
+        }
+        return;
+      }
+
       setApplying(true);
       await studentAPI.applyForJob(Number(studentId), Number(idParam));
       
@@ -102,8 +141,20 @@ export default function JobDetail() {
       Alert.alert('Succes!', 'Je sollicitatie is verstuurd. Je vindt deze terug bij Pending.');
       router.push('/Student/Dashboard'); // Optional: redirect back
     } catch (err: any) {
-      console.error(err);
-      Alert.alert('Error', err?.message || 'Kon niet solliciteren');
+      console.error('Error applying for job:', err);
+      
+      let errorMessage = err?.message || 'Kon niet solliciteren';
+      
+      // Check for specific error cases
+      if (err?.message?.includes('foreign key') || err?.message?.includes('not present in table')) {
+        errorMessage = 'Je account is niet correct ingelogd. Log opnieuw in en probeer het nogmaals.';
+        // Clear invalid student ID
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.removeItem('studentId');
+        }
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setApplying(false);
     }
