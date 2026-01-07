@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput, Image } from "react-native";
-import { RefreshCw, Plus, ArrowDown, Handshake, Home, Search, LogOut, User } from "lucide-react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
+import { Handshake, LogOut, LayoutDashboard, ShieldCheck, AlertCircle } from "lucide-react-native";
 import { useRouter } from "expo-router";
+
+// Check if mobile (not web)
+const isMobile = Platform.OS !== 'web';
 
 export default function DashboardAdmin() {
     const router = useRouter();
@@ -13,64 +16,77 @@ export default function DashboardAdmin() {
     ];
 
     const tabs = ["Verificaties", "Incidenten"];
-      // Force Browser Tab Title on Web
-      useEffect(() => {
-        if (Platform.OS === 'web') {
-          document.title = "QuickJob | Dashboard-Admin";
-        }
-      }, []);
 
-    
+    // Force Browser Tab Title on Web
+    useEffect(() => {
+        if (Platform.OS === 'web') {
+            document.title = "QuickJob | Dashboard-Admin";
+        }
+    }, []);
+
+    // Helper functions for navigation - reduces duplication
+    const navigateToHome = () => setActiveTab("home");
+    const navigateToVerification = () => router.push("/Admin/VerificationAdmin" as any);
+    const navigateToIncidents = () => router.push("/Admin/IncidentsAdmin" as any);
+    const handleLogout = () => router.push("/Login" as any);
 
     return (
         <View style={styles.screen}>
             <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-            {/* Top Navigation Bar */}
-            <View style={styles.header}>
+            {/* HEADER */}
+            <View style={[styles.header, isMobile && styles.headerMobile]}>
+                
+                {/* Logo & Title */}
                 <View style={styles.headerLeft}>
                     <Handshake size={28} color="#176B51" strokeWidth={2.5} />
-                    <Text style={styles.headerTitle}>QuickJob</Text>
+                    {!isMobile && <Text style={styles.headerTitle}>QuickJob Admin</Text>}
+                </View>
+
+                {/* Navigation - Condensed on Mobile */}
+                <View style={[styles.navContainer, isMobile && styles.navContainerMobile]}>
                     <TouchableOpacity
-                        onPress={() => setActiveTab("home")}
-                        style={[styles.subTab, activeTab === "home" && styles.activeSubTab]}
+                        onPress={navigateToHome}
+                        style={[styles.navTab, activeTab === "home" && styles.activeNavTab]}
                     >
-                        <Text style={[styles.subTabText, activeTab === "home" && styles.activeSubTabText]}>
-                            Home
-                        </Text>
+                        {isMobile ? <LayoutDashboard size={20} color={activeTab === "home" ? "#176B51" : "#64748B"} /> : null}
+                        <Text style={[styles.navTabText, activeTab === "home" && styles.activeNavTabText]}>Home</Text>
                     </TouchableOpacity>
+
                     <TouchableOpacity
-                        onPress={() => router.push("/Admin/VerificationAdmin")}
-                        style={styles.navTab}
+                        onPress={navigateToVerification}
+                        style={[styles.navTab, activeTab === "verification" && styles.activeNavTab]}
                     >
-                        <Text style={[styles.subTabText, activeTab === "verification" && styles.activeSubTabText]}>
-                            Studenten verificatie
+                         {isMobile ? <ShieldCheck size={20} color={activeTab === "verification" ? "#176B51" : "#64748B"} /> : null}
+                        <Text style={[styles.navTabText, activeTab === "verification" && styles.activeNavTabText]}>
+                            {isMobile ? "Verificatie" : "Studenten verificatie"}
                         </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        onPress={() => router.push("/Admin/IncidentsAdmin")}
-                        style={styles.navTab}
+                        onPress={navigateToIncidents}
+                        style={[styles.navTab, activeTab === "incidents" && styles.activeNavTab]}
                     >
-                        <Text style={[styles.subTabText, activeTab === "incidents" && styles.activeSubTabText]}>
-                            Incidenten
-                        </Text>
+                        {isMobile ? <AlertCircle size={20} color={activeTab === "incidents" ? "#176B51" : "#64748B"} /> : null}
+                        <Text style={[styles.navTabText, activeTab === "incidents" && styles.activeNavTabText]}>Incidenten</Text>
                     </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.logoutBtn} onPress={() => router.push("/Login")}>
-                    <Text style={styles.logoutText}>Log out</Text>
-                    <LogOut size={18} color="#1a2e4c" />
+
+                {/* Logout Button */}
+                <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+                    {!isMobile && <Text style={styles.logoutText}>Log out</Text>}
+                    <LogOut size={isMobile ? 24 : 18} color={isMobile ? "#ef4444" : "#1a2e4c"} />
                 </TouchableOpacity>
             </View>
 
 
-
+            {/* CONTENT */}
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <View style={styles.contentContainer}>
+                <View style={[styles.contentContainer, isMobile && styles.contentContainerMobile]}>
 
                     {/* Stats Overview */}
                     <Text style={styles.sectionTitle}>Overview</Text>
-                    <View style={styles.statsGrid}>
+                    <View style={[styles.statsGrid, isMobile && styles.statsGridMobile]}>
                         {stats.map((stat, index) => (
                             <View key={index} style={styles.statCard}>
                                 <Text style={styles.statNumber}>{stat.value}</Text>
@@ -80,7 +96,7 @@ export default function DashboardAdmin() {
                     </View>
 
 
-                    {/* Tabs */}
+                    {/* Info Tabs within Home */}
                     <View style={styles.tabContainer}>
                         {tabs.map((tab) => (
                             <TouchableOpacity
@@ -89,14 +105,15 @@ export default function DashboardAdmin() {
                                 style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]}
                             >
                                 <Text style={activeTab === tab ? styles.activeTabText : styles.inactiveTabText}>
-                                    {tab} (0)
+                                    {tab}
                                 </Text>
                             </TouchableOpacity>
                         ))}
                     </View>
 
-                    {/* Empty State */}
+                    {/* Empty State / Content Placeholder */}
                     <View style={styles.emptyWrapper}>
+                        <Text style={{color: '#9CA3AF'}}>Selecteer een categorie hierboven</Text>
                     </View>
 
                 </View>
@@ -111,82 +128,103 @@ const styles = StyleSheet.create({
         backgroundColor: "#F5F7FA",
     },
     scrollContent: {
-        paddingBottom: 100,
+        paddingBottom: 40,
     },
 
-    logoutBtn: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-    },
-
-    logoutText: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: "#1a2e4c",
-    },
-
-    // Header
+    // Header Styles
     header: {
         backgroundColor: "#fff",
         paddingHorizontal: 24,
         paddingBottom: 16,
+        paddingTop: isMobile ? 48 : 20, // More top padding for status bar on mobile
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
         borderBottomWidth: 1,
         borderBottomColor: "#EFF0F6",
-        paddingTop: Platform.OS === 'android' ? 48 : 56,
     },
+    headerMobile: {
+        flexDirection: 'column',
+        gap: 16,
+        paddingHorizontal: 16,
+        alignItems: 'stretch',
+    },
+    
     headerLeft: {
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
+        justifyContent: isMobile ? 'center' : 'flex-start',
     },
     headerTitle: {
         fontSize: 20,
         fontWeight: "800",
         color: "#1a2e4c",
     },
-    iconButton: {
-        padding: 8,
-        backgroundColor: "#F7F9FC",
-        borderRadius: 999,
+
+    // Navigation Container
+    navContainer: {
+        flexDirection: 'row',
+        gap: 20,
+        alignItems: 'center',
+    },
+    navContainerMobile: {
+        gap: 4,
+        justifyContent: 'space-between',
+        backgroundColor: '#F8FAFC',
+        padding: 4,
+        borderRadius: 12,
     },
 
-    subTab: {},
-    activeSubTab: {
-        borderBottomWidth: 2,
-        borderBottomColor: "#000",
-        paddingBottom: 2,
-    },
-    subTabText: {
-        fontSize: 16,
-        color: "#6B7280",
-        fontWeight: "500",
-    },
-    activeSubTabText: {
-        color: "#000",
-        fontWeight: "700",
-    },
     navTab: {
         paddingHorizontal: 12,
         paddingVertical: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        borderRadius: 8,
     },
+    activeNavTab: {
+        backgroundColor: isMobile ? '#fff' : 'transparent',
+    },
+    
     navTabText: {
-        fontSize: 16,
-        color: "#000",
-        fontWeight: "400",
+        fontSize: 15,
+        color: "#64748B",
+        fontWeight: "500",
+        display: isMobile ? 'none' : 'flex', // Hide text on very small screens if desired, or keep as is
     },
     activeNavTabText: {
+        color: "#176B51",
         fontWeight: "700",
     },
 
-    // Content
+    // Logout
+    logoutBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        position: isMobile ? 'absolute' : 'relative',
+        top: isMobile ? 50 : 0,
+        right: isMobile ? 20 : 0,
+    },
+    logoutText: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#1a2e4c",
+    },
+
+    // Content Styles
     contentContainer: {
         padding: 24,
-        paddingBottom: 32,
+        maxWidth: 1200,
+        width: '100%',
+        alignSelf: 'center',
     },
+    contentContainerMobile: {
+        padding: 16,
+    },
+    
     sectionTitle: {
         fontSize: 18,
         fontWeight: "700",
@@ -194,64 +232,46 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
 
-    // Stats
+    // Stats Grid
     statsGrid: {
         flexDirection: "row",
-        gap: 12,
-        marginBottom: 24,
+        gap: 20,
+        marginBottom: 32,
     },
+    statsGridMobile: {
+        flexDirection: "column",
+        gap: 12,
+    },
+    
     statCard: {
-        flex: 1, // Allows cards to scale with width
+        flex: 1,
         backgroundColor: "#fff",
-        padding: 16,
+        padding: 20,
         borderRadius: 12,
         alignItems: "center",
         justifyContent: "center",
-        // Shadow equivalent
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+        shadowRadius: 4,
+        elevation: 2,
+        minHeight: 100,
     },
     statNumber: {
-        fontSize: 24,
+        fontSize: 32,
         fontWeight: "700",
-        color: "#176B51", // QuickJob Green
+        color: "#176B51",
         marginBottom: 4,
     },
     statLabel: {
-        fontSize: 12,
-        fontWeight: "500",
+        fontSize: 13,
+        fontWeight: "600",
         color: "#64748B",
         textTransform: "uppercase",
         letterSpacing: 0.5,
     },
 
-    // Actions
-    createJobBtn: {
-        width: "100%",
-        backgroundColor: "#176B51",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        paddingVertical: 16,
-        borderRadius: 12,
-        marginBottom: 32,
-        shadowColor: "#176B51",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    createJobText: {
-        color: "#fff",
-        fontWeight: "700",
-        fontSize: 16,
-        marginLeft: 8,
-    },
-
-    // Tabs
+    // Tab Container (Lower Level)
     tabContainer: {
         flexDirection: "row",
         backgroundColor: "#fff",
@@ -263,7 +283,7 @@ const styles = StyleSheet.create({
     },
     tabBtn: {
         flex: 1,
-        paddingVertical: 10,
+        paddingVertical: 12,
         borderRadius: 8,
         alignItems: "center",
         justifyContent: "center",
@@ -274,56 +294,23 @@ const styles = StyleSheet.create({
     activeTabText: {
         color: "#fff",
         fontWeight: "600",
-        fontSize: 12,
+        fontSize: 14,
     },
     inactiveTabText: {
         color: "#64748B",
         fontWeight: "500",
-        fontSize: 12,
+        fontSize: 14,
     },
 
     // Empty State
     emptyWrapper: {
         alignItems: "center",
         justifyContent: "center",
-        paddingVertical: 48,
+        paddingVertical: 60,
         backgroundColor: "#fff",
         borderRadius: 16,
         borderWidth: 1,
         borderColor: "#E2E8F0",
         borderStyle: "dashed",
-    },
-    emptyIcon: {
-        width: 48,
-        height: 48,
-        backgroundColor: "#E8F5E9",
-        borderRadius: 999,
-        alignItems: "center",
-        justifyContent: "center",
-        marginBottom: 16,
-    },
-    emptyTitle: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: "#1a2e4c",
-        marginBottom: 4,
-    },
-    emptySubtitle: {
-        fontSize: 14,
-        color: "#64748B",
-        textAlign: "center",
-        maxWidth: 200,
-        marginBottom: 24,
-    },
-    emptyButton: {
-        backgroundColor: "#000",
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 8,
-    },
-    emptyButtonText: {
-        color: "#fff",
-        fontWeight: "600",
-        fontSize: 14,
     },
 });

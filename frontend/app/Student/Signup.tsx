@@ -39,6 +39,8 @@ const Signup = () => {
     if (error) setError('');
   };
 
+  const API_BASE_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://10.2.88.146:3000';
+
   const handleSignup = async () => {
     try {
       setError('');
@@ -58,7 +60,7 @@ const Signup = () => {
 
       setLoading(true);
 
-      const response = await fetch('http://localhost:3000/auth/register/student', {
+      const response = await fetch(`${API_BASE_URL}/auth/register/student`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

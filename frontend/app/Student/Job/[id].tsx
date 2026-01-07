@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Alert } from 'react-native';
+import { StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Alert, Platform, Linking } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { jobsAPI, studentAPI, getStudentId } from '../../../services/api';
@@ -13,6 +13,8 @@ export default function JobDetail() {
   const [job, setJob] = React.useState<any | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
+  const [geoLoading, setGeoLoading] = React.useState(false);
+  const [coords, setCoords] = React.useState<{ latitude: number; longitude: number } | null>(null);
 
   // User/Application State
   const [studentId, setStudentId] = React.useState<number | null>(null);
@@ -38,6 +40,35 @@ export default function JobDetail() {
         // 1. Fetch Job Details
         const jobData = await jobsAPI.getJob(Number(idParam));
         setJob(jobData);
+
+        // 1b. Request server-side geocoding from composed address (always use address-based flow)
+        try {
+          const parts: string[] = [];
+          if (jobData.street) {
+            let s = jobData.street;
+            if (jobData.house_number) s += ` ${jobData.house_number}`;
+            parts.push(s);
+          }
+          if (jobData.postal_code) parts.push(jobData.postal_code);
+          if (jobData.city) parts.push(jobData.city);
+          const composed = parts.join(' ').trim();
+          if (composed.length > 0) {
+            setGeoLoading(true);
+            try {
+              const res = await fetch(`http://localhost:3000/jobs/geocode?address=${encodeURIComponent(composed)}`);
+              if (res.ok) {
+                const j = await res.json();
+                setCoords({ latitude: Number(j.latitude), longitude: Number(j.longitude) });
+              }
+            } catch (e) {
+              console.warn('Geocode request failed:', e);
+            } finally {
+              setGeoLoading(false);
+            }
+          }
+        } catch (e) {
+          console.warn('Geocode compose failed:', e);
+        }
 
         // 2. Fetch Current Student ID
         const sid = await getStudentId();
@@ -115,14 +146,21 @@ export default function JobDetail() {
     );
   }
 
-  if (error || !job) {
+  if (error) {
     return (
       <View style={styles.container}>
-        <Text style={styles.pageTitle}>Job not found</Text>
-        <Text style={styles.emptySubtitle}>{error || `No job matches id ${String(idParam)}`}</Text>
+        <Text style={{ color: 'red' }}>{error}</Text>
         <Pressable onPress={() => router.push('/Student/Dashboard')}>
           <Text style={styles.backLink}>Back to dashboard</Text>
         </Pressable>
+      </View>
+    );
+  }
+
+  if (!job) {
+    return (
+      <View style={styles.container}>
+        <Text>No job found</Text>
       </View>
     );
   }
@@ -134,7 +172,18 @@ export default function JobDetail() {
 
       <Text style={styles.jobMeta}>
         {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
-        {job.area_text ? ` • ${job.area_text}` : ''}
+        {(() => {
+          const parts: string[] = [];
+          if (job.street) {
+            let s = job.street;
+            if (job.house_number) s += ` ${job.house_number}`;
+            parts.push(s);
+          }
+          if (job.postal_code) parts.push(job.postal_code);
+          if (job.city) parts.push(job.city);
+          const addr = parts.length > 0 ? parts.join(' ') : '';
+          return addr ? ` • ${addr}` : '';
+        })()}
       </Text>
 
       {job?.image_url && (
@@ -146,13 +195,73 @@ export default function JobDetail() {
       )}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Description</Text>
         <Text style={styles.sectionText}>{job.description || 'Geen beschrijving'}</Text>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Address</Text>
-        <Text style={styles.sectionText}>{job.area_text || 'Niet opgegeven'}</Text>
+        <Text style={styles.sectionText}>{(() => {
+          const parts: string[] = [];
+          if (job.street) {
+            let s = job.street;
+            if (job.house_number) s += ` ${job.house_number}`;
+            parts.push(s);
+          }
+          if (job.postal_code) parts.push(job.postal_code);
+          if (job.city) parts.push(job.city);
+          if (parts.length > 0) return parts.join(' ');
+          return 'Niet opgegeven';
+        })()}</Text>
+      </View>
+
+      {/* Map / Geocoding */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Locatie</Text>
+        {geoLoading ? (
+          <ActivityIndicator color="#176B51" />
+        ) : coords ? (
+          Platform.OS === 'web' ? (
+            // Web: embed OpenStreetMap iframe
+            <View style={{ width: '100%', height: 260 }}>
+              <iframe
+                title="job-map"
+                width="100%"
+                height="100%"
+                frameBorder={0}
+                scrolling="no"
+                src={`https://www.openstreetmap.org/export/embed.html?marker=${coords.latitude}%2C${coords.longitude}&layer=mapnik&bbox=${coords.longitude-0.02}%2C${coords.latitude-0.01}%2C${coords.longitude+0.02}%2C${coords.latitude+0.01}`}
+                style={{ borderRadius: 8 }}
+              />
+              <Pressable onPress={() => window.open(`https://www.openstreetmap.org/?mlat=${coords.latitude}&mlon=${coords.longitude}#map=16/${coords.latitude}/${coords.longitude}`, '_blank')}>
+                <Text style={{ color: '#176B51', marginTop: 8 }}>Open in OpenStreetMap</Text>
+              </Pressable>
+            </View>
+          ) : (
+            // Native: show a simple 'Open in maps' button (avoids native map dependency)
+            <View>
+              <Text style={styles.sectionText}>Kaart beschikbaar — open in Maps app</Text>
+              <Pressable
+                style={[styles.applyBtn, { marginTop: 8 }]}
+                onPress={() => {
+                  const lat = coords.latitude;
+                  const lon = coords.longitude;
+                  const url = Platform.OS === 'ios'
+                    ? `maps:0,0?q=${lat},${lon}`
+                    : `geo:${lat},${lon}?q=${lat},${lon}`;
+                  Linking.openURL(url).catch(() => {
+                    // Fallback to Google Maps web
+                    const web = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+                    Linking.openURL(web);
+                  });
+                }}
+              >
+                <Text style={[styles.applyBtnText, { color: '#fff' }]}>Open in Maps</Text>
+              </Pressable>
+            </View>
+          )
+        ) : (
+          <Text style={styles.sectionText}>Locatie niet beschikbaar</Text>
+        )}
       </View>
 
       <View style={styles.section}>

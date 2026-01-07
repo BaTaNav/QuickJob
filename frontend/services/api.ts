@@ -1,7 +1,10 @@
-// API Service for QuickJob Backend
-// For web: http://localhost:3000
-// For mobile simulator: Use your computer's IP address (e.g., http://192.168.1.x:3000)
-const API_BASE_URL = 'http://localhost:3000';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// For mobile simulator: Use your computer's IP addressr
+const API_BASE_URL = Platform.OS === 'web' 
+  ? 'http://localhost:3000' 
+  : 'http://10.2.88.146:3000';
 
 // Add logging for debugging
 const logRequest = (method: string, url: string) => {
@@ -26,8 +29,10 @@ const getAuthToken = async () => {
 // Helper function to save auth token
 export const saveAuthToken = async (token: string) => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (Platform.OS === 'web') {
       localStorage.setItem('authToken', token);
+    } else {
+      await AsyncStorage.setItem('authToken', token); // Mobiele support
     }
   } catch (error) {
     console.error('Error saving auth token:', error);
@@ -37,8 +42,10 @@ export const saveAuthToken = async (token: string) => {
 // Helper function to save student ID
 export const saveStudentId = async (studentId: string) => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (Platform.OS === 'web') {
       localStorage.setItem('studentId', studentId);
+    } else {
+      await AsyncStorage.setItem('studentId', studentId); // Mobiele support
     }
   } catch (error) {
     console.error('Error saving student ID:', error);
@@ -48,10 +55,11 @@ export const saveStudentId = async (studentId: string) => {
 // Helper function to get student ID
 export const getStudentId = async () => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (Platform.OS === 'web') {
       return localStorage.getItem('studentId');
+    } else {
+      return await AsyncStorage.getItem('studentId'); // Mobiele support
     }
-    return null;
   } catch (error) {
     console.error('Error getting student ID:', error);
     return null;
@@ -61,8 +69,10 @@ export const getStudentId = async () => {
 // Helper function to save client ID
 export const saveClientId = async (clientId: string) => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (Platform.OS === 'web') {
       localStorage.setItem('clientId', clientId);
+    } else {
+      await AsyncStorage.setItem('clientId', clientId); // Mobiele support
     }
   } catch (error) {
     console.error('Error saving client ID:', error);
@@ -72,10 +82,11 @@ export const saveClientId = async (clientId: string) => {
 // Helper function to get client ID
 export const getClientId = async () => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (Platform.OS === 'web') {
       return localStorage.getItem('clientId');
+    } else {
+      return await AsyncStorage.getItem('clientId'); // Mobiele support
     }
-    return null;
   } catch (error) {
     console.error('Error getting client ID:', error);
     return null;
@@ -255,10 +266,13 @@ export const studentAPI = {
 
 // Jobs API Endpoints
 export const jobsAPI = {
-  // Get available jobs
-  async getAvailableJobs(status = 'open', limit = 50) {
+  // Get available jobs (optionally exclude those already applied by a student)
+  async getAvailableJobs(status = 'open', limit = 50, studentId?: number) {
     try {
-      const url = `${API_BASE_URL}/jobs/available?status=${status}&limit=${limit}`;
+      let url = `${API_BASE_URL}/jobs/available?status=${status}&limit=${limit}`;
+      if (studentId) {
+        url += `&studentId=${studentId}`;
+      }
       logRequest('GET', url);
       
       const response = await fetch(url);
@@ -311,7 +325,6 @@ export const jobsAPI = {
     category_id: number;
     title: string;
     description?: string;
-    area_text?: string;
     hourly_or_fixed: 'hourly' | 'fixed';
     hourly_rate?: number | null;
     fixed_price?: number | null;
@@ -327,12 +340,25 @@ export const jobsAPI = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(jobData),
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create job');
+        // Try to surface the full response body for easier debugging (may be JSON or plain text)
+        let text = '';
+        try {
+          text = await response.text();
+        } catch (e) {
+          text = `<unable to read response body: ${e}>`;
+        }
+        console.error(`[API Error] POST ${url} returned ${response.status}: ${text}`);
+        // Attempt to parse JSON error if present
+        try {
+          const parsed = JSON.parse(text);
+          throw new Error(parsed.error || parsed.message || text || 'Failed to create job');
+        } catch (e) {
+          throw new Error(text || 'Failed to create job');
+        }
       }
-      
+
       const data = await response.json();
       console.log('[API Success] Job created:', data);
       return data;
@@ -366,6 +392,56 @@ export const jobsAPI = {
     const data = await response.json();
     // Backend now returns {jobs: [], message: string, count: number}
     return data.jobs || data;
+  },
+
+  // Get applicants for a specific job
+  async getJobApplicants(jobId: number) {
+    try {
+      const url = `${API_BASE_URL}/jobs/${jobId}/applicants`;
+      logRequest('GET', url);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[API Error]', response.status, errorText);
+        throw new Error(`Failed to fetch applicants: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Applicants:', data.applicants?.length || 0, 'applicants');
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Network error - is the backend running?');
+    }
+  },
+
+  // Update application status (accept/reject)
+  async updateApplicationStatus(jobId: number, applicationId: number, status: 'accepted' | 'rejected') {
+    try {
+      const url = `${API_BASE_URL}/jobs/${jobId}/applicants/${applicationId}`;
+      logRequest('PATCH', url);
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[API Error]', response.status, errorText);
+        throw new Error(`Failed to update application: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Application updated:', data);
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Failed to update application');
+    }
   },
 };
 
@@ -453,5 +529,93 @@ export const authAPI = {
       localStorage.removeItem('studentId');
       localStorage.removeItem('clientId');
     }
+  },
+};
+
+// Admin API
+export const adminAPI = {
+  async getPendingStudents() {
+    const url = `${API_BASE_URL}/admin/students/pending`;
+    logRequest('GET', url);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load pending students');
+    return data.students || data;
+  },
+
+  async getVerifiedStudents() {
+    const url = `${API_BASE_URL}/admin/students/verified`;
+    logRequest('GET', url);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load verified students');
+    return data.students || data;
+  },
+
+  async verifyStudent(id: number, status: 'verified' | 'rejected') {
+    const url = `${API_BASE_URL}/admin/students/${id}/verify`;
+    logRequest('PATCH', url);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update verification status');
+    return data.student || data;
+  },
+
+  async getIncidents(status?: string) {
+    const query = status && status !== 'all' ? `?status=${status}` : '';
+    const url = `${API_BASE_URL}/incidents${query}`;
+    logRequest('GET', url);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load incidents');
+    return data.incidents || data;
+  },
+
+  async createIncident(payload: {
+    summary: string;
+    description?: string | null;
+    job_id?: number | null;
+    application_id?: number | null;
+    student_id?: number | null;
+    client_id?: number | null;
+    severity?: 'low' | 'medium' | 'high';
+    status?: 'open' | 'in_review' | 'resolved' | 'dismissed';
+    admin_notes?: string | null;
+  }) {
+    const url = `${API_BASE_URL}/incidents`;
+    logRequest('POST', url);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create incident');
+    return data;
+  },
+
+  async updateIncident(
+    id: number,
+    payload: Partial<{
+      status: 'open' | 'in_review' | 'resolved' | 'dismissed';
+      severity: 'low' | 'medium' | 'high';
+      description: string | null;
+      admin_notes: string | null;
+    }>
+  ) {
+    const url = `${API_BASE_URL}/incidents/${id}`;
+    logRequest('PATCH', url);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update incident');
+    return data;
   },
 };

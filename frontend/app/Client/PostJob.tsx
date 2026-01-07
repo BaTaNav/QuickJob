@@ -92,7 +92,11 @@ interface JobFormData {
   category_id: number | null;
   title: string;
   description: string;
-  area_text: string;
+  // Structured address fields (new)
+  street?: string;
+  house_number?: string;
+  postal_code?: string;
+  city?: string;
   hourly_or_fixed: "hourly" | "fixed";
   hourly_rate: number | null;
   fixed_price: number | null;
@@ -289,7 +293,11 @@ export default function PostJob() {
     category_id: null,
     title: "",
     description: "",
-    area_text: "",
+  // new structured address defaults
+  street: "",
+  house_number: "",
+  postal_code: "",
+  city: "",
     hourly_or_fixed: "hourly",
     hourly_rate: null,
     fixed_price: null,
@@ -298,6 +306,10 @@ export default function PostJob() {
     duration: null,
     urgent: false,
   });
+
+
+  // Address validation errors
+  const [addressErrors, setAddressErrors] = useState<{ street?: string; house_number?: string; postal_code?: string; city?: string }>({});
 
   // Initialization
   useEffect(() => {
@@ -373,7 +385,31 @@ export default function PostJob() {
   };
 
   // Validation
-  const isStep1Valid = !!formData.category_id && formData.title.trim().length > 3;
+  // Require full structured address (street, house_number, 4-digit postal_code, city) as part of step 1
+  const validateAddressFields = (data: JobFormData) => {
+    if (!data.street || data.street.trim().length < 2) return false;
+    if (!data.house_number || data.house_number.trim().length < 1) return false;
+    if (!data.postal_code || !/^\d{4}$/.test(String(data.postal_code).trim())) return false;
+    if (!data.city || data.city.trim().length < 2) return false;
+    return true;
+  };
+
+  const composeAddress = (data: JobFormData) => {
+    const parts: string[] = [];
+    if (data.street) {
+      let s = data.street.trim();
+      if (data.house_number) s += ` ${data.house_number.trim()}`;
+      parts.push(s);
+    }
+    if (data.postal_code) parts.push(String(data.postal_code).trim());
+    if (data.city) parts.push(data.city.trim());
+    return parts.length > 0 ? parts.join(' ') : '';
+  };
+
+  // Lightweight address parser: attempts to extract street, house_number, postal_code, city from a single input
+  // No single-line full-address input: users fill street, house_number, postal_code and city separately.
+
+  const isStep1Valid = !!formData.category_id && formData.title.trim().length > 3 && validateAddressFields(formData);
   const isStep2Valid = true;
   const isStep3Valid = (formData.hourly_or_fixed === "fixed" ? (formData.fixed_price || 0) > 0 : (formData.duration || 0) > 0);
 
@@ -398,6 +434,21 @@ export default function PostJob() {
     }
     if (!formData.title || !formData.category_id || !formData.start_time) {
       Alert.alert("Error", "Vul alle verplichte velden in.");
+      return;
+    }
+    // Validate structured address before attempting to post
+    const validateAddress = () => {
+      const errs: any = {};
+      if (!formData.street || formData.street.trim().length < 2) errs.street = 'Straat is verplicht';
+      if (!formData.house_number || formData.house_number.trim().length < 1) errs.house_number = 'Huisnummer is verplicht';
+      if (!formData.postal_code || !/^\d{4}$/.test(String(formData.postal_code).trim())) errs.postal_code = 'Ongeldige postcode (4 cijfers)';
+      if (!formData.city || formData.city.trim().length < 2) errs.city = 'Gemeente is verplicht';
+      setAddressErrors(errs);
+      return Object.keys(errs).length === 0;
+    };
+
+    if (!validateAddress()) {
+      setError('Controleer het adresformulier.');
       return;
     }
 
@@ -430,7 +481,9 @@ export default function PostJob() {
         }
 
         // Upload to backend
-        const uploadRes = await fetch(`${API_URL}/jobs/upload-image`, {
+        const uploadUrl = `${API_URL}/jobs/upload-image`;
+        console.log('Uploading image to', uploadUrl);
+        const uploadRes = await fetch(uploadUrl, {
           method: 'POST',
           body: uploadBody,
           // IMPORTANT: Do NOT set Content-Type header manually here
@@ -457,12 +510,16 @@ export default function PostJob() {
         finalEndTime.setHours(finalEndTime.getHours() + 2);
       }
 
-      const payload = {
+  const payload = {
         client_id: formData.client_id,
         category_id: formData.category_id!,
         title: formData.title,
         description: formData.description || undefined,
-        area_text: formData.area_text || undefined,
+  // Structured address fields (Belgium-only)
+  street: formData.street || undefined,
+  house_number: formData.house_number || undefined,
+  postal_code: formData.postal_code || undefined,
+  city: formData.city || undefined,
         hourly_or_fixed: formData.hourly_or_fixed,
         hourly_rate: formData.hourly_rate,
         fixed_price: formData.fixed_price,
@@ -637,18 +694,53 @@ export default function PostJob() {
                 </View>
 
 
-                {/* Location */}
+                {/* Location / Structured Address */}
                 <View style={styles.section}>
-                  <Text style={styles.label}>Locatie (Zone/Gemeente)</Text>
-                  <View style={styles.inputWithIcon}>
-                    <MapPin size={20} color="#9CA3AF" style={{ marginRight: 8 }} />
+                  <Text style={styles.label}>Adres</Text>
+
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
                     <TextInput
-                      style={{ flex: 1, paddingVertical: 10 }}
-                      value={formData.area_text}
-                      onChangeText={t => setFormData(p => ({ ...p, area_text: t }))}
-                      placeholder="bv. Brussel Centrum"
-                      accessibilityLabel="Locatie"
+                      style={[styles.input, { flex: 2, marginRight: 8 }]}
+                      placeholder="Straat"
+                      value={formData.street}
+                      onChangeText={t => setFormData(p => ({ ...p, street: t }))}
+                      accessibilityLabel="Straat"
                     />
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="Huisnr"
+                      value={formData.house_number}
+                      onChangeText={t => setFormData(p => ({ ...p, house_number: t }))}
+                      accessibilityLabel="Huisnummer"
+                    />
+                  </View>
+                  {addressErrors.street ? <Text style={styles.addressError}>{addressErrors.street}</Text> : null}
+                  {addressErrors.house_number ? <Text style={styles.addressError}>{addressErrors.house_number}</Text> : null}
+
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                    <TextInput
+                      style={[styles.input, { flex: 1, marginRight: 8 }]}
+                      placeholder="Postcode"
+                      keyboardType="numeric"
+                      value={String(formData.postal_code || '')}
+                      onChangeText={t => setFormData(p => ({ ...p, postal_code: t }))}
+                      accessibilityLabel="Postcode"
+                    />
+                    <TextInput
+                      style={[styles.input, { flex: 2 }]}
+                      placeholder="Gemeente"
+                      value={formData.city}
+                      onChangeText={t => setFormData(p => ({ ...p, city: t }))}
+                      accessibilityLabel="Gemeente"
+                    />
+                  </View>
+                  {addressErrors.postal_code ? <Text style={styles.addressError}>{addressErrors.postal_code}</Text> : null}
+                  {addressErrors.city ? <Text style={styles.addressError}>{addressErrors.city}</Text> : null}
+
+                  {/* Country removed — Belgium only, handled server-side if needed */}
+
+                  <View style={{ marginTop: 10 }}>
+                    
                   </View>
                 </View>
               </View>
@@ -895,11 +987,11 @@ export default function PostJob() {
                       {formData.start_time.toLocaleDateString()} om {formData.start_time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                   </View>
-
-                  <View style={styles.summaryRow}>
-                    <MapPin size={18} color="#666" />
-                    <Text style={styles.summaryText}>{formData.area_text || "Geen locatie opgegeven"}</Text>
-                  </View>
+                  
+            <View style={styles.summaryRow}>
+              <MapPin size={18} color="#666" />
+              <Text style={styles.summaryText}>{composeAddress(formData) || "Geen locatie opgegeven"}</Text>
+            </View>
 
                   <View style={styles.summaryRow}>
                     <DollarSign size={18} color="#666" />
@@ -991,12 +1083,17 @@ export default function PostJob() {
               <View style={styles.previewCard}>
                 <Text style={styles.previewTitle}>{formData.title || "Titel..."}</Text>
                 <Text style={styles.previewText}>{getCategoryDetails(formData.category_id)?.name_nl || "Categorie..."}</Text>
-                <View style={styles.divider} />
-                <Text style={styles.previewPrice}>
-                  {formData.hourly_or_fixed === 'fixed'
-                    ? `€${formData.fixed_price || 0}`
-                    : `~ €${(formData.duration || 0) * 20} (schatting)`}
-                </Text>
+                <View style={{ height: 8 }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <MapPin size={14} color="#666" />
+                  <Text style={[styles.previewText, { fontSize: 13 }]}>{composeAddress(formData) || 'Geen locatie'}</Text>
+                </View>
+                 <View style={styles.divider} />
+                 <Text style={styles.previewPrice}>
+                    {formData.hourly_or_fixed === 'fixed' 
+                      ? `€${formData.fixed_price || 0}` 
+                      : `~ €${(formData.duration || 0) * 20} (schatting)`}
+                 </Text>
               </View>
               {/* Extra spacer in sidebar to prevent overlap if content grows */}
               <View style={{ height: 100 }} />
@@ -1585,4 +1682,5 @@ const styles = StyleSheet.create({
   },
   webModalButtonPrimary: { backgroundColor: '#176B51', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
   webModalButtonSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#F3F4F6' },
+  addressError: { color: '#DC2626', marginTop: 6, fontSize: 13 },
 });
