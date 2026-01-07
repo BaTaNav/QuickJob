@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const supabase = require("../supabaseClient");
 
 // Simple placeholder root
 router.get("/", (req, res) => {
@@ -13,14 +14,38 @@ router.post("/login", async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password are required" });
     }
-    // TODO: Implement real login with Supabase users
-    // For now, return a mock user to keep the app flowing during development
-    res.json({
-      user: {
-        id: 1,
-        email,
-        role: "student",
-      },
+
+    // Look up user by email and return role (dev-mode: no password check)
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("id, email, role")
+      .eq("email", email)
+      .single();
+
+    if (error && error.code === "PGRST116") {
+      // Not found: simple heuristic fallback for dev
+      const guessedRole = email.toLowerCase().includes("client")
+        ? "client"
+        : email.toLowerCase().includes("admin")
+        ? "admin"
+        : "student";
+      return res.json({
+        user: {
+          id: 9999,
+          email,
+          role: guessedRole,
+        },
+        token: "dev-placeholder-token",
+      });
+    }
+    if (error) {
+      console.error("Login lookup error:", error);
+      return res.status(500).json({ error: "Login failed" });
+    }
+
+    // Found user: return their role
+    return res.json({
+      user,
       token: "dev-placeholder-token",
     });
   } catch (err) {
