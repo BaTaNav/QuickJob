@@ -18,9 +18,17 @@ function mapJobRow(row) {
     title: row.title,
     description: row.description,
     area_text: row.area_text,
-    hourly_or_fixed: row.hourly_or_fixed,
+    // Structured address
+    street: row.street,
+    house_number: row.house_number,
+    postal_code: row.postal_code,
+    city: row.city,
+  hourly_or_fixed: row.hourly_or_fixed,
     hourly_rate: row.hourly_rate,
     fixed_price: row.fixed_price,
+  // Optional geocoded coordinates (may be null until DB columns are added/backfilled)
+  latitude: row.latitude || null,
+  longitude: row.longitude || null,
     start_time: row.start_time,
     status: row.status,
     created_at: row.created_at,
@@ -88,6 +96,39 @@ router.post("/upload-image", upload.single("image"), async (req, res) => {
 });
 
 /**
+ * Geocode a free-text or composed address using Nominatim (OpenStreetMap).
+ * Returns { latitude, longitude } or null on failure.
+ * NOTE: For production use, respect Nominatim usage policy and consider a paid geocoding service.
+ */
+async function geocodeAddress(address) {
+  if (!address) return null;
+  try {
+    const q = encodeURIComponent(address + ', Belgium');
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&addressdetails=0&countrycodes=be`;
+    // Log the geocoding request for debugging (remove or reduce verbosity in production)
+    console.log('Geocoding request URL:', url);
+    const res = await fetch(url, {
+      headers: {
+        // Nominatim requires a valid User-Agent or Referer identifying the application
+        'User-Agent': 'QuickJob/1.0 (contact@quickjob.be)'
+      }
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    if (!Array.isArray(j) || j.length === 0) return null;
+    const first = j[0];
+    console.log('Geocoding result:', first);
+    return {
+      latitude: parseFloat(first.lat),
+      longitude: parseFloat(first.lon),
+    };
+  } catch (err) {
+    console.warn('Geocoding failed:', err);
+    return null;
+  }
+}
+
+/**
  * GET /jobs/available
  * Get all available jobs (not filtered by location yet)
  * Optional query: ?status=open&limit=20&studentId=123
@@ -121,7 +162,7 @@ router.get("/available", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text,
+        title, description, area_text, street, house_number, postal_code, city, latitude, longitude,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at, image_url,
         job_categories (
@@ -167,7 +208,7 @@ router.get("/:id", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text,
+        title, description, area_text, street, house_number, postal_code, city, latitude, longitude,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at, image_url,
         job_categories (
@@ -206,7 +247,8 @@ router.get("/search", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text,
+  title, description, area_text, street, house_number, postal_code, city,
+        latitude, longitude,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at, image_url,
         job_categories (
@@ -223,7 +265,8 @@ router.get("/search", async (req, res) => {
       );
     }
     if (location) {
-      query = query.ilike("area_text", `%${location}%`);
+      // Match location against city OR area_text for backward compatibility
+      query = query.or(`city.ilike.%${location}%,area_text.ilike.%${location}%`);
     }
     if (categoryId) {
       query = query.eq("category_id", parseInt(categoryId));
@@ -259,6 +302,10 @@ router.post("/", async (req, res) => {
       title,
       description,
       area_text,
+      street,
+      house_number,
+      postal_code,
+      city,
       hourly_or_fixed,
       hourly_rate,
       fixed_price,
@@ -277,6 +324,40 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // Require structured address fields (at least one) instead of relying solely on area_text.
+    const hasStructuredAddress = (street && String(street).trim() !== '') ||
+      (house_number && String(house_number).trim() !== '') ||
+      (postal_code && String(postal_code).trim() !== '') ||
+      (city && String(city).trim() !== '');
+
+    if (!hasStructuredAddress) {
+      return res.status(400).json({
+        error: "Missing structured address. Please provide at least one of: street, house_number, postal_code or city.",
+      });
+    }
+
+    // If area_text is not provided, compose a best-effort area_text from structured fields for backward compatibility
+    const composedAreaText = area_text && String(area_text).trim() !== ''
+      ? area_text
+      : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
+
+    // Require structured address fields (at least one) instead of relying solely on area_text.
+    const hasStructuredAddress = (street && String(street).trim() !== '') ||
+      (house_number && String(house_number).trim() !== '') ||
+      (postal_code && String(postal_code).trim() !== '') ||
+      (city && String(city).trim() !== '');
+
+    if (!hasStructuredAddress) {
+      return res.status(400).json({
+        error: "Missing structured address. Please provide at least one of: street, house_number, postal_code or city.",
+      });
+    }
+
+    // If area_text is not provided, compose a best-effort area_text from structured fields for backward compatibility
+    const composedAreaText = area_text && String(area_text).trim() !== ''
+      ? area_text
+      : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
+
     // Validate hourly_or_fixed and corresponding price
     if (hourly_or_fixed === "fixed" && !fixed_price) {
       return res
@@ -284,7 +365,11 @@ router.post("/", async (req, res) => {
         .json({ error: "Fixed price required for fixed jobs" });
     }
 
-    // Insert job
+  // Insert job
+  // Attempt geocoding of the composed address (best-effort)
+  console.log('Composed area_text for geocoding:', composedAreaText);
+  const geo = await geocodeAddress(composedAreaText);
+
     const { data: job, error: jobError } = await supabase
       .from("jobs")
       .insert({
@@ -292,7 +377,13 @@ router.post("/", async (req, res) => {
         category_id: categoryIdNum,
         title,
         description: description || null,
-        area_text: area_text || null,
+        area_text: composedAreaText,
+        street: street || null,
+        house_number: house_number || null,
+        postal_code: postal_code || null,
+        city: city || null,
+        latitude: geo ? geo.latitude : null,
+        longitude: geo ? geo.longitude : null,
         hourly_or_fixed,
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
@@ -330,6 +421,10 @@ router.post("/", async (req, res) => {
       title,
       description,
       area_text,
+      street,
+      house_number,
+      postal_code,
+      city,
       hourly_or_fixed,
       hourly_rate,
       fixed_price,
@@ -340,11 +435,44 @@ router.post("/", async (req, res) => {
     const clientIdNum = parseInt(client_id, 10);
     const categoryIdNum = parseInt(category_id, 10);
 
+    // Minimal validation for drafts
     if (!clientIdNum || !categoryIdNum || !title || !start_time) {
       return res.status(400).json({
         error: "Missing required fields: client_id, category_id, title, start_time",
       });
     }
+
+    // For drafts, also encourage structured address. If none provided, reject to enforce the new pattern.
+    const hasStructuredAddress = (street && String(street).trim() !== '') ||
+      (house_number && String(house_number).trim() !== '') ||
+      (postal_code && String(postal_code).trim() !== '') ||
+      (city && String(city).trim() !== '');
+
+    if (!hasStructuredAddress) {
+      return res.status(400).json({
+        error: "Missing structured address for draft. Please provide at least one of: street, house_number, postal_code or city.",
+      });
+    }
+
+    // For drafts, also encourage structured address. If none provided, reject to enforce the new pattern.
+    const hasStructuredAddress = (street && String(street).trim() !== '') ||
+      (house_number && String(house_number).trim() !== '') ||
+      (postal_code && String(postal_code).trim() !== '') ||
+      (city && String(city).trim() !== '');
+
+    if (!hasStructuredAddress) {
+      return res.status(400).json({
+        error: "Missing structured address for draft. Please provide at least one of: street, house_number, postal_code or city.",
+      });
+    }
+
+    // Compose area_text from structured fields if not explicitly provided
+    const composedAreaText = area_text && String(area_text).trim() !== ''
+      ? area_text
+      : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
+
+    // Attempt geocoding for draft as well (best-effort)
+    const geoDraft = await geocodeAddress(composedAreaText);
 
     const { data: job, error: jobError } = await supabase
       .from("jobs")
@@ -353,7 +481,13 @@ router.post("/", async (req, res) => {
         category_id: categoryIdNum,
         title,
         description: description || null,
-        area_text: area_text || null,
+        area_text: composedAreaText,
+        street: street || null,
+        house_number: house_number || null,
+        postal_code: postal_code || null,
+        city: city || null,
+        latitude: geoDraft ? geoDraft.latitude : null,
+        longitude: geoDraft ? geoDraft.longitude : null,
         hourly_or_fixed,
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
@@ -398,6 +532,7 @@ router.get("/client/:clientId", async (req, res) => {
         `
         id, client_id, category_id,
         title, description, area_text,
+        street, house_number, postal_code, city, latitude, longitude,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, status, created_at, image_url,
         job_categories (

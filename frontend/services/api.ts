@@ -301,7 +301,6 @@ export const jobsAPI = {
     category_id: number;
     title: string;
     description?: string;
-    area_text?: string;
     hourly_or_fixed: 'hourly' | 'fixed';
     hourly_rate?: number | null;
     fixed_price?: number | null;

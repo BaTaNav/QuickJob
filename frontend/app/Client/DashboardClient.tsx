@@ -100,12 +100,26 @@ export default function DashboardClient() {
           <Text style={styles.jobMetaText}>{job.category.name_nl || job.category.name_en}</Text>
         </View>
       )}
-      {job.area_text && (
-        <View style={styles.jobMeta}>
-          <MapPin size={14} color="#64748B" />
-          <Text style={styles.jobMetaText}>{job.area_text}</Text>
-        </View>
-      )}
+      {(() => {
+        const parts: string[] = [];
+        if (job.street) {
+          let s = job.street;
+          if (job.house_number) s += ` ${job.house_number}`;
+          parts.push(s);
+        }
+        if (job.postal_code) parts.push(job.postal_code);
+        if (job.city) parts.push(job.city);
+        const addr = parts.length > 0 ? parts.join(' ') : '';
+        if (addr) {
+          return (
+            <View style={styles.jobMeta}>
+              <MapPin size={14} color="#64748B" />
+              <Text style={styles.jobMetaText}>{addr}</Text>
+            </View>
+          );
+        }
+        return null;
+      })()}
       {job.start_time && (
         <View style={styles.jobMeta}>
           <Clock size={14} color="#64748B" />

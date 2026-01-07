@@ -141,7 +141,18 @@ export default function JobDetail() {
       
       <Text style={styles.jobMeta}>
         {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
-        {job.area_text ? ` • ${job.area_text}` : ''}
+        {(() => {
+          const parts: string[] = [];
+          if (job.street) {
+            let s = job.street;
+            if (job.house_number) s += ` ${job.house_number}`;
+            parts.push(s);
+          }
+          if (job.postal_code) parts.push(job.postal_code);
+          if (job.city) parts.push(job.city);
+          const addr = parts.length > 0 ? parts.join(' ') : '';
+          return addr ? ` • ${addr}` : '';
+        })()}
       </Text>
 
       {/* Image Display */}
@@ -159,7 +170,18 @@ export default function JobDetail() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Address</Text>
-        <Text style={styles.sectionText}>{job.area_text || 'Niet opgegeven'}</Text>
+        <Text style={styles.sectionText}>{(() => {
+          const parts: string[] = [];
+          if (job.street) {
+            let s = job.street;
+            if (job.house_number) s += ` ${job.house_number}`;
+            parts.push(s);
+          }
+          if (job.postal_code) parts.push(job.postal_code);
+          if (job.city) parts.push(job.city);
+          if (parts.length > 0) return parts.join(' ');
+          return 'Niet opgegeven';
+        })()}</Text>
       </View>
 
       <View style={styles.section}>

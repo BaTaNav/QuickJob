@@ -47,6 +47,8 @@ export default function StudentDashboard() {
   const [filterCategory, setFilterCategory] = React.useState('All');
   const [filterDate, setFilterDate] = React.useState('Any');
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
+  const [userLocation, setUserLocation] = React.useState<{ latitude: number; longitude: number } | null>(null);
+  const [showAllJobs, setShowAllJobs] = React.useState(false);
   const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
   const router = useRouter();
 
@@ -111,6 +113,46 @@ export default function StudentDashboard() {
     fetchPending();
   }, [fetchAvailable, fetchPending]);
 
+  // Try to get user's current location (best-effort). Used only for distance filtering.
+  // Guarded so any runtime quirk won't throw a ReferenceError if the setter is unavailable.
+  React.useEffect(() => {
+    const getLocation = () => {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.geolocation && typeof navigator.geolocation.getCurrentPosition === 'function') {
+          const onSuccess = (pos: any) => {
+            try {
+              const { latitude, longitude } = pos.coords ?? {};
+              if (typeof setUserLocation === 'function') {
+                setUserLocation({ latitude, longitude });
+              }
+            } catch (err) {
+              // Defensive: don't let a setter error bubble up
+              // (some bundlers/environments might not have the closure as expected)
+              // eslint-disable-next-line no-console
+              console.warn('Failed to set userLocation:', err);
+            }
+          };
+
+          const onError = (err: any) => {
+            // eslint-disable-next-line no-console
+            console.warn('Geolocation unavailable or denied:', err?.message ?? err);
+            try {
+              if (typeof setUserLocation === 'function') setUserLocation(null);
+            } catch (e) {
+              // ignore
+            }
+          };
+
+          navigator.geolocation.getCurrentPosition(onSuccess, onError, { enableHighAccuracy: false, timeout: 5000 });
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('Geolocation check failed:', e);
+      }
+    };
+    getLocation();
+  }, []);
+
   const handleRefresh = () => {
     fetchAvailable();
     fetchPending();
@@ -129,7 +171,7 @@ export default function StudentDashboard() {
     if (filterCategory !== 'All') {
       filtered = filtered.filter(job => job.category === filterCategory);
     }
-    
+
     if (filterDate === 'Today') {
       const today = new Date().toDateString();
       filtered = filtered.filter(job => {
@@ -150,9 +192,40 @@ export default function StudentDashboard() {
         return new Date(job.start_time).toDateString() === new Date(selectedDate).toDateString();
       });
     }
-    
+
+  // Distance filtering: if the 'show all' toggle is ON, skip distance filtering entirely.
+  if (showAllJobs) return filtered;
+
+  // Otherwise, if we have user location and a positive range, compute Haversine and filter
+    const rangeKm = Number(filterRange) || 0;
+    if (userLocation && rangeKm > 0) {
+      const toRad = (v: number) => v * Math.PI / 180;
+      const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // km
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      };
+
+      filtered = filtered.filter(job => {
+        const lat = job.latitude != null ? Number(job.latitude) : null;
+        const lon = job.longitude != null ? Number(job.longitude) : null;
+        if (lat == null || lon == null) {
+          // Without coordinates we can't compute distance — exclude these when filtering by range
+          return false;
+        }
+        const dist = haversineKm(userLocation.latitude, userLocation.longitude, lat, lon);
+        (job as any)._distance_km = Math.round(dist * 10) / 10;
+        return dist <= rangeKm;
+      });
+    }
+
     return filtered;
-  }, [availableJobs, pendingApplications, filterCategory, filterDate, selectedDate]);
+  }, [availableJobs, pendingApplications, filterCategory, filterDate, selectedDate, userLocation, filterRange]);
 
   const mockJobs: Record<string, Array<any>> = {
     today: [],
@@ -163,6 +236,20 @@ export default function StudentDashboard() {
   };
 
   const jobs = mockJobs[tab] ?? [];
+  const formatJobAddress = (job: any) => {
+    // Prefer structured fields, fall back to area_text
+    const parts: string[] = [];
+    if (job.street) {
+      let s = job.street;
+      if (job.house_number) s += ` ${job.house_number}`;
+      parts.push(s);
+    }
+    if (job.postal_code) parts.push(job.postal_code);
+    if (job.city) parts.push(job.city);
+    if (parts.length > 0) return parts.join(' ');
+    // No legacy free-text fallback — rely on structured address
+    return '';
+  };
 
 
   return (
@@ -288,6 +375,35 @@ export default function StudentDashboard() {
               </View>
             )}
           </View>
+
+          <View style={[styles.filterGroup, { maxWidth: 220 }]}>
+            <Text style={styles.filterLabel}>Distance (km)</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {Platform.OS === 'web' ? (
+                <input
+                  type="number"
+                  min={0}
+                  value={String(filterRange)}
+                  onChange={(e: any) => setFilterRange(Number(e.target.value || 0))}
+                  style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0', width: 100 }}
+                  disabled={showAllJobs}
+                />
+              ) : (
+                <TextInput
+                  keyboardType="numeric"
+                  value={String(filterRange)}
+                  onChangeText={(t) => setFilterRange(Number(t || 0))}
+                  style={[styles.dateInput, { minWidth: 100 }]}
+                  editable={!showAllJobs}
+                />
+              )}
+
+              <TouchableOpacity style={[styles.filterBtn, showAllJobs && styles.filterBtnActive]} onPress={() => setShowAllJobs(!showAllJobs)}>
+                <Text style={showAllJobs ? styles.filterBtnTextActive : styles.filterBtnText}>{showAllJobs ? 'Show all jobs' : 'Filter by distance'}</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 12, color: '#64748B', marginTop: 6 }}>{showAllJobs ? 'Showing all jobs (distance filter off).' : 'Uses your location (best-effort).'}</Text>
+          </View>
         </View>
       )}
 
@@ -353,7 +469,7 @@ export default function StudentDashboard() {
                   <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
                   <Text style={styles.jobMeta}>
                     {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
-                    {job.area_text ? ` • ${job.area_text}` : ''}
+                    {formatJobAddress(job) ? ` • ${formatJobAddress(job)}` : ''}
                     {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
                     {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
                   </Text>
@@ -384,6 +500,12 @@ export default function StudentDashboard() {
             <>
               <Text style={styles.emptyTitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'No available jobs match your filters' : 'No available jobs'}</Text>
               <Text style={styles.emptySubtitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'Try broadening your filters to find more jobs.' : 'Available jobs will appear here.'}</Text>
+              {/* Helpful hint when no jobs are returned at all */}
+              {availableJobs.length === 0 && (
+                <Text style={{ marginTop: 10, color: '#9CA3AF', fontSize: 13, textAlign: 'center', maxWidth: 320 }}>
+                  If you expect jobs but see none, the backend server might be offline. Start the backend with: node server.js from the `backend` folder.
+                </Text>
+              )}
             </>
           )}
 
