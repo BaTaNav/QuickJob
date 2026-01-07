@@ -74,7 +74,9 @@ const Signup = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('Registration successful:', data);
-        router.replace('/Login');
+        Alert.alert('Registration successful', 'You can now sign in', [
+          { text: 'OK', onPress: () => router.replace('/Login') }
+        ]);
       } else {
         const errText = await response.text();
         console.error('Signup failed:', errText);

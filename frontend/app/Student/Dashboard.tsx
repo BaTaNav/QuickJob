@@ -1,12 +1,16 @@
 import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View,Image, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
 import * as React from "react";
-import { useRouter } from 'expo-router';
-import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native';
-import { jobsAPI, studentAPI, getStudentId } from '@/services/api';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock } from 'lucide-react-native';
+import { jobsAPI, studentAPI, getStudentId } from '../../services/api';
 
 export default function StudentDashboard() {
-  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('available');
+  const params = useLocalSearchParams();
+  const initialTab = (params.tab as 'today' | 'upcoming' | 'available' | 'pending' | 'archive') || 'available';
+  
+  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>(initialTab);
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
+  const [pendingApplications, setPendingApplications] = React.useState<any[]>([]);
   const [dashboardData, setDashboardData] = React.useState<any>({ today: [], upcoming: [], pending: [], archive: [] });
 
   // Keep the original default categories, but augment with categories discovered from jobs
@@ -40,22 +44,11 @@ export default function StudentDashboard() {
   const [error, setError] = React.useState('');
   const [showFilters, setShowFilters] = React.useState(false);
   const [filterRange, setFilterRange] = React.useState(20);
-  // selected category stored as either 'All' or an object { id: number|null, name: string }
-  const [filterCategory, setFilterCategory] = React.useState<{ id: number | null; name: string } | 'All'>('All');
+  const [filterCategory, setFilterCategory] = React.useState('All');
   const [filterDate, setFilterDate] = React.useState('Any');
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
   const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
-  const [studentId, setStudentId] = React.useState<string | null>(null);
   const router = useRouter();
-
-  // Load student ID on mount
-  React.useEffect(() => {
-    const loadStudentId = async () => {
-      const id = await getStudentId();
-      setStudentId(id);
-    };
-    loadStudentId();
-  }, []);
 
   const fetchAvailable = React.useCallback(async () => {
     try {
@@ -71,74 +64,69 @@ export default function StudentDashboard() {
     }
   }, []);
 
-  // Fetch student dashboard data (pending, upcoming, etc.)
-  const fetchDashboard = React.useCallback(async () => {
-    if (!studentId) return;
+  const fetchPending = React.useCallback(async () => {
     try {
-      const data = await studentAPI.getDashboard(Number(studentId));
-      setDashboardData(data);
+      setLoading(true);
+      setError('');
+      const sid = await getStudentId();
+      if (!sid) {
+        setPendingApplications([]);
+        return;
+      }
+      const data = await studentAPI.getApplications(Number(sid));
+      // Filter only pending applications
+      const pending = data.filter((app: any) => app.status === 'pending');
+      setPendingApplications(pending || []);
     } catch (err) {
-      console.log('Could not fetch dashboard data:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load applications';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
-  }, [studentId]);
+  }, []);
+
+  // Set tab from params on mount and when params change
+  React.useEffect(() => {
+    if (params.tab) {
+      setTab(params.tab as any);
+    }
+  }, [params.tab]);
+
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      // Update tab if param exists
+      if (params.tab) {
+        setTab(params.tab as any);
+      }
+      // Refresh data
+      fetchAvailable();
+      fetchPending();
+    }, [params.tab, fetchAvailable, fetchPending])
+  );
 
   React.useEffect(() => {
     fetchAvailable();
-  }, [fetchAvailable]);
-
-  React.useEffect(() => {
-    if (studentId) {
-      fetchDashboard();
-    }
-  }, [studentId, fetchDashboard]);
+    fetchPending();
+  }, [fetchAvailable, fetchPending]);
 
   const handleRefresh = () => {
     fetchAvailable();
-    if (studentId) {
-      fetchDashboard();
-    }
+    fetchPending();
   };
 
-  // Cancel application handler
-  const handleCancelApplication = async (applicationId: number) => {
-    if (!studentId) return;
-    
-    Alert.alert(
-      'Sollicitatie annuleren',
-      'Weet je zeker dat je je sollicitatie wilt annuleren?',
-      [
-        { text: 'Nee', style: 'cancel' },
-        {
-          text: 'Ja, annuleer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await studentAPI.cancelApplication(Number(studentId), applicationId);
-              Alert.alert('Geannuleerd', 'Je sollicitatie is geannuleerd.');
-              fetchDashboard(); // Refresh the dashboard
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Kon niet annuleren');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  // Filter jobs based on selected filters
+  // Filter jobs based on selected filters and exclude already applied jobs
   const filteredJobs = React.useMemo(() => {
     let filtered = availableJobs;
     
+    // Get IDs of jobs the student has already applied to
+    const appliedJobIds = new Set(pendingApplications.map(app => app.job_id));
+    
+    // Exclude jobs already applied to
+    filtered = filtered.filter(job => !appliedJobIds.has(job.id));
+    
     if (filterCategory !== 'All') {
-      // If we have an id for the selected category, filter by id for robustness
-      if ((filterCategory as any).id) {
-        const selId = (filterCategory as { id: number | null; name: string }).id;
-        filtered = filtered.filter(job => job?.category?.id === selId);
-      } else {
-        // Fall back to comparing by English name when no id is available (defaults)
-        const selName = (filterCategory as { id: number | null; name: string }).name;
-        filtered = filtered.filter(job => (job?.category?.name_en || 'Other') === selName);
-      }
+      filtered = filtered.filter(job => job.category === filterCategory);
     }
     
     if (filterDate === 'Today') {
@@ -163,26 +151,17 @@ export default function StudentDashboard() {
     }
     
     return filtered;
-  }, [availableJobs, filterCategory, filterDate, selectedDate]);
+  }, [availableJobs, pendingApplications, filterCategory, filterDate, selectedDate]);
 
-  // Get jobs for current tab
-  const getJobsForTab = () => {
-    switch (tab) {
-      case 'today':
-        return dashboardData.today || [];
-      case 'upcoming':
-        return dashboardData.upcoming || [];
-      case 'pending':
-        return dashboardData.pending || [];
-      case 'archive':
-        return dashboardData.archive || [];
-      case 'available':
-      default:
-        return filteredJobs; // Use filtered jobs for available tab
-    }
+  const mockJobs: Record<string, Array<any>> = {
+    today: [],
+    upcoming: [],
+    available: availableJobs,
+    pending: pendingApplications,
+    archive: [],
   };
 
-  const jobs = getJobsForTab();
+  const jobs = mockJobs[tab] ?? [];
 
 
   return (
@@ -222,23 +201,23 @@ export default function StudentDashboard() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 6 }}>
           {/* Mapping tabs might be cleaner than repeating, but this structure is fine */}
           <TouchableOpacity style={[styles.tab, tab === 'today' && styles.tabActive]} onPress={() => setTab('today')}>
-            <Text style={tab === 'today' ? styles.tabActiveText : styles.tabText}>Today ({dashboardData.today?.length || 0})</Text>
+            <Text style={tab === 'today' ? styles.tabActiveText : styles.tabText}>Today ({mockJobs.today.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'upcoming' && styles.tabActive]} onPress={() => setTab('upcoming')}>
-            <Text style={tab === 'upcoming' ? styles.tabActiveText : styles.tabText}>Upcoming ({dashboardData.upcoming?.length || 0})</Text>
+            <Text style={tab === 'upcoming' ? styles.tabActiveText : styles.tabText}>Upcoming ({mockJobs.upcoming.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'available' && styles.tabActive]} onPress={() => setTab('available')}>
-            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({availableJobs.length})</Text>
+            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({filteredJobs.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
-            <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending ({dashboardData.pending?.length || 0})</Text>
+            <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending ({pendingApplications.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'archive' && styles.tabActive]} onPress={() => setTab('archive')}>
-            <Text style={tab === 'archive' ? styles.tabActiveText : styles.tabText}>Archive ({dashboardData.archive?.length || 0})</Text>
+            <Text style={tab === 'archive' ? styles.tabActiveText : styles.tabText}>Archive ({mockJobs.archive.length})</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -258,18 +237,15 @@ export default function StudentDashboard() {
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Category</Text>
             <View style={styles.filterPills}>
-              {categoryOptions.map((cat) => {
-                const isActive = filterCategory !== 'All' ? (filterCategory as { id: number | null; name: string }).name === cat.name : cat.name === 'All';
-                return (
-                  <TouchableOpacity 
-                    key={cat.name} 
-                    style={[styles.filterBtn, isActive && styles.filterBtnActive]} 
-                    onPress={() => setFilterCategory(cat.name === 'All' ? 'All' : cat)}
-                  >
-                    <Text style={isActive ? styles.filterBtnTextActive : styles.filterBtnText}>{cat.name}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {['All', 'Hospitality', 'Retail', 'Office', 'Event', 'Other'].map((cat) => (
+                <TouchableOpacity 
+                  key={cat} 
+                  style={[styles.filterBtn, filterCategory === cat && styles.filterBtnActive]} 
+                  onPress={() => setFilterCategory(cat)}
+                >
+                  <Text style={filterCategory === cat ? styles.filterBtnTextActive : styles.filterBtnText}>{cat}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
 
@@ -336,13 +312,36 @@ export default function StudentDashboard() {
       {!loading && !error && jobs.length > 0 ? (
         <View style={styles.jobsContainer}>
           <View style={styles.jobsList}>
-            {jobs.map((job: any) => (
-              <Pressable 
-                key={job.id} 
-                style={styles.jobCard} 
-                onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
-              >
-                {/* Add Image Here */}
+            {tab === 'pending' ? (
+              // Render pending applications
+              pendingApplications.map((app: any) => (
+                <Pressable 
+                  key={app.id} 
+                  style={styles.jobCard} 
+                  onPress={() => router.push(`/Student/Applied/${app.id}` as never)} 
+                >
+                  <View style={styles.pendingHeader}>
+                    <Clock size={16} color="#F59E0B" />
+                    <Text style={styles.pendingBadge}>Pending Review</Text>
+                  </View>
+                  <Text style={styles.jobTitle}>{app.jobs?.title || 'Job'}</Text>
+                  <Text style={styles.jobDescription}>{app.jobs?.description || 'Geen beschrijving'}</Text>
+                  <Text style={styles.jobMeta}>
+                    Applied: {new Date(app.applied_at).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {app.jobs?.start_time ? ` • Starts: ${new Date(app.jobs.start_time).toLocaleDateString('nl-BE')}` : ''}
+                    {app.jobs?.area_text ? ` • ${app.jobs.area_text}` : ''}
+                  </Text>
+                </Pressable>
+              ))
+            ) : (
+              // Render available jobs
+              filteredJobs.map((job: any) => (
+                <Pressable 
+                  key={job.id} 
+                  style={styles.jobCard} 
+                  onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
+                >
+                  {/* Add Image Here */}
   {job.image_url && (
     <Image 
       source={{ uri: job.image_url }} 
@@ -350,43 +349,16 @@ export default function StudentDashboard() {
     />
   )}
                 <Text style={styles.jobTitle}>{job.title}</Text>
-                <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
-                <Text style={styles.jobMeta}>
-                  {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
-                  {job.area_text ? ` • ${job.area_text}` : ''}
-                  {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
-                  {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
-                </Text>
-                {/* Show application status badge for pending/upcoming jobs */}
-                {job.application_status && (
-                  <View style={[
-                    styles.statusBadge,
-                    job.application_status === 'pending' && styles.pendingBadge,
-                    job.application_status === 'accepted' && styles.acceptedBadge,
-                  ]}>
-                    <Text style={[
-                      styles.statusBadgeText,
-                      job.application_status === 'pending' && styles.pendingText,
-                      job.application_status === 'accepted' && styles.acceptedText,
-                    ]}>
-                      {job.application_status === 'pending' ? '⏳ In afwachting' : '✅ Geaccepteerd'}
-                    </Text>
-                  </View>
-                )}
-                {/* Show cancel button for pending applications */}
-                {tab === 'pending' && job.application_id && (
-                  <TouchableOpacity 
-                    style={styles.cancelBtn}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleCancelApplication(job.application_id);
-                    }}
-                  >
-                    <Text style={styles.cancelBtnText}>Annuleren</Text>
-                  </TouchableOpacity>
-                )}
-              </Pressable>
-            ))}
+                  <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
+                  <Text style={styles.jobMeta}>
+                    {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
+                    {job.area_text ? ` • ${job.area_text}` : ''}
+                    {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
+                    {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
+                  </Text>
+                </Pressable>
+              ))
+            )}
           </View>
         </View>
       ) : (
@@ -616,6 +588,17 @@ const styles = StyleSheet.create({
   tabActive: {
     backgroundColor: "#176B51",
   },
+  pendingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  pendingBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#F59E0B',
+  },
   tabText: { color: "#7A7F85", fontWeight: "500" },
   tabActiveText: { color: "#fff", fontWeight: "600" },
 
@@ -705,44 +688,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     maxWidth: 260,
-  },
-
-  /* STATUS BADGES */
-  statusBadge: {
-    marginTop: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  pendingBadge: {
-    backgroundColor: '#FEF3C7',
-  },
-  acceptedBadge: {
-    backgroundColor: '#D1FAE5',
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  pendingText: {
-    color: '#92400E',
-  },
-  acceptedText: {
-    color: '#065F46',
-  },
-  cancelBtn: {
-    marginTop: 10,
-    backgroundColor: '#DC2626',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  cancelBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
   },
 
   /* FOOTER */

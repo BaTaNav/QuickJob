@@ -1,6 +1,6 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
-const { supabase } = require("../supabaseClient");
+const supabase = require("../supabaseClient");
 
 const router = express.Router();
 
@@ -164,7 +164,7 @@ router.get("/:id", async (req, res) => {
     // Fetch client profile
     const { data: profile, error: profileError } = await supabase
       .from("client_profiles")
-      .select("address_line, postal_code, city, region, first_job_needs_approval, avatar_url")
+      .select("address_line, postal_code, city, region, first_job_needs_approval")
       .eq("id", id)
       .single();
 

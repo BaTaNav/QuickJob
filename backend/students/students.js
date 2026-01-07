@@ -1,5 +1,5 @@
 const express = require("express");
-const { supabase } = require("../supabaseClient");
+const supabase = require("../supabaseClient");
 const verifyJwt = require("../auth/verifyJwt");
 const router = express.Router();
 
@@ -112,8 +112,8 @@ router.get("/:studentId/dashboard", async (req, res) => {
       const startDateISO = job.start_time.slice(0, 10);
       const appStatus = job.application_status;
 
-      // Archive: completed or rejected or cancelled
-      if (appStatus === "completed" || appStatus === "rejected" || appStatus === "cancelled") {
+      // Archive: completed or rejected or withdrawn
+      if (appStatus === "completed" || appStatus === "rejected" || appStatus === "withdrawn") {
         archive.push(job);
       }
       // Pending: awaiting response
@@ -169,10 +169,10 @@ router.get("/:studentId/profile", async (req, res) => {
     }
     if (userError) throw userError;
 
-    // Fetch student profile data - avatar_url toegevoegd!
+    // Fetch student profile data
     const { data: profileData, error: profileError } = await supabase
       .from("student_profiles")
-      .select("school_name, field_of_study, academic_year, radius_km, verification_status, active_since, avatar_url")
+      .select("school_name, field_of_study, academic_year, radius_km, verification_status, active_since")
       .eq("id", studentId)
       .single();
 
@@ -341,7 +341,6 @@ router.get("/:studentId/applications", async (req, res) => {
 /**
  * PATCH /students/:studentId/applications/:applicationId
  * Update application status (only by student to cancel - JWT temporarily disabled)
- * Can only cancel if status is 'pending' - accepted applications cannot be cancelled
  */
 router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (req, res) => {
   try {
@@ -349,52 +348,64 @@ router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (
     const applicationId = parseInt(req.params.applicationId);
     const { status } = req.body;
 
+    console.log(`[PATCH applications] studentId=${studentId}, applicationId=${applicationId}, status=${status}`);
+
+    // Validate IDs
+    if (isNaN(studentId) || isNaN(applicationId)) {
+      console.error(`[PATCH applications] Invalid IDs: studentId=${studentId}, applicationId=${applicationId}`);
+      return res.status(400).json({ error: "Invalid student ID or application ID" });
+    }
+
     // TODO: Verify the user is updating their own application when JWT is enabled
     // if (req.user.id !== studentId.toString()) {
     //   return res.status(403).json({ error: "Unauthorized" });
     // }
 
-    // Only allow cancelling applications (status: cancelled)
-    if (status !== "cancelled") {
-      return res.status(400).json({ error: "Only cancellation is allowed from student side" });
+    // Only allow withdrawing applications (status: withdrawn)
+    if (status !== "withdrawn") {
+      return res.status(400).json({ error: "Only withdrawal is allowed from student side" });
     }
 
-    // First check if the application exists and its current status
-    const { data: existingApp, error: fetchError } = await supabase
+    // First check if application exists
+    const { data: existingApp, error: checkError } = await supabase
       .from("job_applications")
-      .select("id, status")
+      .select("id, student_id, status")
       .eq("id", applicationId)
-      .eq("student_id", studentId)
       .single();
 
-    if (fetchError || !existingApp) {
+    if (checkError) {
+      console.error(`[PATCH applications] Check error:`, checkError);
       return res.status(404).json({ error: "Application not found" });
     }
 
-    // Only allow cancelling if status is 'pending'
-    if (existingApp.status !== "pending") {
-      return res.status(400).json({ 
-        error: "Cannot cancel this application", 
-        message: existingApp.status === "accepted" 
-          ? "Accepted applications cannot be cancelled" 
-          : `Application is already ${existingApp.status}`
-      });
+    if (!existingApp) {
+      console.error(`[PATCH applications] Application not found: id=${applicationId}`);
+      return res.status(404).json({ error: "Application not found" });
     }
 
+    if (existingApp.student_id !== studentId) {
+      console.error(`[PATCH applications] Student mismatch: expected=${studentId}, actual=${existingApp.student_id}`);
+      return res.status(403).json({ error: "Not authorized to update this application" });
+    }
+
+    // Now update
     const { data, error } = await supabase
       .from("job_applications")
-      .update({ status: "cancelled" })
+      .update({ status: "withdrawn" })
       .eq("id", applicationId)
-      .eq("student_id", studentId)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("[PATCH applications] Update error:", error);
+      throw error;
+    }
 
+    console.log("[PATCH applications] Successfully cancelled application:", data);
     res.json(data);
   } catch (err) {
-    console.error("Error updating application:", err);
-    res.status(500).json({ error: "Failed to update application" });
+    console.error("[PATCH applications] Unexpected error:", err);
+    res.status(500).json({ error: "Failed to update application", details: err.message });
   }
 });
 

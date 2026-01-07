@@ -167,7 +167,7 @@ export const studentAPI = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ status: 'withdrawn' }),
+      body: JSON.stringify({ status: 'cancelled' }),
     });
     if (!response.ok) {
       throw new Error('Failed to cancel application');

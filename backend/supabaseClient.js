@@ -2,15 +2,13 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+// Prefer service role key for backend operations (bypasses RLS)
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
 
-if (!supabaseUrl || !supabaseKey|| !supabaseServiceKey) {
-  console.warn('Warning: SUPABASE_URL, SUPABASE_ANON_KEY, or SUPABASE_SERVICE_KEY is missing.');
+if (!supabaseUrl || !supabaseKey) {
+  console.warn('Warning: SUPABASE_URL or SUPABASE_KEY/SUPABASE_SERVICE_KEY is not set in environment variables.');
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
-const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
 
-
-module.exports = { supabase, supabaseService };
+module.exports = supabase;
