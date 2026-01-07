@@ -112,8 +112,8 @@ router.get("/:studentId/dashboard", async (req, res) => {
       const startDateISO = job.start_time.slice(0, 10);
       const appStatus = job.application_status;
 
-      // Archive: completed or rejected or cancelled
-      if (appStatus === "completed" || appStatus === "rejected" || appStatus === "cancelled") {
+      // Archive: completed or rejected or withdrawn
+      if (appStatus === "completed" || appStatus === "rejected" || appStatus === "withdrawn") {
         archive.push(job);
       }
       // Pending: awaiting response
@@ -361,9 +361,9 @@ router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (
     //   return res.status(403).json({ error: "Unauthorized" });
     // }
 
-    // Only allow cancelling applications (status: cancelled)
-    if (status !== "cancelled") {
-      return res.status(400).json({ error: "Only cancellation is allowed from student side" });
+    // Only allow withdrawing applications (status: withdrawn)
+    if (status !== "withdrawn") {
+      return res.status(400).json({ error: "Only withdrawal is allowed from student side" });
     }
 
     // First check if application exists
@@ -391,7 +391,7 @@ router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (
     // Now update
     const { data, error } = await supabase
       .from("job_applications")
-      .update({ status: "cancelled" })
+      .update({ status: "withdrawn" })
       .eq("id", applicationId)
       .select()
       .single();

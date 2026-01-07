@@ -1,6 +1,6 @@
 import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator, Platform, TextInput } from "react-native";
 import * as React from "react";
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock } from 'lucide-react-native';
 import { jobsAPI, studentAPI, getStudentId } from '../../services/api';
 
@@ -20,13 +20,6 @@ export default function StudentDashboard() {
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
   const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
   const router = useRouter();
-
-  // Set tab from params on mount
-  React.useEffect(() => {
-    if (params.tab) {
-      setTab(params.tab as any);
-    }
-  }, [params.tab]);
 
   const fetchAvailable = React.useCallback(async () => {
     try {
@@ -62,6 +55,26 @@ export default function StudentDashboard() {
       setLoading(false);
     }
   }, []);
+
+  // Set tab from params on mount and when params change
+  React.useEffect(() => {
+    if (params.tab) {
+      setTab(params.tab as any);
+    }
+  }, [params.tab]);
+
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      // Update tab if param exists
+      if (params.tab) {
+        setTab(params.tab as any);
+      }
+      // Refresh data
+      fetchAvailable();
+      fetchPending();
+    }, [params.tab, fetchAvailable, fetchPending])
+  );
 
   React.useEffect(() => {
     fetchAvailable();
