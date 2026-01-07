@@ -579,6 +579,12 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 8,
   },
+  jobImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    marginRight: 8,
+  },
   jobTitle: {
     fontSize: 16,
     fontWeight: "700",
