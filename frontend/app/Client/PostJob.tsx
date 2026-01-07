@@ -18,6 +18,7 @@ import {
   LayoutAnimation,
   UIManager,
   Image,
+  Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import {
@@ -37,6 +38,7 @@ import {
 } from "lucide-react-native";
 import { getClientId, jobsAPI } from "@/services/api";
 import * as ImagePicker from 'expo-image-picker';
+
 
 
 // Enable LayoutAnimation for Android
@@ -132,8 +134,97 @@ export default function PostJob() {
   const [image, setImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
+const renderCenteredPicker = (
+  visible: boolean,
+  setVisible: (v: boolean) => void,
+  dateValue: Date,
+  setDateValue: (d: Date) => void,
+  mode: "date" | "time"
+) => {
+  const [manualText, setManualText] = useState("");
 
-  // --- PASTE THIS BLOCK INSIDE THE COMPONENT ---
+  useEffect(() => {
+    if (visible) {
+      // Pre-fill manual input when opening
+      setManualText(
+        mode === "time"
+          ? dateValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+          : dateValue.toISOString().split('T')[0]
+      );
+    }
+  }, [visible]);
+
+  const handleManualInput = (text: string) => {
+    setManualText(text);
+    if (mode === "time") {
+      // Simple HH:MM validation and parsing
+      const [hours, minutes] = text.split(':').map(Number);
+      if (!isNaN(hours) && !isNaN(minutes) && hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60) {
+        const newDate = new Date(dateValue);
+        newDate.setHours(hours);
+        newDate.setMinutes(minutes);
+        setDateValue(newDate);
+      }
+    } else {
+      // Date parsing (YYYY-MM-DD)
+      const parsedDate = new Date(text);
+      if (!isNaN(parsedDate.getTime())) {
+        setDateValue(parsedDate);
+      }
+    }
+  };
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={visible}
+      onRequestClose={() => setVisible(false)}
+    >
+      <View style={styles.centeredModalView}>
+        <View style={styles.modalContent}>
+          <Text style={styles.label}>
+            {mode === "time" ? "Set Time" : "Set Date"}
+          </Text>
+
+          {/* Manual Keyboard Input */}
+          <TextInput
+            style={styles.manualInput}
+            placeholder={mode === "time" ? "HH:MM" : "YYYY-MM-DD"}
+            value={manualText}
+            onChangeText={handleManualInput}
+            keyboardType={mode === "time" ? "numbers-and-punctuation" : "default"}
+          />
+
+          {/* Wheel Picker */}
+          <DateTimePicker
+            value={dateValue}
+            mode={mode}
+            display="spinner" // Forces centered spinner style on iOS
+            onChange={(e, d) => {
+              if (d) {
+                setDateValue(d);
+                setManualText(
+                  mode === "time"
+                    ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+                    : d.toISOString().split('T')[0]
+                );
+              }
+            }}
+            style={{ width: "100%", height: 150 }}
+          />
+
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={() => setVisible(false)}
+          >
+            <Text style={styles.confirmButtonText}>Confirm</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -892,7 +983,7 @@ const handlePostJob = async () => {
                     onClick={(e: any) => e.stopPropagation()}
                     onChange={(e: any) => setWebModal(m => m ? ({ ...m, value: e.target.value }) : m)}
                     onKeyDown={(e: any) => { if (e.key === 'Enter') confirmWebModal(); if (e.key === 'Escape') cancelWebModal(); }}
-                    style={{ fontSize: 18, padding: 10, marginTop: 12, width: '100%', border: '1px solid #ccc', borderRadius: 6 }}
+                    style={styles.webModalInput as any}
                   />
                   <TouchableOpacity onPress={pickImage} style={styles.imagePicker}>
                     <Text style={styles.imagePickerText}>
@@ -1489,32 +1580,75 @@ const styles = StyleSheet.create({
 
   /* Web modal picker styles */
   webModalOverlay: {
-    position: 'absolute',
+    position: 'fixed',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.25)', // lighter overlay
+    backgroundColor: 'rgba(0,0,0,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,
-    // Web specific fix to ensure full coverage
-    ...Platform.select({
-      web: { position: 'fixed', height: '100vh', width: '100vw' } as any
-    })
+    padding: 16,
   },
   webModalCard: {
-    width: 360,
+    width: 'min(420px, 95vw)',
+    maxWidth: '95vw',
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 20,
+    alignItems: 'center',
+    alignSelf: 'center',
+    boxSizing: 'border-box' as any,
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
     elevation: 12,
   },
-  webModalTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
+  centeredModalView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 35,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: "80%",
+  },
+  manualInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 10,
+    width: "100%",
+    marginVertical: 10,
+    fontSize: 16,
+    textAlign: "center",
+  },
+  confirmButton: {
+    backgroundColor: "#000",
+    borderRadius: 10,
+    padding: 10,
+    elevation: 2,
+    marginTop: 10,
+    minWidth: 100,
+  },
+  confirmButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  webModalTitle: { fontSize: 18, fontWeight: '700', color: '#111', textAlign: 'center', marginBottom: 8 },
+  webModalInput: { fontSize: 18, padding: 12, marginTop: 12, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: '#ccc', borderRadius: 6, textAlign: 'center' },
   webModalButtonPrimary: { backgroundColor: '#176B51', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
   webModalButtonSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#F3F4F6' },
 });
