@@ -1,4 +1,4 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator, Platform, TextInput } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View,Image, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
 import * as React from "react";
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock } from 'lucide-react-native';
@@ -11,6 +11,35 @@ export default function StudentDashboard() {
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>(initialTab);
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
   const [pendingApplications, setPendingApplications] = React.useState<any[]>([]);
+  const [dashboardData, setDashboardData] = React.useState<any>({ today: [], upcoming: [], pending: [], archive: [] });
+
+  // Keep the original default categories, but augment with categories discovered from jobs
+  const DEFAULT_CATEGORIES = ['Hospitality', 'Retail', 'Office', 'Event', 'Other', 'Gardening', 'Pet care'];
+  const categoryOptions = React.useMemo(() => {
+    const map = new Map<string, { id: number | null; name: string }>();
+
+    
+    map.set('All', { id: null, name: 'All' });
+
+    // start with defaults (no id)
+    DEFAULT_CATEGORIES.forEach((name) => map.set(name, { id: null, name }));
+
+    // merge discovered categories from jobs; prefer attaching id when available
+    availableJobs.forEach((job) => {
+      const cat = job?.category;
+      const name = cat?.name_en || 'Other';
+      const id = cat?.id ?? null;
+      const existing = map.get(name);
+      if (existing) {
+        // if existing has no id and we discovered an id, update it
+        if (!existing.id && id) map.set(name, { id, name });
+      } else {
+        map.set(name, { id, name });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [availableJobs]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [showFilters, setShowFilters] = React.useState(false);
@@ -313,7 +342,14 @@ export default function StudentDashboard() {
                   style={styles.jobCard} 
                   onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
                 >
-                  <Text style={styles.jobTitle}>{job.title}</Text>
+                  {/* Add Image Here */}
+  {job.image_url && (
+    <Image 
+      source={{ uri: job.image_url }} 
+      style={styles.jobImage}
+    />
+  )}
+                <Text style={styles.jobTitle}>{job.title}</Text>
                   <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
                   <Text style={styles.jobMeta}>
                     {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
@@ -580,6 +616,14 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 8,
   },
+  jobImage: {
+  width: '20%',
+  height: 300,
+  borderTopLeftRadius: 12,
+  borderTopRightRadius: 12,
+  marginBottom: 10,
+},
+  
   jobCard: {
     paddingVertical: 12,
     borderBottomWidth: 1,

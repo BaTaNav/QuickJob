@@ -1,6 +1,11 @@
 const express = require("express");
 const supabase = require("../supabaseClient");
 const router = express.Router();
+const multer = require("multer");
+
+// Configure Multer to store files in memory
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 /**
  * Helper: Map job row to clean object
@@ -19,6 +24,7 @@ function mapJobRow(row) {
     start_time: row.start_time,
     status: row.status,
     created_at: row.created_at,
+    image_url: row.image_url, 
     category: row.job_categories
       ? {
           id: row.job_categories.id,
@@ -30,6 +36,56 @@ function mapJobRow(row) {
       : null,
   };
 }
+
+/**
+ * POST /jobs/upload-image
+ * Uploads an image file to Supabase Storage (Bucket: 'job-images')
+ */
+/**
+ * POST /jobs/upload-image
+ * Uploads an image file to Supabase Storage (Bucket: 'job-images')
+ */
+router.post("/upload-image", upload.single("image"), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    console.log("Attempting to upload:", file.originalname); // Log 1
+
+    // 1. Generate a unique filename
+    const fileExt = file.originalname.split(".").pop();
+    const fileName = `job-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    // 2. Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from("job-images") // <--- MUST MATCH YOUR SUPABASE BUCKET NAME
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+
+    if (error) {
+      console.error("Supabase Storage Error:", error); // Log 2: Print actual error to terminal
+      throw error;
+    }
+
+    // 3. Get Public URL
+    const { data: publicUrlData } = supabase.storage
+      .from("job-images")
+      .getPublicUrl(filePath);
+
+    console.log("Upload success, URL:", publicUrlData.publicUrl); // Log 3
+
+    res.status(200).json({ url: publicUrlData.publicUrl });
+  } catch (error) {
+    console.error("Server Upload Error:", error.message);
+    // Send the ACTUAL error message to the frontend
+    res.status(500).json({ error: error.message, details: error });
+  }
+});
 
 /**
  * GET /jobs/available
@@ -67,7 +123,7 @@ router.get("/available", async (req, res) => {
         id, client_id, category_id,
         title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
+        start_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -90,7 +146,7 @@ router.get("/available", async (req, res) => {
     res.json({
       jobs,
       message: jobs.length === 0 ? "No jobs available at the moment" : null,
-      count: jobs.length
+      count: jobs.length,
     });
   } catch (err) {
     console.error("Error fetching available jobs:", err);
@@ -113,7 +169,7 @@ router.get("/:id", async (req, res) => {
         id, client_id, category_id,
         title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
+        start_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -122,7 +178,7 @@ router.get("/:id", async (req, res) => {
       .eq("id", jobId)
       .single();
 
-    if (error?.code === 'PGRST116' || !data) {
+    if (error?.code === "PGRST116" || !data) {
       return res.status(404).json({ error: "No job found with this ID" });
     }
     if (error) throw error;
@@ -152,7 +208,7 @@ router.get("/search", async (req, res) => {
         id, client_id, category_id,
         title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
+        start_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -162,7 +218,9 @@ router.get("/search", async (req, res) => {
 
     // Add filters
     if (searchTerm) {
-      query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+      query = query.or(
+        `title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
+      );
     }
     if (location) {
       query = query.ilike("area_text", `%${location}%`);
@@ -181,7 +239,7 @@ router.get("/search", async (req, res) => {
     res.json({
       jobs,
       message: jobs.length === 0 ? "No jobs match your search criteria" : null,
-      count: jobs.length
+      count: jobs.length,
     });
   } catch (err) {
     console.error("Error searching jobs:", err);
@@ -205,6 +263,7 @@ router.post("/", async (req, res) => {
       hourly_rate,
       fixed_price,
       start_time,
+      image_url,
     } = req.body;
 
     const clientIdNum = parseInt(client_id, 10);
@@ -213,13 +272,16 @@ router.post("/", async (req, res) => {
     // Validate required fields
     if (!clientIdNum || !categoryIdNum || !title || !start_time) {
       return res.status(400).json({
-        error: "Missing required fields: client_id, category_id, title, start_time",
+        error:
+          "Missing required fields: client_id, category_id, title, start_time",
       });
     }
 
     // Validate hourly_or_fixed and corresponding price
     if (hourly_or_fixed === "fixed" && !fixed_price) {
-      return res.status(400).json({ error: "Fixed price required for fixed jobs" });
+      return res
+        .status(400)
+        .json({ error: "Fixed price required for fixed jobs" });
     }
 
     // Insert job
@@ -237,6 +299,7 @@ router.post("/", async (req, res) => {
         start_time,
         status: "open",
         created_at: new Date().toISOString(),
+        image_url: image_url || null, // Save image URL
       })
       .select()
       .single();
@@ -258,7 +321,8 @@ router.post("/", async (req, res) => {
  * POST /jobs/draft
  * Save a draft job (status=draft)
  */
-router.post("/draft", async (req, res) => {
+// POST /jobs - Create a new job
+router.post("/", async (req, res) => {
   try {
     const {
       client_id,
@@ -270,15 +334,15 @@ router.post("/draft", async (req, res) => {
       hourly_rate,
       fixed_price,
       start_time,
+      image_url,
     } = req.body;
 
     const clientIdNum = parseInt(client_id, 10);
     const categoryIdNum = parseInt(category_id, 10);
 
-    // Minimal required fields for draft
-    if (!clientIdNum || !categoryIdNum || !title) {
+    if (!clientIdNum || !categoryIdNum || !title || !start_time) {
       return res.status(400).json({
-        error: "Missing required fields: client_id, category_id, title",
+        error: "Missing required fields: client_id, category_id, title, start_time",
       });
     }
 
@@ -290,12 +354,13 @@ router.post("/draft", async (req, res) => {
         title,
         description: description || null,
         area_text: area_text || null,
-        hourly_or_fixed: hourly_or_fixed || "hourly",
+        hourly_or_fixed,
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
-        start_time: start_time || null,
-        status: "draft",
+        start_time,
+        status: "open",
         created_at: new Date().toISOString(),
+        image_url: image_url || null,
       })
       .select()
       .single();
@@ -304,12 +369,12 @@ router.post("/draft", async (req, res) => {
 
     const mapped = mapJobRow(job);
     res.status(201).json({
-      message: "Job draft saved",
+      message: "Job created successfully",
       job: mapped,
     });
   } catch (err) {
-    console.error("Error saving draft:", err);
-    res.status(500).json({ error: "Failed to save draft" });
+    console.error("Error creating job:", err);
+    res.status(500).json({ error: "Failed to create job" });
   }
 });
 
@@ -334,7 +399,7 @@ router.get("/client/:clientId", async (req, res) => {
         id, client_id, category_id,
         title, description, area_text,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
+        start_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )

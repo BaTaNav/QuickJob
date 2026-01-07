@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Image } from "react-native";
 import { useRouter } from 'expo-router';
 import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase } from "lucide-react-native";
 import { jobsAPI, getClientId } from "@/services/api";
@@ -82,6 +82,13 @@ export default function DashboardClient() {
   const renderJobCard = (job: any) => (
     <View key={job.id} style={styles.jobCard}>
       <View style={styles.jobHeader}>
+        {job.image_url && (
+  <Image 
+    source={{ uri: job.image_url }} 
+    style={styles.jobImage} 
+    resizeMode="cover"
+  />
+)}
         <Text style={styles.jobTitle}>{job.title}</Text>
         <View style={[styles.statusBadge, job.status === 'open' ? styles.statusOpen : styles.statusOther]}>
           <Text style={styles.statusText}>{job.status}</Text>
@@ -477,6 +484,12 @@ const styles = StyleSheet.create({
     borderColor: '#E6EEF0',
     marginBottom: 12,
   },
+  jobImage: {
+  width: '100%',
+  height: 150,
+  borderRadius: 8,
+  marginBottom: 10,
+},
   jobMeta: { fontSize: 13, color: '#64748B', marginTop: 4 },
   jobAction: { backgroundColor: '#176B51', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   jobActionText: { color: '#fff', fontWeight: '700' },
