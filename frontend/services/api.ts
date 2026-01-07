@@ -485,4 +485,58 @@ export const adminAPI = {
     if (!res.ok) throw new Error(data.error || 'Failed to update verification status');
     return data.student || data;
   },
+
+  async getIncidents(status?: string) {
+    const query = status && status !== 'all' ? `?status=${status}` : '';
+    const url = `${API_BASE_URL}/incidents${query}`;
+    logRequest('GET', url);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load incidents');
+    return data.incidents || data;
+  },
+
+  async createIncident(payload: {
+    summary: string;
+    description?: string | null;
+    job_id?: number | null;
+    application_id?: number | null;
+    student_id?: number | null;
+    client_id?: number | null;
+    severity?: 'low' | 'medium' | 'high';
+    status?: 'open' | 'in_review' | 'resolved' | 'dismissed';
+    admin_notes?: string | null;
+  }) {
+    const url = `${API_BASE_URL}/incidents`;
+    logRequest('POST', url);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create incident');
+    return data;
+  },
+
+  async updateIncident(
+    id: number,
+    payload: Partial<{
+      status: 'open' | 'in_review' | 'resolved' | 'dismissed';
+      severity: 'low' | 'medium' | 'high';
+      description: string | null;
+      admin_notes: string | null;
+    }>
+  ) {
+    const url = `${API_BASE_URL}/incidents/${id}`;
+    logRequest('PATCH', url);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update incident');
+    return data;
+  },
 };
