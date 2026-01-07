@@ -228,6 +228,19 @@ export const studentAPI = {
     return response.json();
   },
 
+  // Upload avatar image for student
+  async uploadAvatar(studentId: number, formData: FormData) {
+    const response = await fetch(`${API_BASE_URL}/students/${studentId}/avatar`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(errText || 'Failed to upload avatar');
+    }
+    return response.json();
+  },
+
   // Get student reviews
   async getReviews(studentId: number) {
     const response = await fetch(`${API_BASE_URL}/students/${studentId}/reviews`);

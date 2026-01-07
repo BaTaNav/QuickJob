@@ -1,6 +1,11 @@
 const express = require("express");
 const supabase = require("../supabaseClient");
 const verifyJwt = require("../auth/verifyJwt");
+const multer = require("multer");
+
+// Configure Multer to store files in memory for avatar uploads
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 const router = express.Router();
 
 /**
@@ -170,10 +175,10 @@ router.get("/:studentId/profile", async (req, res) => {
     }
     if (userError) throw userError;
 
-    // Fetch student profile data
+    // Fetch student profile data (include avatar_url if present)
     const { data: profileData, error: profileError } = await supabase
       .from("student_profiles")
-      .select("school_name, field_of_study, academic_year, radius_km, verification_status, active_since")
+      .select("school_name, field_of_study, academic_year, radius_km, verification_status, active_since, avatar_url")
       .eq("id", studentId)
       .single();
 
@@ -248,6 +253,67 @@ router.patch("/:studentId/profile", /* verifyJwt, */ async (req, res) => {
   } catch (err) {
     console.error("Error updating student profile:", err);
     res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
+/**
+ * POST /students/:studentId/avatar
+ * Upload or update a student's avatar image
+ */
+router.post("/:studentId/avatar", upload.single("avatar"), async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.studentId);
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const fileExt = file.originalname.split('.').pop() || 'jpg';
+    const fileName = `students/${studentId}/avatar-${Date.now()}.${fileExt}`;
+
+    // Upload to Supabase Storage (create/use bucket 'avatars')
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(fileName, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error("Supabase storage error:", uploadError);
+      throw uploadError;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(fileName);
+
+    const publicUrl = publicUrlData.publicUrl;
+
+    // Update or insert into student_profiles
+    const { data: existing, error: existingError } = await supabase
+      .from('student_profiles')
+      .select('id')
+      .eq('id', studentId)
+      .maybeSingle();
+
+    if (existing) {
+      const { error: updateErr } = await supabase
+        .from('student_profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', studentId);
+      if (updateErr) throw updateErr;
+    } else {
+      const { error: insertErr } = await supabase
+        .from('student_profiles')
+        .insert([{ id: studentId, avatar_url: publicUrl }]);
+      if (insertErr) throw insertErr;
+    }
+
+    res.status(200).json({ avatar_url: publicUrl });
+  } catch (err) {
+    console.error('Error uploading avatar for student:', err);
+    res.status(500).json({ error: err.message || 'Upload failed' });
   }
 });
 

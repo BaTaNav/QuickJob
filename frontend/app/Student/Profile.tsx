@@ -1,8 +1,9 @@
 import * as React from 'react';
-import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator } from 'react-native';
+import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator, TextInput, Alert, Platform } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { studentAPI, authAPI, getStudentId } from '@/services/api';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function StudentProfile() {
   const [panel, setPanel] = React.useState<'info' | 'settings'>('info');
@@ -39,10 +40,114 @@ export default function StudentProfile() {
     router.replace('/'); // Go to home page instead of login
   }
 
+  // Upload avatar helper (both web and native)
+  const uploadAvatar = async () => {
+    try {
+      const storedStudentId = await getStudentId();
+      const studentId = storedStudentId ? parseInt(storedStudentId) : 3;
+
+      // Ask permission on native
+      if (Platform.OS !== 'web') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'Please allow access to your photos to upload an avatar.');
+          return;
+        }
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+
+      if (result.canceled) return;
+
+      const localUri = result.assets[0].uri;
+      const formData = new FormData();
+
+      if (typeof window !== 'undefined' && (localUri.startsWith('data:') || localUri.startsWith('blob:'))) {
+        const response = await fetch(localUri);
+        const blob = await response.blob();
+        const blobExt = blob.type.split('/')[1] || 'jpg';
+        const properFilename = `avatar.${blobExt === 'jpeg' ? 'jpg' : blobExt}`;
+        formData.append('avatar', blob, properFilename);
+      } else {
+        const filename = localUri.split('/').pop() || 'avatar.jpg';
+        formData.append('avatar', { uri: localUri, name: filename, type: 'image/jpeg' } as any);
+      }
+
+      const uploadResponse = await fetch(`http://localhost:3000/students/${studentId}/avatar`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        const txt = await uploadResponse.text();
+        throw new Error(txt || 'Upload failed');
+      }
+
+      const data = await uploadResponse.json();
+      if (data.avatar_url) {
+        // Add cache-busting
+        setProfile((prev: any) => ({ ...prev, avatar_url: `${data.avatar_url}?t=${Date.now()}` }));
+      }
+    } catch (err: any) {
+      console.error('Error uploading avatar:', err);
+      Alert.alert('Upload failed', err.message || 'Could not upload avatar');
+    }
+  };
+
+  // Start editing and prefill form values
+  const startEdit = () => {
+    setPhoneVal(profile?.phone || '');
+    setSchoolVal(profile?.school_name || '');
+    setFieldVal(profile?.field_of_study || '');
+    setYearVal(profile?.academic_year || '');
+    setRadiusVal(profile?.radius_km);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+  };
+
+  const saveProfile = async () => {
+    try {
+      const storedStudentId = await getStudentId();
+      const studentId = storedStudentId ? parseInt(storedStudentId) : 3;
+
+      const payload: any = {
+        phone: phoneVal,
+        school_name: schoolVal,
+        field_of_study: fieldVal,
+        academic_year: yearVal,
+        radius_km: radiusVal,
+      };
+
+      await studentAPI.updateProfile(studentId, payload);
+      await fetchProfile();
+      setEditing(false);
+      Alert.alert('Success', 'Profile updated');
+    } catch (err: any) {
+      console.error('Error saving profile:', err);
+      Alert.alert('Error', err.message || 'Failed to save profile');
+    }
+  };
+
   // Local settings state (demo only)
   const [darkMode, setDarkMode] = React.useState(false);
   const [language, setLanguage] = React.useState<'EN' | 'NL' | 'FR'>('EN');
   const [notifications, setNotifications] = React.useState(true);
+
+  // Edit state and form fields for student profile
+  const [editing, setEditing] = React.useState(false);
+  const [phoneVal, setPhoneVal] = React.useState('');
+  const [schoolVal, setSchoolVal] = React.useState('');
+  const [fieldVal, setFieldVal] = React.useState('');
+  const [yearVal, setYearVal] = React.useState('');
+  const [radiusVal, setRadiusVal] = React.useState<number | undefined>(undefined);
 
   return (
     <View style={styles.container}>
@@ -57,10 +162,12 @@ export default function StudentProfile() {
               <ActivityIndicator size="small" color="#176B51" />
             ) : (
               <>
-                <Image 
-                  source={require('../../assets/images/blank-profile-picture.png')} 
-                  style={styles.avatarSmall} 
-                />
+                <Pressable onPress={uploadAvatar}>
+                  <Image 
+                    source={profile?.avatar_url ? { uri: profile.avatar_url } : require('../../assets/images/blank-profile-picture.png')} 
+                    style={styles.avatarSmall} 
+                  />
+                </Pressable>
                 <RNView style={styles.leftIdentity}>
                   <Text style={styles.leftName}>
                     {profile?.school_name || 'Student'}
@@ -115,31 +222,51 @@ export default function StudentProfile() {
                   <RNView style={styles.profileHeader}>
                     <RNView>
                       <Text style={styles.label}>School</Text>
-                      <Text style={styles.value}>
-                        {profile?.school_name || 'Not set'}
-                      </Text>
+                      {editing ? (
+                        <TextInput value={schoolVal} onChangeText={setSchoolVal} style={styles.input} />
+                      ) : (
+                        <Text style={styles.value}>{profile?.school_name || 'Not set'}</Text>
+                      )}
                     </RNView>
 
-                    <Image 
-                      source={require('../../assets/images/blank-profile-picture.png')} 
-                      style={styles.avatarLarge} 
-                    />
+                    <Pressable onPress={uploadAvatar}>
+                      <Image 
+                        source={profile?.avatar_url ? { uri: profile.avatar_url } : require('../../assets/images/blank-profile-picture.png')} 
+                        style={styles.avatarLarge} 
+                      />
+                    </Pressable>
                   </RNView>
 
                   <Text style={styles.label}>Field of Study</Text>
-                  <Text style={styles.value}>{profile?.field_of_study || 'Not set'}</Text>
+                  {editing ? (
+                    <TextInput value={fieldVal} onChangeText={setFieldVal} style={styles.input} />
+                  ) : (
+                    <Text style={styles.value}>{profile?.field_of_study || 'Not set'}</Text>
+                  )}
 
                   <Text style={styles.label}>Academic Year</Text>
-                  <Text style={styles.value}>{profile?.academic_year || 'Not set'}</Text>
+                  {editing ? (
+                    <TextInput value={yearVal} onChangeText={setYearVal} style={styles.input} />
+                  ) : (
+                    <Text style={styles.value}>{profile?.academic_year || 'Not set'}</Text>
+                  )}
 
                   <Text style={styles.label}>Email</Text>
                   <Text style={styles.value}>{profile?.email || 'Not set'}</Text>
 
                   <Text style={styles.label}>Phone</Text>
-                  <Text style={styles.value}>{profile?.phone || 'Not set'}</Text>
+                  {editing ? (
+                    <TextInput value={phoneVal} onChangeText={setPhoneVal} style={styles.input} />
+                  ) : (
+                    <Text style={styles.value}>{profile?.phone || 'Not set'}</Text>
+                  )}
 
                   <Text style={styles.label}>Search Radius</Text>
-                  <Text style={styles.value}>{profile?.radius_km ? `${profile.radius_km} km` : 'Not set'}</Text>
+                  {editing ? (
+                    <TextInput value={radiusVal !== undefined ? String(radiusVal) : ''} onChangeText={t => setRadiusVal(t ? parseFloat(t) : undefined)} style={styles.input} keyboardType="numeric" />
+                  ) : (
+                    <Text style={styles.value}>{profile?.radius_km ? `${profile.radius_km} km` : 'Not set'}</Text>
+                  )}
 
                   <Text style={styles.label}>Verification Status</Text>
                   <Text style={styles.value}>{profile?.verification_status === 'verified' ? '✅ Verified' : '⏳ Pending verification'}</Text>
@@ -147,9 +274,20 @@ export default function StudentProfile() {
               )}
 
               <RNView style={styles.rightFooter}>
-                <Pressable style={styles.editBtn} onPress={() => { /* TODO: edit profile */ }}>
-                  <Text style={styles.editBtnText}>Edit profile</Text>
-                </Pressable>
+                {editing ? (
+                  <RNView style={{ flexDirection: 'row', gap: 8 }}>
+                    <Pressable style={[styles.editBtn, { backgroundColor: '#176B51' }]} onPress={saveProfile}>
+                      <Text style={styles.editBtnText}>Save</Text>
+                    </Pressable>
+                    <Pressable style={[styles.editBtn, { backgroundColor: '#B0B0B0' }]} onPress={cancelEdit}>
+                      <Text style={styles.editBtnText}>Cancel</Text>
+                    </Pressable>
+                  </RNView>
+                ) : (
+                  <Pressable style={styles.editBtn} onPress={startEdit}>
+                    <Text style={styles.editBtnText}>Edit profile</Text>
+                  </Pressable>
+                )}
               </RNView>
             </RNView>
           ) : (
@@ -224,4 +362,5 @@ const styles = StyleSheet.create({
   leftEmail: { color: '#7A7F85', marginTop: 4 },
   rightCard: { flex: 1, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 12, backgroundColor: '#fff', minHeight: 560 },
   profileHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  input: { borderWidth: 1, borderColor: '#E4E6EB', padding: 8, borderRadius: 8, marginTop: 6 },
 });
