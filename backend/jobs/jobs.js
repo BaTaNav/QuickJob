@@ -145,6 +145,28 @@ async function geocodeAddress(address) {
 }
 
 /**
+ * GET /jobs/geocode?address=...
+ * Simple wrapper around geocodeAddress to support frontend address-based mapping.
+ */
+router.get('/geocode', async (req, res) => {
+  try {
+    const address = req.query.address;
+    if (!address || String(address).trim() === '') {
+      return res.status(400).json({ error: 'Missing address query parameter' });
+    }
+
+    const geo = await geocodeAddress(String(address));
+    if (!geo) {
+      return res.status(404).json({ error: 'No geocoding result' });
+    }
+    res.json(geo);
+  } catch (err) {
+    console.error('Error in /jobs/geocode:', err);
+    res.status(500).json({ error: 'Geocoding failed' });
+  }
+});
+
+/**
  * GET /jobs/available
  * Get all available jobs (not filtered by location yet)
  * Optional query: ?status=open&limit=20&studentId=123
