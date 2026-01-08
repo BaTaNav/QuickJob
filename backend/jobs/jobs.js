@@ -209,6 +209,8 @@ router.get("/available", async (req, res) => {
       `
       )
       .eq("status", status)
+      // Exclude jobs that are already in the past so students can't apply to them
+      .gt('start_time', new Date().toISOString())
       .order("start_time", { ascending: true })
       .limit(limit);
 
@@ -349,6 +351,20 @@ router.post("/", async (req, res) => {
         .json({ error: "Fixed price required for fixed jobs" });
     }
 
+    // Validate start_time is at least 2 hours in the future
+    if (!start_time) {
+      return res.status(400).json({ error: 'start_time is required and must be an ISO timestamp at least 2 hours in the future' });
+    }
+    const startDate = new Date(start_time);
+    if (isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: 'start_time is not a valid date' });
+    }
+    const now = new Date();
+    const minAllowed = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    if (startDate.getTime() < minAllowed.getTime()) {
+      return res.status(400).json({ error: 'start_time must be at least 2 hours in the future' });
+    }
+
   // Insert job
   // Attempt geocoding of the composed address (best-effort)
   console.log('Composed area_text for geocoding:', composedAreaText);
@@ -391,6 +407,88 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: "Failed to create job" });
   }
 });
+
+/**
+ * Background expiry runner
+ * - Finds open jobs that start within the next 30 minutes
+ * - If a job has ZERO applicants, mark it completed and flag as expired (best-effort)
+ * Implementation notes:
+ * - We first attempt to update with `expired` and `closed_at` fields; if those columns don't exist
+ *   the update call may return an error. In that case we fallback to updating only the `status`.
+ * - This runner is intended for local/dev usage. For production consider running as a single
+ *   cron job or scheduled task to avoid duplicate workers across multiple instances.
+ */
+async function runExpirySweep() {
+  try {
+    const now = new Date();
+    const threshold = new Date(now.getTime() + 30 * 60 * 1000).toISOString(); // now + 30min
+
+    console.log('[ExpiryRunner] scanning for open jobs starting before', threshold);
+
+    const { data: jobsToCheck, error: jobsError } = await supabase
+      .from('jobs')
+      .select('id, start_time')
+      .eq('status', 'open')
+      .lte('start_time', threshold)
+      .limit(200);
+
+    if (jobsError) {
+      console.error('[ExpiryRunner] error querying jobs:', jobsError);
+      return;
+    }
+
+    if (!jobsToCheck || jobsToCheck.length === 0) {
+      // nothing to do
+      return;
+    }
+
+    for (const job of jobsToCheck) {
+      try {
+        // Check if any applications exist for this job
+        const { count, error: appCountError } = await supabase
+          .from('job_applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('job_id', job.id);
+
+        if (appCountError) {
+          console.warn('[ExpiryRunner] failed to get applications count for job', job.id, appCountError);
+          continue;
+        }
+
+        if (Number(count) > 0) {
+          // job has applicants; skip
+          continue;
+        }
+
+        // Mark job as expired (set status = 'expired')
+        try {
+          const resp = await supabase
+            .from('jobs')
+            .update({ status: 'expired' })
+            .eq('id', job.id)
+            .select()
+            .single();
+          if (resp.error) {
+            console.error('[ExpiryRunner] failed to mark job expired', job.id, resp.error);
+          } else {
+            console.log('[ExpiryRunner] marked job expired id=', job.id);
+          }
+        } catch (e) {
+          console.error('[ExpiryRunner] unexpected error updating job', job.id, e);
+        }
+      } catch (innerErr) {
+        console.error('[ExpiryRunner] error processing job', job.id, innerErr);
+      }
+    }
+  } catch (err) {
+    console.error('[ExpiryRunner] top-level error:', err);
+  }
+}
+
+// Run the expiry sweep immediately and then every 60 seconds.
+// Note: in multi-instance deployments consider moving this to a single scheduled worker.
+runExpirySweep().catch((e) => console.error('[ExpiryRunner] initial run failed:', e));
+setInterval(() => runExpirySweep().catch((e) => console.error('[ExpiryRunner] interval run failed:', e)), 60 * 1000);
 
 /**
  * POST /jobs/draft
@@ -444,6 +542,17 @@ router.post("/draft", async (req, res) => {
       : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
 
     // Attempt geocoding for draft as well (best-effort)
+    // Validate start_time for drafts as well: at least 2 hours ahead
+    const startDateDraft = new Date(start_time);
+    if (isNaN(startDateDraft.getTime())) {
+      return res.status(400).json({ error: 'start_time is not a valid date' });
+    }
+    const nowDraft = new Date();
+    const minAllowedDraft = new Date(nowDraft.getTime() + 2 * 60 * 60 * 1000);
+    if (startDateDraft.getTime() < minAllowedDraft.getTime()) {
+      return res.status(400).json({ error: 'start_time must be at least 2 hours in the future for drafts' });
+    }
+
     const geoDraft = await geocodeAddress(composedAreaText);
 
     const { data: job, error: jobError } = await supabase
