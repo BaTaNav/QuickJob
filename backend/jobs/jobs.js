@@ -349,6 +349,20 @@ router.post("/", async (req, res) => {
         .json({ error: "Fixed price required for fixed jobs" });
     }
 
+    // Validate start_time is at least 2 hours in the future
+    if (!start_time) {
+      return res.status(400).json({ error: 'start_time is required and must be an ISO timestamp at least 2 hours in the future' });
+    }
+    const startDate = new Date(start_time);
+    if (isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: 'start_time is not a valid date' });
+    }
+    const now = new Date();
+    const minAllowed = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    if (startDate.getTime() < minAllowed.getTime()) {
+      return res.status(400).json({ error: 'start_time must be at least 2 hours in the future' });
+    }
+
   // Insert job
   // Attempt geocoding of the composed address (best-effort)
   console.log('Composed area_text for geocoding:', composedAreaText);
@@ -444,6 +458,17 @@ router.post("/draft", async (req, res) => {
       : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
 
     // Attempt geocoding for draft as well (best-effort)
+    // Validate start_time for drafts as well: at least 2 hours ahead
+    const startDateDraft = new Date(start_time);
+    if (isNaN(startDateDraft.getTime())) {
+      return res.status(400).json({ error: 'start_time is not a valid date' });
+    }
+    const nowDraft = new Date();
+    const minAllowedDraft = new Date(nowDraft.getTime() + 2 * 60 * 60 * 1000);
+    if (startDateDraft.getTime() < minAllowedDraft.getTime()) {
+      return res.status(400).json({ error: 'start_time must be at least 2 hours in the future for drafts' });
+    }
+
     const geoDraft = await geocodeAddress(composedAreaText);
 
     const { data: job, error: jobError } = await supabase
