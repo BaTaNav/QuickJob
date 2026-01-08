@@ -35,9 +35,6 @@ function mapJobRow(row) {
   };
 }
 
-
-
-
 router.get("/me", verifyJwt, requireRole("student"), (req, res) => {
   res.json({ message: "student ok", user: req.user });
 });

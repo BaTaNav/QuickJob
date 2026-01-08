@@ -1,8 +1,68 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
-const supabase = require("../supabaseClient");
+const supabaseModule = require("../supabaseClient");
+const jwt = require("jsonwebtoken");
 
 const router = express.Router();
+
+// IMPORTANT: support both export styles of supabaseClient
+const supabase = supabaseModule.supabase || supabaseModule;
+
+/**
+ * JWT middleware (based on what you sent)
+ * Requires: Authorization: Bearer <token>
+ */
+const verifyJwt = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res
+      .status(401)
+      .json({ error: "Missing or invalid Authorization header" });
+  }
+
+  const token = authHeader.slice(7);
+
+  try {
+    if (!process.env.JWT_SECRET) {
+      console.error("JWT_SECRET ontbreekt in environment");
+      return res.status(500).json({ error: "Serverconfiguratie fout." });
+    }
+
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = payload; // { sub, role, email, iat, exp }
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+};
+
+/**
+ * Only allow:
+ * - admin OR
+ * - client whose token.sub matches req.params.id
+ */
+const requireSelfOrAdmin = (req, res, next) => {
+  if (!req.user?.sub) return res.status(401).json({ error: "Unauthorized" });
+
+  // allow admin to do anything (remove this if you don't want it)
+  if (req.user.role === "admin") return next();
+
+  // only allow clients for themselves
+  if (req.user.role !== "client") {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  if (String(req.user.sub) !== String(req.params.id)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  next();
+};
+
+/* =========================
+   PUBLIC ROUTES
+   ========================= */
 
 // POST /clients/register-client - Register new client
 router.post("/register-client", async (req, res) => {
@@ -21,6 +81,8 @@ router.post("/register-client", async (req, res) => {
         .json({ message: "Email en password zijn verplicht." });
     }
 
+    const normEmail = email.trim().toLowerCase();
+
     const allowedLangs = ["nl", "fr", "en"];
     const lang = allowedLangs.includes(preferred_language)
       ? preferred_language
@@ -30,7 +92,7 @@ router.post("/register-client", async (req, res) => {
     const { data: existing, error: existingError } = await supabase
       .from("users")
       .select("id")
-      .eq("email", email);
+      .eq("email", normEmail);
 
     if (existingError) {
       console.error("Error checking existing user:", existingError);
@@ -53,7 +115,7 @@ router.post("/register-client", async (req, res) => {
       .from("users")
       .insert([
         {
-          email,
+          email: normEmail,
           password_hash,
           role: "client",
           phone,
@@ -87,7 +149,7 @@ router.post("/register-client", async (req, res) => {
   }
 });
 
-// POST /clients/login - Login client
+// POST /clients/login - Login client (+ JWT token)
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -98,18 +160,22 @@ router.post("/login", async (req, res) => {
         .json({ message: "Email en password zijn verplicht." });
     }
 
+    if (!process.env.JWT_SECRET) {
+      console.error("JWT_SECRET ontbreekt in environment");
+      return res.status(500).json({ message: "Serverconfiguratie fout." });
+    }
+
+    const normEmail = email.trim().toLowerCase();
+
     const { data: user, error } = await supabase
       .from("users")
       .select(
         "id, email, password_hash, role, phone, preferred_language, two_factor_enabled, created_at"
       )
-      .eq("email", email)
+      .eq("email", normEmail)
       .eq("role", "client")
-      .single();
+      .maybeSingle();
 
-    if (error && error.code === "PGRST116") {
-      return res.status(401).json({ message: "Ongeldige email of password." });
-    }
     if (error) {
       console.error("Login select error:", error);
       return res
@@ -117,13 +183,29 @@ router.post("/login", async (req, res) => {
         .json({ message: "Interne serverfout.", supabaseError: error });
     }
 
+    if (!user) {
+      return res.status(401).json({ message: "Ongeldige email of password." });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       return res.status(401).json({ message: "Ongeldige email of password." });
     }
 
+    // JWT payload (same style you used)
+    const payload = {
+      sub: user.id,
+      role: user.role,
+      email: user.email,
+    };
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    });
+
     return res.status(200).json({
       message: "Succesvol ingelogd.",
+      token,
       user: {
         id: user.id,
         email: user.email,
@@ -142,16 +224,27 @@ router.post("/login", async (req, res) => {
   }
 });
 
+/* =========================
+   PROTECTED ROUTES
+   Everything below REQUIRES token
+   ========================= */
+router.use(verifyJwt);
+
+/* =========================
+   CLIENT PROFILE ROUTES (protected)
+   ========================= */
 
 // GET /clients/:id - Get one client (including profile)
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireSelfOrAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
     // Fetch user
     const { data: user, error: userError } = await supabase
       .from("users")
-      .select("id, email, role, phone, preferred_language, two_factor_enabled, created_at")
+      .select(
+        "id, email, role, phone, preferred_language, two_factor_enabled, created_at"
+      )
       .eq("id", id)
       .eq("role", "client")
       .single();
@@ -172,22 +265,17 @@ router.get("/:id", async (req, res) => {
       throw profileError;
     }
 
-    // Combine user + profile
     const combinedClient = { ...user, ...(profile || {}) };
 
-    res.status(200).json({
-      client: combinedClient,
-    });
+    res.status(200).json({ client: combinedClient });
   } catch (error) {
     console.error("Get client error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-
-
 // PATCH /clients/:id
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", requireSelfOrAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -205,10 +293,12 @@ router.patch("/:id", async (req, res) => {
 
     // Update users table
     const updatesUser = {};
-    if (email) updatesUser.email = email;
+    if (email) updatesUser.email = email.trim().toLowerCase();
     if (phone !== undefined) updatesUser.phone = phone;
     if (preferred_language) updatesUser.preferred_language = preferred_language;
-    if (two_factor_enabled !== undefined) updatesUser.two_factor_enabled = two_factor_enabled;
+    if (two_factor_enabled !== undefined)
+      updatesUser.two_factor_enabled = two_factor_enabled;
+
     if (password) {
       const salt = await bcrypt.genSalt(10);
       updatesUser.password_hash = await bcrypt.hash(password, salt);
@@ -219,8 +309,10 @@ router.patch("/:id", async (req, res) => {
       .update(updatesUser)
       .eq("id", id)
       .eq("role", "client")
-      .select("*")
-      .maybeSingle();  // Verander van .single() naar .maybeSingle()
+      .select(
+        "id, email, role, phone, preferred_language, two_factor_enabled, created_at"
+      )
+      .maybeSingle();
 
     if (userError) throw userError;
 
@@ -230,21 +322,20 @@ router.patch("/:id", async (req, res) => {
     if (postal_code !== undefined) updatesProfile.postal_code = postal_code;
     if (city !== undefined) updatesProfile.city = city;
     if (region !== undefined) updatesProfile.region = region;
-    if (first_job_needs_approval !== undefined) updatesProfile.first_job_needs_approval = first_job_needs_approval;
+    if (first_job_needs_approval !== undefined)
+      updatesProfile.first_job_needs_approval = first_job_needs_approval;
 
     let updatedProfile = null;
     if (Object.keys(updatesProfile).length > 0) {
-      // Controleer of het profiel bestaat
       const { data: existingProfile, error: profileError } = await supabase
         .from("client_profiles")
         .select("*")
         .eq("id", id)
-        .maybeSingle();  // Controleer of het profiel bestaat
+        .maybeSingle();
 
       if (profileError) throw profileError;
 
       if (existingProfile) {
-        // Als het profiel bestaat, werk het bij
         const { data, error: updateProfileError } = await supabase
           .from("client_profiles")
           .update(updatesProfile)
@@ -253,15 +344,9 @@ router.patch("/:id", async (req, res) => {
         if (updateProfileError) throw updateProfileError;
         updatedProfile = data;
       } else {
-        // Als het profiel niet bestaat, maak een nieuwe rij aan
         const { data, error: insertProfileError } = await supabase
           .from("client_profiles")
-          .insert([
-            {
-              id,
-              ...updatesProfile,
-            },
-          ])
+          .insert([{ id, ...updatesProfile }])
           .select("*")
           .single();
         if (insertProfileError) throw insertProfileError;
@@ -280,9 +365,8 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
-
 // DELETE /clients/:id - Delete client
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireSelfOrAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -309,9 +393,12 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+/* =========================
+   JOBS ROUTES (protected)
+   ========================= */
+
 // POST /clients/:id/jobs - Create job
-// POST /clients/:id/jobs - Create job
-router.post("/:id/jobs", async (req, res) => {
+router.post("/:id/jobs", requireSelfOrAdmin, async (req, res) => {
   try {
     const clientId = Number(req.params.id);
     const {
@@ -319,37 +406,32 @@ router.post("/:id/jobs", async (req, res) => {
       description = null,
       category_id = null,
       area_text = null,
-      hourly_or_fixed = "hourly", // 'hourly' of 'fixed'
+      hourly_or_fixed = "hourly",
       hourly_rate = null,
       fixed_price = null,
       start_time,
     } = req.body;
 
-    // Validate required fields
     if (!title || !start_time) {
-      return res
-        .status(400)
-        .json({ error: "title and start_time are required" });
+      return res.status(400).json({ error: "title and start_time are required" });
     }
 
-    // Validate hourly_or_fixed
     if (!["hourly", "fixed"].includes(hourly_or_fixed)) {
       return res
         .status(400)
         .json({ error: "hourly_or_fixed must be 'hourly' or 'fixed'" });
     }
 
-    // Extra validaties per type
     if (hourly_or_fixed === "hourly" && !hourly_rate) {
-      return res
-        .status(400)
-        .json({ error: "hourly_rate is required when hourly_or_fixed = 'hourly'" });
+      return res.status(400).json({
+        error: "hourly_rate is required when hourly_or_fixed = 'hourly'",
+      });
     }
 
     if (hourly_or_fixed === "fixed" && !fixed_price) {
-      return res
-        .status(400)
-        .json({ error: "fixed_price is required when hourly_or_fixed = 'fixed'" });
+      return res.status(400).json({
+        error: "fixed_price is required when hourly_or_fixed = 'fixed'",
+      });
     }
 
     // Check if client exists
@@ -365,7 +447,6 @@ router.post("/:id/jobs", async (req, res) => {
     }
     if (clientError) throw clientError;
 
-    // Insert job — LET OP: alleen bestaande kolommen gebruiken!
     const { data, error } = await supabase
       .from("jobs")
       .insert([
@@ -379,8 +460,6 @@ router.post("/:id/jobs", async (req, res) => {
           hourly_rate,
           fixed_price,
           start_time,
-          // end_time laten we null → student registreert werkelijke tijd
-          // status default = 'open'
         },
       ])
       .select("*")
@@ -398,9 +477,8 @@ router.post("/:id/jobs", async (req, res) => {
   }
 });
 
-
 // GET /clients/:id/jobs - Get all client jobs
-router.get("/:id/jobs", async (req, res) => {
+router.get("/:id/jobs", requireSelfOrAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -417,7 +495,6 @@ router.get("/:id/jobs", async (req, res) => {
     }
     if (clientError) throw clientError;
 
-    // Get all jobs for this client
     const { data, error } = await supabase
       .from("jobs")
       .select("*")
@@ -437,7 +514,7 @@ router.get("/:id/jobs", async (req, res) => {
 });
 
 // PATCH /clients/:id/jobs/:jobId - Update job
-router.patch("/:id/jobs/:jobId", async (req, res) => {
+router.patch("/:id/jobs/:jobId", requireSelfOrAdmin, async (req, res) => {
   try {
     const clientId = Number(req.params.id);
     const jobId = Number(req.params.jobId);
@@ -487,9 +564,8 @@ router.patch("/:id/jobs/:jobId", async (req, res) => {
     }
     if (jobError) throw jobError;
 
-    // 3) Build updates object — alleen bestaande kolommen
+    // 3) Build updates object
     const updates = {};
-
     if (title !== undefined) updates.title = title;
     if (description !== undefined) updates.description = description;
     if (category_id !== undefined) updates.category_id = category_id;
@@ -505,7 +581,6 @@ router.patch("/:id/jobs/:jobId", async (req, res) => {
       return res.status(400).json({ error: "No fields to update" });
     }
 
-    // Extra: validate hourly_or_fixed value if provided
     if (
       updates.hourly_or_fixed &&
       !["hourly", "fixed"].includes(updates.hourly_or_fixed)
@@ -536,9 +611,8 @@ router.patch("/:id/jobs/:jobId", async (req, res) => {
   }
 });
 
-
 // DELETE /clients/:id/jobs/:jobId - Delete job
-router.delete("/:id/jobs/:jobId", async (req, res) => {
+router.delete("/:id/jobs/:jobId", requireSelfOrAdmin, async (req, res) => {
   try {
     const { id, jobId } = req.params;
 
@@ -564,7 +638,9 @@ router.delete("/:id/jobs/:jobId", async (req, res) => {
       .single();
 
     if (jobError && jobError.code === "PGRST116") {
-      return res.status(404).json({ error: "Job not found or does not belong to this client" });
+      return res
+        .status(404)
+        .json({ error: "Job not found or does not belong to this client" });
     }
     if (jobError) throw jobError;
 
