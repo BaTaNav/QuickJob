@@ -2,7 +2,7 @@ import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, Image,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as React from "react";
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock, MapPin, Briefcase } from 'lucide-react-native';
+import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock, MapPin, Briefcase, CreditCard } from 'lucide-react-native';
 import { jobsAPI, studentAPI, getStudentId, paymentAPI } from '../../services/api';
 
 // Platform detection
