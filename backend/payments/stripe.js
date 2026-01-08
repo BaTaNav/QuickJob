@@ -261,6 +261,11 @@ router.post("/create-payment-intent", async (req, res) => {
 });
 
 
+/**
+ * Webhook handler voor Stripe events
+ * Verwerkt payment_intent.succeeded en payment_intent.payment_failed
+ * Bij success: update job status naar 'paid'
+ */
 async function paymentsWebhookHandler(req, res) {
   if (!stripe) return res.status(500).json({ error: "Stripe secret key ontbreekt" });
   if (!webhookSecret) return res.status(400).send("STRIPE_WEBHOOK_SECRET ontbreekt");
@@ -274,8 +279,54 @@ async function paymentsWebhookHandler(req, res) {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  if (event.type === "payment_intent.succeeded" || event.type === "payment_intent.payment_failed") {
+  console.log(`📩 Webhook event received: ${event.type}`);
+
+  if (event.type === "payment_intent.succeeded") {
     const intent = event.data.object;
+    console.log(`✅ Payment succeeded: ${intent.id}`);
+    
+    try {
+      // Sla payment op in database
+      const { error: persistError } = await supabase
+        .from("payments")
+        .upsert(
+          {
+            payment_intent_id: intent.id,
+            status: intent.status,
+            amount: intent.amount,
+            currency: intent.currency,
+            student_id: intent.metadata?.student_id ? Number(intent.metadata.student_id) : null,
+            job_id: intent.metadata?.job_id ? Number(intent.metadata.job_id) : null,
+            client_id: intent.metadata?.client_id ? Number(intent.metadata.client_id) : null,
+            last_event: event.type,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "payment_intent_id" }
+        );
+      if (persistError) console.error("Persist payment failed", persistError);
+
+      // Update job status naar "paid" als betaling geslaagd is
+      const jobId = intent.metadata?.job_id ? Number(intent.metadata.job_id) : null;
+      if (jobId) {
+        const { error: jobUpdateError } = await supabase
+          .from("jobs")
+          .update({ status: "paid", updated_at: new Date().toISOString() })
+          .eq("id", jobId);
+
+        if (jobUpdateError) {
+          console.error("Error updating job status to paid:", jobUpdateError);
+        } else {
+          console.log(`✅ Job ${jobId} status updated to 'paid'`);
+        }
+      }
+    } catch (persistErr) {
+      console.error("Unexpected persist error", persistErr);
+    }
+  } 
+  else if (event.type === "payment_intent.payment_failed") {
+    const intent = event.data.object;
+    console.log(`❌ Payment failed: ${intent.id}`);
+    
     try {
       const { error: persistError } = await supabase
         .from("payments")
@@ -293,7 +344,9 @@ async function paymentsWebhookHandler(req, res) {
           },
           { onConflict: "payment_intent_id" }
         );
-      if (persistError) console.error("Persist payment intent failed", persistError);
+      if (persistError) console.error("Persist payment failed event", persistError);
+      
+      // Job blijft op "completed" status, client kan opnieuw proberen
     } catch (persistErr) {
       console.error("Unexpected persist error", persistErr);
     }
