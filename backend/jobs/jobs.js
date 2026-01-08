@@ -209,6 +209,8 @@ router.get("/available", async (req, res) => {
       `
       )
       .eq("status", status)
+      // Exclude jobs that are already in the past so students can't apply to them
+      .gt('start_time', new Date().toISOString())
       .order("start_time", { ascending: true })
       .limit(limit);
 
