@@ -353,6 +353,92 @@ async function paymentsWebhookHandler(req, res) {
   res.json({ received: true });
 }
 
+/**
+ * GET /payments/connect/return
+ * Stripe redirect na account onboarding
+ */
+router.get("/connect/return", async (req, res) => {
+  const { code, state } = req.query;
+  
+  try {
+    // Als er een code is, was de onboarding succesvol
+    if (code) {
+      // TODO: Als nodig, kan je hier de account details updaten in Supabase
+      // Voor nu, stuur gewoon een success pagina
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Stripe Account Connected</title>
+            <style>
+              body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
+              .container { text-align: center; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+              h1 { color: #176B51; margin: 0 0 10px 0; }
+              p { color: #666; margin: 10px 0; }
+              .success { color: #22c55e; font-size: 48px; margin-bottom: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="success">✓</div>
+              <h1>Stripe Account Connected!</h1>
+              <p>Your Stripe Connect account has been successfully set up.</p>
+              <p>You can now receive payments for completed jobs.</p>
+              <p style="margin-top: 30px; color: #999; font-size: 14px;">You can close this window and return to the app.</p>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+    
+    // Als geen code, was onboarding geannuleerd
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Stripe Setup Cancelled</title>
+          <style>
+            body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
+            .container { text-align: center; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            h1 { color: #ef4444; margin: 0 0 10px 0; }
+            p { color: #666; margin: 10px 0; }
+            .error { color: #ef4444; font-size: 48px; margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="error">✕</div>
+            <h1>Setup Cancelled</h1>
+            <p>Stripe account setup was cancelled or failed.</p>
+            <p>Please try again or contact support if you need help.</p>
+            <p style="margin-top: 30px; color: #999; font-size: 14px;">You can close this window and return to the app.</p>
+          </div>
+        </body>
+      </html>
+    `);
+  } catch (err) {
+    console.error("Error handling Stripe return:", err);
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Error</title>
+          <style>
+            body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
+            .container { text-align: center; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>Error</h1>
+            <p>Something went wrong. Please try again.</p>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+});
+
 module.exports = {
   paymentsRouter: router,
   paymentsWebhookHandler,
