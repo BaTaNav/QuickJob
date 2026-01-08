@@ -1,4 +1,4 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View,  Image, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View,  Image, ActivityIndicator, Platform, TextInput, Alert, Linking } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as React from "react";
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
