@@ -1,72 +1,49 @@
 const express = require("express");
+const bcrypt = require("bcrypt");
+const { supabase } = require("../supabaseClient");
+const { signToken } = require("./jwt");
+
 const router = express.Router();
-const supabase = require("../supabaseClient");
 
-// Simple placeholder root
-router.get("/", (req, res) => {
-  res.json({ message: "Auth API placeholder" });
-});
-
-// Placeholder login endpoint
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body || {};
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
-    }
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
 
-    // Look up user by email and return role (dev-mode: no password check)
     const { data: user, error } = await supabase
       .from("users")
-      .select("id, email, role")
+      .select("id, email, password_hash, role, phone, created_at")
       .eq("email", email)
       .single();
 
-    if (error && error.code === "PGRST116") {
-      // Not found: simple heuristic fallback for dev
-      const guessedRole = email.toLowerCase().includes("client")
-        ? "client"
-        : email.toLowerCase().includes("admin")
-        ? "admin"
-        : "student";
-      return res.json({
-        user: {
-          id: 9999,
-          email,
-          role: guessedRole,
-        },
-        token: "dev-placeholder-token",
-      });
-    }
-    if (error) {
-      console.error("Login lookup error:", error);
-      return res.status(500).json({ error: "Login failed" });
+    if (error || !user) return res.status(401).json({ error: "Invalid email or password" });
+
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: "Invalid email or password" });
+
+    // OPTIONAL: fetch profile based on role (student/client/admin) if you want
+    let profile = null;
+    if (user.role === "student") {
+      const { data } = await supabase
+        .from("student_profiles")
+        .select("school_name, field_of_study, academic_year, radius_km, verification_status")
+        .eq("id", user.id)
+        .single();
+      profile = data || null;
     }
 
-    // Found user: return their role
-    return res.json({
-      user,
-      token: "dev-placeholder-token",
-    });
-  } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ error: "Login failed" });
-  }
-});
+    const access_token = signToken(user);
 
-// Placeholder student registration endpoint
-router.post("/register/student", async (req, res) => {
-  try {
-    const { email, password } = req.body || {};
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
-    }
-    // TODO: Implement real registration into Supabase users table
-    res.status(201).json({
+    res.json({
+      message: "Login successful",
+      access_token,
       user: {
-        id: 2,
-        email,
-        role: "student",
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        created_at: user.created_at,
+        profile,
       },
     });
   } catch (err) {

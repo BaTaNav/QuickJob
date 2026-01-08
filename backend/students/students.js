@@ -1,6 +1,8 @@
 const express = require("express");
 const supabase = require("../supabaseClient");
 const verifyJwt = require("../auth/verifyJwt");
+const requireRole = require("../auth/requireRole");
+
 const router = express.Router();
 
 /**
@@ -37,6 +39,14 @@ function mapJobRow(row) {
       : null,
   };
 }
+
+
+
+
+router.get("/me", verifyJwt, requireRole("student"), (req, res) => {
+  res.json({ message: "student ok", user: req.user });
+});
+
 
 /**
  * GET /students/:studentId/dashboard
