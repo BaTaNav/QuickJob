@@ -792,6 +792,20 @@ const styles = StyleSheet.create({
   clearDateText: { color: '#1a2e4c', fontWeight: '600' },
   datePickerBtn: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#F4F6F7', borderRadius: 8 },
   datePickerText: { color: '#1a2e4c', fontWeight: '600' },
+  stripeOnboardingBtn: {
+    backgroundColor: '#176B51',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stripeOnboardingText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
 
 
   /* EMPTY STATE */
