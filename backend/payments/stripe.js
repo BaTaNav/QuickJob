@@ -214,6 +214,53 @@ router.post("/request-payment", async (req, res) => {
 });
 
 
+
+/**
+ * POST /payments/create-payment-intent (legacy, nog steeds ondersteund)
+ * Voor directe payment intents
+ */
+router.post("/create-payment-intent", async (req, res) => {
+  if (!ensureStripe(res)) return;
+  const { student_id, job_id, client_id, amount, currency, description } = req.body;
+  const amountInt = parseInt(amount, 10);
+  if (!student_id || !amountInt) {
+    return res.status(400).json({ error: "student_id en amount (in cents) zijn verplicht" });
+  }
+
+  const currencyCode = (currency || defaultCurrency).toLowerCase();
+  const { data: accountRow, error: accountError } = await supabase
+    .from("student_stripe_accounts")
+    .select("stripe_account_id")
+    .eq("student_id", student_id)
+    .maybeSingle();
+  if (accountError) return res.status(500).json({ error: "Supabase fout (account lookup)", details: accountError });
+  if (!accountRow?.stripe_account_id) {
+    return res.status(400).json({ error: "Student heeft nog geen Stripe account. Onboard eerst." });
+  }
+
+  const feeAmount = feePercent > 0 ? Math.round(amountInt * (feePercent / 100)) : undefined;
+
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: amountInt,
+    currency: currencyCode,
+    automatic_payment_methods: { enabled: true },
+    description: description || `Job ${job_id || ""} betaling`,
+    transfer_data: { destination: accountRow.stripe_account_id },
+    application_fee_amount: feeAmount,
+    metadata: {
+      student_id: String(student_id),
+      job_id: job_id ? String(job_id) : "",
+      client_id: client_id ? String(client_id) : "",
+    },
+  });
+
+  res.json({
+    payment_intent_id: paymentIntent.id,
+    client_secret: paymentIntent.client_secret,
+  });
+});
+
+
 async function paymentsWebhookHandler(req, res) {
   if (!stripe) return res.status(500).json({ error: "Stripe secret key ontbreekt" });
   if (!webhookSecret) return res.status(400).send("STRIPE_WEBHOOK_SECRET ontbreekt");
