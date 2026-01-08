@@ -274,23 +274,20 @@ export default function StudentDashboard() {
     return '';
   };
 
-  // Trigger Stripe onboarding for the current student
-  const startStripeOnboarding = async () => {
+  // Handle Stripe account setup
+  const handleStripeSetup = async () => {
     try {
       const studentId = await getStudentId();
       if (!studentId) {
-        Alert.alert('Error', 'Student ID not found');
+        Alert.alert('Error', 'No student ID found');
         return;
       }
-      const res = await paymentAPI.connectStudentAccount(parseInt(studentId, 10));
-      if (res?.onboarding_url) {
-        Alert.alert('Stripe Onboarding', 'Opening Stripe onboarding in browser...');
-        Linking.openURL(res.onboarding_url);
-      } else {
-        Alert.alert('Stripe', 'No onboarding URL received.');
+      const response = await paymentAPI.connectStudentAccount(parseInt(studentId, 10));
+      if (response?.onboarding_url) {
+        Linking.openURL(response.onboarding_url);
       }
-    } catch (err: any) {
-      Alert.alert('Stripe onboarding failed', err?.message || 'Unknown error');
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
     }
   };
 
@@ -321,6 +318,12 @@ export default function StudentDashboard() {
             </Pressable>
           </View>
         </View>
+
+        {/* Stripe Setup Button */}
+        <TouchableOpacity style={styles.stripeBtn} onPress={handleStripeSetup}>
+          <CreditCard size={20} color="#fff" />
+          <Text style={styles.stripeBtnText}>Setup Stripe Account</Text>
+        </TouchableOpacity>
 
       {/* DOCUMENT BANNER (hidden by default while testing) */}
       {false && ( // Conditional rendering is correct
@@ -806,6 +809,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
+  stripeOnboardingBtnFull: {
+    backgroundColor: '#176B51',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  stripeOnboardingTextFull: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
+  },
 
 
   /* EMPTY STATE */
@@ -891,6 +910,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#176B51",
     fontWeight: "600",
+  },
+
+  /* STRIPE SETUP BUTTON */
+  stripeBtn: {
+    backgroundColor: '#176B51',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  stripeBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
   },
 
   /* BANNER */
@@ -1061,3 +1098,5 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
 });
+
+console.log('Component rendered - Stripe button should be visible');
