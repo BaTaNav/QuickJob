@@ -221,7 +221,11 @@ export default function ClientProfile() {
           
           {/* LINKER KOLOM (Web) / BOVENKANT (Mobile) */}
           <View style={isWeb ? styles.leftCardWeb : styles.headerCardMobile}>
+                                   <Pressable onPress={() => router.push('/Client/DashboardClient')} style={{ padding: 8 }}>
+                          <Text style={{ color: '#176B51', fontWeight: '600', fontSize: 14 }}>← Dashboard</Text>
+                       </Pressable>
             <RNView style={isWeb ? styles.leftTopRow : styles.headerRowMobile}>
+              
               <Pressable onPress={uploadAvatar}>
                 <Image 
                   source={clientProfile?.avatar_url 
