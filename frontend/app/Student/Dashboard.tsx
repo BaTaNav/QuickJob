@@ -95,7 +95,7 @@ export default function StudentDashboard() {
         // Map applications to Job structure if needed. Assuming apps have a 'job' property.
         // Adjust this mapping based on actual API response structure.
         const jobs = apps.map((app: any) => app.job).filter(Boolean); 
-        setPendingJobs(jobs);
+        setPendingApplications(jobs);
       }
     } catch (err) {
        console.log('Error fetching pending jobs:', err);

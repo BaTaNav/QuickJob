@@ -1,16 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Image, Modal } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Image, Modal, Alert, Linking } from "react-native";
 import { useRouter } from 'expo-router';
-import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, CreditCard } from "lucide-react-native";
+import { RefreshCw, Plus, ArrowDown, Handshake, User, Users, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, CreditCard, X } from "lucide-react-native";
 import { jobsAPI, getClientId, paymentAPI } from "@/services/api";
 import { StripeProvider, useStripe } from '@/services/stripe';
 
 // Stripe publishable key (vervang met je ECHTE test key!)
 const STRIPE_PUBLISHABLE_KEY = 'pk_test_51Smd6rDqjNmnpUMj83qaNNTmmaiIwFOVCIyEA20VwOpimH1bW1hJuKFs2YloGA7j3XsP9vYP7rCNnqIdXdhxYFnV008lbOqttm';
-
-function DashboardClientContent() {
-import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, Users, X } from "lucide-react-native";
-import { jobsAPI, getClientId } from "@/services/api";
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState("Open");
@@ -273,20 +269,21 @@ export default function DashboardClient() {
           </TouchableOpacity>
         )}
       </View>
-        </Text>        {(job.applicant_count > 0 || job.pending_applicants > 0 || job.accepted_applicants > 0) && (
-          <TouchableOpacity 
-            style={styles.viewApplicantsBtn}
-            onPress={() => {
-              setSelectedJob(job);
-              fetchApplicants(job.id);
-            }}
-          >
-            <Users size={16} color="#176B51" />
-            <Text style={styles.viewApplicantsText}>
-              {job.applicant_count || 0} applicant{job.applicant_count !== 1 ? 's' : ''}
-            </Text>
-          </TouchableOpacity>
-        )}      </View>
+
+      {(job.applicant_count > 0 || job.pending_applicants > 0 || job.accepted_applicants > 0) && (
+        <TouchableOpacity 
+          style={styles.viewApplicantsBtn}
+          onPress={() => {
+            setSelectedJob(job);
+            fetchApplicants(job.id);
+          }}
+        >
+          <Users size={16} color="#176B51" />
+          <Text style={styles.viewApplicantsText}>
+            {job.applicant_count || 0} applicant{job.applicant_count !== 1 ? 's' : ''}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -702,6 +699,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 8,
   },
+  payButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#176B51',
+    borderRadius: 8,
+  },
   payButtonDisabled: { opacity: 0.6 },
   payButtonText: { fontSize: 14, fontWeight: "600", color: "#fff" },
   loadingWrapper: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
@@ -716,10 +722,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 16,
   },
-  emptyTitle: { fontSize: 18, fontWeight: "700", color: "#1a2e4c", marginBottom: 4 },
-  emptySubtitle: { fontSize: 14, color: "#64748B", textAlign: "center", maxWidth: 200, marginBottom: 24 },
-  emptyButton: { backgroundColor: "#000", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
-  emptyButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
   emptyTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -817,16 +819,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#176B51',
   },
-  loadingWrapper: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 48,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#64748B",
-  },
 
   /* FOOTER */
   footer: {
@@ -869,8 +861,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
   },
-  footerCopyright: { fontSize: 12, color: "#9CA3AF" },
-  footerVersion: { fontSize: 12, color: "#9CA3AF", fontWeight: "500" },
   footerCopyright: {
     fontSize: 12,
     color: "#9CA3AF",
