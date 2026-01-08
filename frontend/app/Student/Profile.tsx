@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator, Platform, ScrollView } from 'react-native';
+import { StyleSheet, Pressable, View as RNView, Switch, Image, ActivityIndicator, Platform, ScrollView, Alert } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { studentAPI, authAPI, getStudentId } from '@/services/api';
@@ -33,6 +33,7 @@ export default function StudentProfile() {
       const id = storedStudentId ? parseInt(storedStudentId) : 3; 
       
       const data = await studentAPI.getProfile(id);
+      if (data?.avatar_url) data.avatar_url = `${data.avatar_url}?t=${Date.now()}`;
       setProfile(data);
     } catch (err: any) {
       console.error('Error fetching profile:', err);
@@ -85,18 +86,9 @@ export default function StudentProfile() {
         formData.append('avatar', { uri: localUri, name: filename, type: 'image/jpeg' } as any);
       }
 
-      const uploadResponse = await fetch(`http://localhost:3000/students/${studentId}/avatar`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        const txt = await uploadResponse.text();
-        throw new Error(txt || 'Upload failed');
-      }
-
-      const data = await uploadResponse.json();
-      if (data.avatar_url) {
+      console.log('Uploading avatar to:', `${API_BASE_URL}/students/${studentId}/avatar`);
+      const data = await studentAPI.uploadAvatar(studentId, formData);
+      if (data?.avatar_url) {
         // Add cache-busting
         setProfile((prev: any) => ({ ...prev, avatar_url: `${data.avatar_url}?t=${Date.now()}` }));
       }
@@ -185,10 +177,12 @@ export default function StudentProfile() {
                   <ActivityIndicator size="small" color="#176B51" />
                 ) : (
                   <>
-                    <Image 
-                      source={require('../../assets/images/blank-profile-picture.png')} 
-                      style={isWeb ? styles.avatarSmall : styles.avatarMedium} 
-                    />
+                    <Pressable onPress={uploadAvatar}>
+                      <Image 
+                        source={profile?.avatar_url ? { uri: profile.avatar_url } : require('../../assets/images/blank-profile-picture.png')} 
+                        style={isWeb ? styles.avatarSmall : styles.avatarMedium} 
+                      />
+                    </Pressable>
                     <RNView style={isWeb ? styles.leftIdentity : styles.headerIdentityMobile}>
                       <Text style={styles.leftName}>
                         {profile?.school_name || 'Student'}
@@ -251,7 +245,9 @@ export default function StudentProfile() {
                               <Text style={styles.label}>School</Text>
                               <Text style={styles.value}>{profile?.school_name || 'Not set'}</Text>
                             </RNView>
-                            <Image source={require('../../assets/images/blank-profile-picture.png')} style={styles.avatarLarge} />
+                            <Pressable onPress={uploadAvatar}>
+                              <Image source={profile?.avatar_url ? { uri: profile.avatar_url } : require('../../assets/images/blank-profile-picture.png')} style={styles.avatarLarge} />
+                            </Pressable>
                           </RNView>
                         )}
 

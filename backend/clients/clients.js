@@ -1,6 +1,11 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const supabase = require("../supabaseClient");
+const multer = require("multer");
+
+// Multer memory storage for avatar uploads
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 const router = express.Router();
 
@@ -164,7 +169,7 @@ router.get("/:id", async (req, res) => {
     // Fetch client profile
     const { data: profile, error: profileError } = await supabase
       .from("client_profiles")
-      .select("address_line, postal_code, city, region, first_job_needs_approval")
+      .select("address_line, postal_code, city, region, first_job_needs_approval, avatar_url")
       .eq("id", id)
       .single();
 
@@ -184,6 +189,66 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+
+// POST /clients/:id/avatar - Upload or update a client's avatar image
+router.post("/:id/avatar", upload.single("avatar"), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const file = req.file;
+    console.log(`Received client avatar upload for id=${id}`, { originalname: file?.originalname, size: file?.size, mimetype: file?.mimetype });
+    if (!file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const fileExt = file.originalname.split('.').pop() || 'jpg';
+    const fileName = `clients/${id}/avatar-${Date.now()}.${fileExt}`;
+
+    // Upload to Supabase Storage (bucket 'avatars')
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(fileName, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error("Supabase storage error (clients avatar):", uploadError);
+      throw uploadError;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(fileName);
+
+    const publicUrl = publicUrlData.publicUrl;
+    console.log(`Client avatar uploaded to storage, publicUrl=`, publicUrl);
+
+    // Update or insert into client_profiles
+    const { data: existing, error: existingError } = await supabase
+      .from('client_profiles')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (existing) {
+      const { error: updateErr } = await supabase
+        .from('client_profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', id);
+      if (updateErr) throw updateErr;
+    } else {
+      const { error: insertErr } = await supabase
+        .from('client_profiles')
+        .insert([{ id, avatar_url: publicUrl }]);
+      if (insertErr) throw insertErr;
+    }
+
+    res.status(200).json({ avatar_url: publicUrl });
+  } catch (err) {
+    console.error('Error uploading avatar for client:', err);
+    res.status(500).json({ error: err.message || 'Upload failed' });
+  }
+});
 
 
 // PATCH /clients/:id

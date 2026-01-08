@@ -269,6 +269,7 @@ router.post("/:studentId/avatar", upload.single("avatar"), async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
     const file = req.file;
+    console.log(`Received student avatar upload for id=${studentId}`, { originalname: file?.originalname, size: file?.size, mimetype: file?.mimetype });
     if (!file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
@@ -294,6 +295,7 @@ router.post("/:studentId/avatar", upload.single("avatar"), async (req, res) => {
       .getPublicUrl(fileName);
 
     const publicUrl = publicUrlData.publicUrl;
+    console.log(`Student avatar uploaded to storage, publicUrl=`, publicUrl);
 
     // Update or insert into student_profiles
     const { data: existing, error: existingError } = await supabase

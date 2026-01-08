@@ -185,48 +185,28 @@ export default function PostJob() {
         else if (target === 'start') el = startTimeRef.current;
         else el = endTimeRef.current;
 
-        if (el && typeof el.getBoundingClientRect === 'function') {
-          const rect = el.getBoundingClientRect();
+        // Compute a single, consistent centered position for all pickers
+        // so they appear in the same place (slightly above center of viewport).
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+        const cardHeight = 280; 
 
-          // Pin modal above the trigger (user preference) and clamp to viewport
-          const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-          const cardHeight = 320; // estimated card height (include header/actions)
-          const smallGap = 8; // gap between trigger and modal
+        // Try to use the trigger width as a hint for card width, but fall back to a sensible viewport fraction
+        let preferredCardWidth = Math.min(520, Math.floor((el && typeof el.getBoundingClientRect === 'function') ? (el.getBoundingClientRect().width || viewportWidth * 0.6) : viewportWidth * 0.6));
+        preferredCardWidth = Math.max(300, Math.min(preferredCardWidth, Math.floor(viewportWidth * 0.9)));
 
-          let top: number;
-          let left: number;
-          const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+        // Slightly above center (pull up 6% of viewport) so it doesn't overlap header or sidebar
+        const verticalOffset = Math.floor(viewportHeight * 0.06);
+        let top = Math.floor((viewportHeight - cardHeight) / 2) - verticalOffset;
+        top = Math.max(8, Math.min(top, viewportHeight - cardHeight - 8));
 
-          if (target === 'date') {
-            // Pin modal to top of the viewport (below header) and center it horizontally
-            const preferredCardWidth = Math.min(520, Math.floor(rect.width || (viewportWidth * 0.95)));
-            const topMargin = 64; // distance below top of viewport (adjust to position below header)
+        // Shift left on desktop so modal aligns more with the main content (not the right sidebar)
+        const leftShift = (typeof isDesktop !== 'undefined' && isDesktop) ? Math.floor(350 / 2) : 0; // half of sidebar width
+        let left = Math.floor((viewportWidth - preferredCardWidth) / 2) - leftShift;
+        left = Math.max(8, Math.min(left, viewportWidth - preferredCardWidth - 8));
 
-            top = Math.max(8, Math.floor((window.scrollY || 0) + topMargin));
-            const maxTop = (viewportHeight + (window.scrollY || 0)) - cardHeight - 8;
-            top = Math.min(top, maxTop);
-
-            left = Math.floor((viewportWidth - preferredCardWidth) / 2);
-            left = Math.max(8, Math.min(left, viewportWidth - preferredCardWidth - 8));
-
-            // Store width so we can set the modal card size to match
-            setWebModal({ mode, target, value, coords: { top, left, width: preferredCardWidth } });
-            return;
-          } else {
-            // Default: center over the trigger and clamp to viewport
-            top = Math.floor((rect.top + (window.scrollY || 0)) - cardHeight - smallGap);
-            top = Math.max(8, top);
-            const maxTop = (viewportHeight + (window.scrollY || 0)) - cardHeight - 8;
-            top = Math.min(top, maxTop);
-
-            const cardWidth = Math.min(420, Math.floor(viewportWidth * 0.95));
-            left = Math.floor((rect.left + (window.scrollX || 0)) + rect.width / 2 - cardWidth / 2);
-            left = Math.max(8, Math.min(left, viewportWidth - cardWidth - 8));
-
-            setWebModal({ mode, target, value, coords: { top, left, width: cardWidth } });
-            return;
-          }
-        }
+        setWebModal({ mode, target, value, coords: { top, left, width: preferredCardWidth } });
+        return;
       } catch (err) {
         // Fall back to centered modal if anything fails
         console.warn('Could not compute anchor for web modal', err);
@@ -1029,7 +1009,7 @@ export default function PostJob() {
                 <Pressable
                   style={[
                     styles.webModalCard,
-                    webModal?.coords ? { position: 'absolute', top: webModal.coords.top, left: webModal.coords.left, width: webModal.coords.width } : { alignSelf: 'center' }
+                    webModal?.coords ? { position: 'absolute', top: webModal.coords.top, left: webModal.coords.left, width: webModal.coords.width } : { alignSelf: 'center', marginTop: 64 }
                   ]}
                   onPress={(e: any) => e.stopPropagation()}
                 >
@@ -1643,7 +1623,11 @@ const styles = StyleSheet.create({
 
 /* Web modal picker styles */
   webModalOverlay: {
-    flex: 1,
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'flex-start', // 1. Align content to the TOP of the screen
     alignItems: 'center',         // 2. Center content HORIZONTALLY
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1661,10 +1645,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 5,
-    
-    // 3. Pushes the card down from the very top of the screen.
-    // Adjust '170' up or down to match the exact vertical position of your "Starttijd" field.
-    marginTop: 170, 
+    justifyContent: 'flex-start',
   },
   webModalTitle: {
     fontSize: 18,

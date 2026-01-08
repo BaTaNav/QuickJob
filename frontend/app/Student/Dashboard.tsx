@@ -765,11 +765,6 @@ const styles = StyleSheet.create({
     resizeMode: "cover",
   },
 
-  jobCard: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF0F2',
-  },
   jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
   jobDescription: { fontSize: 14, color: '#4A4A4A', marginBottom: 6 },
   jobMeta: { color: '#7A7F85', fontSize: 13 },

@@ -1,11 +1,10 @@
 import { useFonts } from 'expo-font';
-import { Stack, Link, useRouter } from 'expo-router'; // useRouter toegevoegd
+import { Stack, Link } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-import { Pressable, Text, View, Platform } from 'react-native'; // Platform toegevoegd
-import { useColorScheme } from '../components/useColorScheme';
-import { Handshake, RefreshCw, User } from 'lucide-react-native'; 
+import { Pressable, Text, View, useColorScheme } from 'react-native';
+import { Handshake, User } from 'lucide-react-native'; // Added User icon for profile
 import Colors from '../constants/Colors'; 
 
 
@@ -15,7 +14,7 @@ export { ErrorBoundary } from 'expo-router';
 // Global settings for Expo Router
 export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: 'index',
+  initialRouteName: '(tabs)',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -45,30 +44,14 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme(); 
-  const router = useRouter(); // Router ophalen
+  const colorScheme = useColorScheme(); // Hook to access the current color scheme
 
-  // Dwing de app naar de startpagina op Android
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      // Kleine vertraging om zeker te zijn dat alles ingeladen is
-      setTimeout(() => {
-        console.log("Forceer navigatie naar Home (/)");
-        router.replace('/');
-      }, 100);
-    }
-  }, []);
-
-  // Placeholder for a refresh action in the native header (e.g., refetch data)
-  const handleNativeHeaderRefresh = () => {
-    // In a production app, you would use a global state manager (Redux/Context/etc.)
-    // to dispatch a 'refresh' action that the current screen (Dashboard) listens to.
-    console.log("Header Refresh triggered (Dispatching global refresh event...)");
-  };
 
 
   return (
     <Stack>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
       {/* Hide header for Login page (no back arrow) */}
       <Stack.Screen name="Login" options={{ headerShown: false }} />
 
@@ -77,9 +60,7 @@ function RootLayoutNav() {
       <Stack.Screen name="Student/Signup" options={{ headerShown: true }} />
       <Stack.Screen name="Client/Signup" options={{ headerShown: true }} />
       <Stack.Screen name="Client/DashboardClient" options={{ headerShown: false }} />
-      <Stack.Screen name="Client/Profile" options={{ headerShown: false }} />
-      <Stack.Screen name="Client/PostJob" options={{ headerShown: false }} />
-     {/*<Stack.Screen name="Client/Job/[id]" options={{ title: 'Job Details' }} />*/}
+      <Stack.Screen name="Client/Profile" options={{ headerShown: true }} />
 
       {/* Hide headers for admin pages */}
       <Stack.Screen name="Admin/DashboardAdmin" options={{ headerShown: false }} />
@@ -126,7 +107,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="Student/Profile"
         options={{
-          title: 'My Profile', // Custom title for the header
+          title: 'My Profile', 
           headerShown: true,
         }}
       />
