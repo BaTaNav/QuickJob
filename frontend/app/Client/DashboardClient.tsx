@@ -70,7 +70,8 @@ export default function DashboardClient() {
   // Filter jobs by status
   const openJobs = jobs.filter(j => j.status === 'open');
   const plannedJobs = jobs.filter(j => j.status === 'planned' || j.status === 'assigned');
-  const completedJobs = jobs.filter(j => j.status === 'completed');
+  // Include expired jobs in Completed view so clients can see which jobs expired
+  const completedJobs = jobs.filter(j => j.status === 'completed' || j.status === 'expired');
   const todayJobs = jobs.filter(j => {
     if (!j.start_time) return false;
     const jobDate = new Date(j.start_time).toDateString();
@@ -112,7 +113,12 @@ export default function DashboardClient() {
   };
 
   // Render a single job card
-  const renderJobCard = (job: any) => (
+  const renderJobCard = (job: any) => {
+    const isExpired = job.status === 'expired';
+    const statusLabel = isExpired ? 'Expired' : (job.status || '').toString();
+    const statusStyle = job.status === 'open' ? styles.statusOpen : (isExpired ? styles.statusExpired : styles.statusOther);
+
+    return (
     <View key={job.id} style={styles.jobCard}>
       <View style={styles.jobHeader}>
         {job.image_url && (
@@ -123,8 +129,8 @@ export default function DashboardClient() {
   />
 )}
         <Text style={styles.jobTitle}>{job.title}</Text>
-        <View style={[styles.statusBadge, job.status === 'open' ? styles.statusOpen : styles.statusOther]}>
-          <Text style={styles.statusText}>{job.status}</Text>
+        <View style={[styles.statusBadge, statusStyle]}>
+          <Text style={[styles.statusText, isExpired ? styles.statusTextExpired : null]}>{statusLabel}</Text>
         </View>
       </View>
       {job.category && (
@@ -180,6 +186,7 @@ export default function DashboardClient() {
         )}      </View>
     </View>
   );
+  };
 
   return (
     <View style={styles.screen}>
@@ -993,6 +1000,13 @@ const styles = StyleSheet.create({
   },
   statusRejected: {
     backgroundColor: '#FEE2E2',
+  },
+  // Expired status styling
+  statusExpired: {
+    backgroundColor: '#FEE2E2',
+  },
+  statusTextExpired: {
+    color: '#B91C1C',
   },
   appliedDate: {
     fontSize: 12,
