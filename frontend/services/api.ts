@@ -519,7 +519,7 @@ export const authAPI = {
   },
 };
 
-// Payment API Endpoints (voeg toe aan het einde van het bestand)
+// Payment API Endpoints
 export const paymentAPI = {
   // Connect Stripe account for a student (returns onboarding URL)
   async connectStudentAccount(student_id: number) {
@@ -542,6 +542,7 @@ export const paymentAPI = {
       throw new Error(error.message || 'Stripe onboarding failed');
     }
   },
+
   // Create payment intent for a job
   async createPaymentIntent(data: {
     student_id: number;
@@ -578,6 +579,41 @@ export const paymentAPI = {
     }
   },
 
+  // Request payment from client for a completed job
+  async requestPayment(data: {
+    job_id: number;
+    client_id: number;
+    student_id: number;
+    amount: number;
+    currency?: string;
+  }) {
+    try {
+      const url = `${API_BASE_URL}/payments/request-payment`;
+      logRequest('POST', url);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Payment API Error]', response.status, errorText);
+        throw new Error(`Failed to request payment: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('[Payment API Success] Payment request created:', result);
+      return result;
+    } catch (error: any) {
+      console.error('[Payment API Exception]', error);
+      throw new Error(error.message || 'Failed to request payment');
+    }
+  },
+
   // Get payment status
   async getPaymentStatus(paymentIntentId: string) {
     try {
@@ -587,13 +623,95 @@ export const paymentAPI = {
       const response = await fetch(url);
       
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Payment API Error]', response.status, errorText);
         throw new Error(`Failed to get payment status: ${response.status}`);
       }
       
-      return response.json();
+      const result = await response.json();
+      console.log('[Payment API Success] Payment status:', result);
+      return result;
     } catch (error: any) {
       console.error('[Payment Status Error]', error);
       throw error;
     }
+  },
+};
+
+// Admin API
+export const adminAPI = {
+  async getPendingStudents() {
+    const url = `${API_BASE_URL}/admin/students/pending`;
+    logRequest('GET', url);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load pending students');
+    return data.students || data;
+  },
+
+  async getVerifiedStudents() {
+    const url = `${API_BASE_URL}/admin/students/verified`;
+    logRequest('GET', url);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load verified students');
+    return data.students || data;
+  },
+
+  async verifyStudent(id: number, status: 'verified' | 'rejected') {
+    const url = `${API_BASE_URL}/admin/students/${id}/verify`;
+    logRequest('PATCH', url);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update verification status');
+    return data.student || data;
+  },
+
+  async getIncidents(status?: string) {
+    const query = status && status !== 'all' ? `?status=${status}` : '';
+    const url = `${API_BASE_URL}/incidents${query}`;
+    logRequest('GET', url);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load incidents');
+    return data.incidents || data;
+  },
+
+  async createIncident(payload: {
+    summary: string;
+    description?: string | null;
+    job_id?: number | null;
+    application_id?: number | null;
+    student_id?: number | null;
+    client_id?: number | null;
+    incident_type?: string;
+  }) {
+    const url = `${API_BASE_URL}/incidents`;
+    logRequest('POST', url);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create incident');
+    return data;
+  },
+
+  async updateIncidentStatus(id: number, status: string) {
+    const url = `${API_BASE_URL}/incidents/${id}`;
+    logRequest('PATCH', url);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update incident');
+    return data;
   },
 };
