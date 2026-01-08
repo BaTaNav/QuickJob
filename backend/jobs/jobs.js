@@ -653,11 +653,61 @@ router.get("/client/:clientId", async (req, res) => {
       }
     }
 
+    // Additionally fetch accepted application details (one per job) so the client
+    // Planned tab can show the accepted student info without extra queries.
+    let acceptedMap = {};
+    if (jobIds.length > 0) {
+      const { data: acceptedApps, error: accErr } = await supabase
+        .from('job_applications')
+        .select('id, job_id, student_id, status, applied_at')
+        .in('job_id', jobIds)
+        .eq('status', 'accepted');
+
+      if (!accErr && acceptedApps && acceptedApps.length > 0) {
+        const studentIds = [...new Set(acceptedApps.map(a => a.student_id))];
+
+        // Fetch student profiles and user contact info
+        const { data: profiles, error: profileErr } = await supabase
+          .from('student_profiles')
+          .select('id, school_name, field_of_study, academic_year, avatar_url, verification_status')
+          .in('id', studentIds);
+
+        const { data: users, error: userErr } = await supabase
+          .from('users')
+          .select('id, email, phone')
+          .in('id', studentIds);
+
+        const profileMap = {};
+        const userMap = {};
+        profiles?.forEach(p => { profileMap[p.id] = p; });
+        users?.forEach(u => { userMap[u.id] = u; });
+
+        acceptedApps.forEach(a => {
+          acceptedMap[a.job_id] = {
+            application_id: a.id,
+            student_id: a.student_id,
+            applied_at: a.applied_at,
+            student: {
+              id: a.student_id,
+              email: userMap[a.student_id]?.email,
+              phone: userMap[a.student_id]?.phone,
+              school_name: profileMap[a.student_id]?.school_name,
+              field_of_study: profileMap[a.student_id]?.field_of_study,
+              academic_year: profileMap[a.student_id]?.academic_year,
+              avatar_url: profileMap[a.student_id]?.avatar_url,
+              verification_status: profileMap[a.student_id]?.verification_status,
+            }
+          };
+        });
+      }
+    }
+
     const jobs = data?.map(job => ({
       ...mapJobRow(job),
       applicant_count: (applicantCounts[job.id]?.pending || 0) + (applicantCounts[job.id]?.accepted || 0),
       pending_applicants: applicantCounts[job.id]?.pending || 0,
       accepted_applicants: applicantCounts[job.id]?.accepted || 0,
+      accepted_applicant: acceptedMap[job.id] || null,
     })) || [];
 
     res.json({
