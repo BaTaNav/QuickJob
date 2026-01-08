@@ -355,6 +355,21 @@ router.post("/:studentId/apply", /* verifyJwt, */ async (req, res) => {
       return res.status(409).json({ error: "Already applied to this job" });
     }
 
+    // Ensure the job is open for applications
+    const { data: jobRow, error: jobErr } = await supabase
+      .from('jobs')
+      .select('id, status, start_time')
+      .eq('id', job_id)
+      .single();
+
+    if (jobErr || !jobRow) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (jobRow.status !== 'open') {
+      return res.status(400).json({ error: 'Job is not open for applications' });
+    }
+
     // Create application
     const { data, error } = await supabase
       .from("job_applications")

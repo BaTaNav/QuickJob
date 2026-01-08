@@ -425,7 +425,7 @@ async function runExpirySweep() {
 
     console.log('[ExpiryRunner] scanning for open jobs starting before', threshold);
 
-    const { data: jobsToCheck, error: jobsError } = await supabase
+     const { data: jobsToCheck, error: jobsError } = await supabase
       .from('jobs')
       .select('id, start_time')
       .eq('status', 'open')
@@ -813,9 +813,22 @@ router.patch("/:jobId/applicants/:applicationId", async (req, res) => {
 
     // If accepting, update job status to 'pending' (assigned but not started)
     if (status === 'accepted') {
+      // Set other pending applications for this job to 'rejected'
+      try {
+        await supabase
+          .from('job_applications')
+          .update({ status: 'rejected' })
+          .neq('id', applicationId)
+          .eq('job_id', jobId)
+          .eq('status', 'pending');
+      } catch (e) {
+        console.warn('[AcceptFlow] failed to reject other pending applications', e);
+      }
+
+      // Update job status to 'planned'
       await supabase
         .from("jobs")
-        .update({ status: "pending" })
+        .update({ status: "planned" })
         .eq("id", jobId);
     }
 
