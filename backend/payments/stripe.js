@@ -308,7 +308,7 @@ async function paymentsWebhookHandler(req, res) {
       if (jobId) {
         const { error: jobUpdateError } = await supabase
           .from("jobs")
-          .update({ status: "paid", updated_at: new Date().toISOString() })
+          .update({ status: "paid" })
           .eq("id", jobId);
 
         if (jobUpdateError) {

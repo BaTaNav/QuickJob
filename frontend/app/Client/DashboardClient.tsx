@@ -4,11 +4,12 @@ import { useRouter } from 'expo-router';
 import { RefreshCw, Plus, ArrowDown, Handshake, User, Users, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, X, CreditCard } from "lucide-react-native";
 import { jobsAPI, getClientId, paymentAPI } from "@/services/api";
 import { StripeProvider, useStripe } from '@/services/stripe';
+import PaymentModal from '@/components/PaymentModal';
 
 // Stripe publishable key (vervang met je ECHTE test key!)
-const STRIPE_PUBLISHABLE_KEY = 'pk_test_51Smd6rDqjNmnpUMj83qaNNTmmaiIwFOVCIyEA20VwOpimH1bW1hJuKFs2YloGA7j3XsP9vYP7rCNnqIdXdhxYFnV008lbOqttm';
+const STRIPE_PUBLISHABLE_KEY = 'pk_test_51SnKnBD3r0NQD7o9ndTkrFfUSHT9Jp5m9IrIaGBZaS51qYjt368MzWfPfUnMYUkBcVGDFYH6wsZWca2zyg8piYoN00Ua1cqjXE';
 
-export default function DashboardClient() {
+function DashboardClientContent() {
   const [activeTab, setActiveTab] = useState("Open");
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +19,10 @@ export default function DashboardClient() {
   const [applicants, setApplicants] = useState<any[]>([]);
   const [loadingApplicants, setLoadingApplicants] = useState(false);
   const [showApplicantsModal, setShowApplicantsModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentJob, setPaymentJob] = useState<any>(null);
   const router = useRouter();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
@@ -165,7 +170,17 @@ export default function DashboardClient() {
         description: `Betaling voor ${job.title}`,
       });
 
-      // Initialize payment sheet
+      // On web, show payment modal instead of payment sheet
+      if (Platform.OS === 'web') {
+        setPaymentClientSecret(client_secret);
+        setPaymentAmount(amount);
+        setPaymentJob(job);
+        setShowPaymentModal(true);
+        setPayingJobId(null);
+        return;
+      }
+
+      // On mobile, use payment sheet
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'QuickJob',
         paymentIntentClientSecret: client_secret,
@@ -176,6 +191,7 @@ export default function DashboardClient() {
 
       if (initError) {
         Alert.alert('Error', initError.message);
+        setPayingJobId(null);
         return;
       }
 
@@ -542,6 +558,21 @@ export default function DashboardClient() {
 
         </View>
       </ScrollView>
+
+      {/* Payment Modal (Web only) */}
+      {Platform.OS === 'web' && showPaymentModal && (
+        <PaymentModal
+          onClose={() => setShowPaymentModal(false)}
+          clientSecret={paymentClientSecret}
+          amount={paymentAmount}
+          jobTitle={paymentJob?.title || ''}
+          onSuccess={() => {
+            Alert.alert('Succes', 'Betaling succesvol! 🎉');
+            fetchJobs();
+            setShowPaymentModal(false);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -999,3 +1030,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+
+// Wrap with StripeProvider
+export default function DashboardClient() {
+  return (
+    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+      <DashboardClientContent />
+    </StripeProvider>
+  );
+}
