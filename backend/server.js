@@ -10,6 +10,7 @@ const studentsRouter = require("./students/students");
 const adminRouter = require("./Admin/Admin");
 const authRouter = require("./auth/auth");
 const { paymentsRouter, paymentsWebhookHandler } = require("./payments/stripe");
+const incidentsRouter = require("./incidents/incidents");
 
 
 const app = express();
@@ -42,6 +43,7 @@ app.use("/admin", adminRouter);
 app.use("/auth", authRouter);
 app.use("/payments", paymentsRouter);
 
+app.use("/incidents", incidentsRouter);
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Alert, Linking } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Image, Modal } from "react-native";
 import { useRouter } from 'expo-router';
 import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, CreditCard } from "lucide-react-native";
 import { jobsAPI, getClientId, paymentAPI } from "@/services/api";
@@ -9,11 +9,19 @@ import { StripeProvider, useStripe } from '@/services/stripe';
 const STRIPE_PUBLISHABLE_KEY = 'pk_test_51Smd6rDqjNmnpUMj83qaNNTmmaiIwFOVCIyEA20VwOpimH1bW1hJuKFs2YloGA7j3XsP9vYP7rCNnqIdXdhxYFnV008lbOqttm';
 
 function DashboardClientContent() {
+import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, Users, X } from "lucide-react-native";
+import { jobsAPI, getClientId } from "@/services/api";
+
+export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState("Open");
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [payingJobId, setPayingJobId] = useState<number | null>(null);
+  const [selectedJob, setSelectedJob] = useState<any>(null);
+  const [applicants, setApplicants] = useState<any[]>([]);
+  const [loadingApplicants, setLoadingApplicants] = useState(false);
+  const [showApplicantsModal, setShowApplicantsModal] = useState(false);
   const router = useRouter();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
@@ -39,6 +47,35 @@ function DashboardClientContent() {
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
+
+  // Fetch applicants for a job
+  const fetchApplicants = useCallback(async (jobId: number) => {
+    try {
+      setLoadingApplicants(true);
+      const data = await jobsAPI.getJobApplicants(jobId);
+      setApplicants(data.applicants || []);
+      setShowApplicantsModal(true);
+    } catch (err: any) {
+      console.error('Error fetching applicants:', err);
+      alert(err?.message || 'Failed to load applicants');
+    } finally {
+      setLoadingApplicants(false);
+    }
+  }, []);
+
+  // Handle application status update
+  const handleUpdateApplication = useCallback(async (jobId: number, applicationId: number, status: 'accepted' | 'rejected') => {
+    try {
+      await jobsAPI.updateApplicationStatus(jobId, applicationId, status);
+      // Refresh applicants list
+      await fetchApplicants(jobId);
+      // Refresh jobs list to update counts
+      await fetchJobs();
+    } catch (err: any) {
+      console.error('Error updating application:', err);
+      alert(err?.message || 'Failed to update application');
+    }
+  }, [fetchApplicants, fetchJobs]);
 
   // Filter jobs by status
   const openJobs = jobs.filter(j => j.status === 'open');
@@ -167,6 +204,13 @@ function DashboardClientContent() {
   const renderJobCard = (job: any) => (
     <View key={job.id} style={styles.jobCard}>
       <View style={styles.jobHeader}>
+        {job.image_url && (
+  <Image 
+    source={{ uri: job.image_url }} 
+    style={styles.jobImage} 
+    resizeMode="cover"
+  />
+)}
         <Text style={styles.jobTitle}>{job.title}</Text>
         <View style={[styles.statusBadge, job.status === 'open' ? styles.statusOpen : styles.statusOther]}>
           <Text style={styles.statusText}>{job.status}</Text>
@@ -178,12 +222,26 @@ function DashboardClientContent() {
           <Text style={styles.jobMetaText}>{job.category.name_nl || job.category.name_en}</Text>
         </View>
       )}
-      {job.area_text && (
-        <View style={styles.jobMeta}>
-          <MapPin size={14} color="#64748B" />
-          <Text style={styles.jobMetaText}>{job.area_text}</Text>
-        </View>
-      )}
+      {(() => {
+        const parts: string[] = [];
+        if (job.street) {
+          let s = job.street;
+          if (job.house_number) s += ` ${job.house_number}`;
+          parts.push(s);
+        }
+        if (job.postal_code) parts.push(job.postal_code);
+        if (job.city) parts.push(job.city);
+        const addr = parts.length > 0 ? parts.join(' ') : '';
+        if (addr) {
+          return (
+            <View style={styles.jobMeta}>
+              <MapPin size={14} color="#64748B" />
+              <Text style={styles.jobMetaText}>{addr}</Text>
+            </View>
+          );
+        }
+        return null;
+      })()}
       {job.start_time && (
         <View style={styles.jobMeta}>
           <Clock size={14} color="#64748B" />
@@ -215,6 +273,20 @@ function DashboardClientContent() {
           </TouchableOpacity>
         )}
       </View>
+        </Text>        {(job.applicant_count > 0 || job.pending_applicants > 0 || job.accepted_applicants > 0) && (
+          <TouchableOpacity 
+            style={styles.viewApplicantsBtn}
+            onPress={() => {
+              setSelectedJob(job);
+              fetchApplicants(job.id);
+            }}
+          >
+            <Users size={16} color="#176B51" />
+            <Text style={styles.viewApplicantsText}>
+              {job.applicant_count || 0} applicant{job.applicant_count !== 1 ? 's' : ''}
+            </Text>
+          </TouchableOpacity>
+        )}      </View>
     </View>
   );
 
@@ -323,6 +395,108 @@ function DashboardClientContent() {
             </View>
           )}
 
+          {/* Applicants Modal */}
+          <Modal
+            visible={showApplicantsModal}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowApplicantsModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    Applicants {selectedJob ? `- ${selectedJob.title}` : ''}
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowApplicantsModal(false)}>
+                    <X size={24} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+
+                {loadingApplicants && (
+                  <View style={styles.modalLoading}>
+                    <ActivityIndicator size="large" color="#176B51" />
+                    <Text style={styles.loadingText}>Loading applicants...</Text>
+                  </View>
+                )}
+
+                {!loadingApplicants && applicants.length === 0 && (
+                  <View style={styles.emptyApplicants}>
+                    <Users size={48} color="#CBD5E1" />
+                    <Text style={styles.emptyApplicantsText}>No applicants yet</Text>
+                  </View>
+                )}
+
+                {!loadingApplicants && applicants.length > 0 && (
+                  <ScrollView style={styles.applicantsList}>
+                    {applicants.map((applicant) => (
+                      <View key={applicant.application_id} style={styles.applicantCard}>
+                        <View style={styles.applicantHeader}>
+                          {applicant.student?.avatar_url ? (
+                            <Image 
+                              source={{ uri: applicant.student.avatar_url }} 
+                              style={styles.applicantAvatar}
+                            />
+                          ) : (
+                            <View style={styles.applicantAvatarPlaceholder}>
+                              <User size={24} color="#64748B" />
+                            </View>
+                          )}
+                          <View style={styles.applicantInfo}>
+                            <Text style={styles.applicantEmail}>{applicant.student?.email}</Text>
+                            {applicant.student?.school_name && (
+                              <Text style={styles.applicantDetail}>🎓 {applicant.student.school_name}</Text>
+                            )}
+                            {applicant.student?.field_of_study && (
+                              <Text style={styles.applicantDetail}>📚 {applicant.student.field_of_study}</Text>
+                            )}
+                            {applicant.student?.academic_year && (
+                              <Text style={styles.applicantDetail}>📅 {applicant.student.academic_year}</Text>
+                            )}
+                            {applicant.student?.phone && (
+                              <Text style={styles.applicantDetail}>📞 {applicant.student.phone}</Text>
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.applicantStatus}>
+                          <View style={[
+                            styles.statusBadge,
+                            applicant.status === 'pending' ? styles.statusPending : 
+                            applicant.status === 'accepted' ? styles.statusAccepted : 
+                            styles.statusRejected
+                          ]}>
+                            <Text style={styles.statusText}>{applicant.status}</Text>
+                          </View>
+                          <Text style={styles.appliedDate}>
+                            Applied: {new Date(applicant.applied_at).toLocaleDateString('nl-BE')}
+                          </Text>
+                        </View>
+
+                        {applicant.status === 'pending' && selectedJob && (
+                          <View style={styles.applicantActions}>
+                            <TouchableOpacity 
+                              style={styles.acceptBtn}
+                              onPress={() => handleUpdateApplication(selectedJob.id, applicant.application_id, 'accepted')}
+                            >
+                              <Text style={styles.acceptBtnText}>Accept</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                              style={styles.rejectBtn}
+                              onPress={() => handleUpdateApplication(selectedJob.id, applicant.application_id, 'rejected')}
+                            >
+                              <Text style={styles.rejectBtnText}>Reject</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+          </Modal>
+
           {/* FOOTER */}
           <View style={styles.footer}>
             <View style={styles.footerSection}>
@@ -382,18 +556,16 @@ function DashboardClientContent() {
   );
 }
 
-// Main export: wrap with StripeProvider
-export default function DashboardClient() {
-  return (
-    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
-      <DashboardClientContent />
-    </StripeProvider>
-  );
-}
-
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F5F7FA" },
-  scrollContent: { paddingBottom: 10 },
+  screen: {
+    flex: 1,
+    backgroundColor: "#F5F7FA",
+  },
+  scrollContent: {
+    paddingBottom: 10,
+  },
+  
+  // Header
   header: {
     backgroundColor: "#fff",
     paddingHorizontal: 24,
@@ -451,46 +623,83 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#EFF0F6",
   },
-  tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  activeTabBtn: { backgroundColor: "#176B51" },
-  activeTabText: { color: "#fff", fontWeight: "600", fontSize: 12 },
-  inactiveTabText: { color: "#64748B", fontWeight: "500", fontSize: 12 },
-  jobsContainer: { gap: 12 },
-  jobCard: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  jobHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  jobTitle: { fontSize: 16, fontWeight: "700", color: "#1a2e4c", flex: 1 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  statusOpen: { backgroundColor: "#DCFCE7" },
-  statusOther: { backgroundColor: "#E0F2FE" },
-  statusText: { fontSize: 12, fontWeight: "600", color: "#166534" },
-  jobMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
-  jobMetaText: { fontSize: 14, color: "#64748B" },
-  jobFooter: {
+  activeTabBtn: {
+    backgroundColor: "#176B51",
+  },
+  activeTabText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 12,
+  },
+  inactiveTabText: {
+    color: "#64748B",
+    fontWeight: "500",
+    fontSize: 12,
+  },
+
+  // Filters
+  filterRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#EFF0F6",
+    gap: 12,
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E8EEF2',
   },
-  jobPrice: { fontSize: 18, fontWeight: "700", color: "#176B51" },
-  payButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#176B51",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+  tabAndFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
+  filterToggleContainer: { flexShrink: 0 },
+  filterToggleBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F4F6F7', borderRadius: 8 },
+  filterToggleText: { color: '#1a2e4c', fontWeight: '600' },
+  filterGroup: { flex: 1 },
+  filterLabel: { color: '#64748B', marginBottom: 8 },
+  filterPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#F4F6F7', marginRight: 8 },
+  filterBtnActive: { backgroundColor: '#176B51' },
+  filterBtnText: { color: '#333', fontWeight: '600' },
+  filterBtnTextActive: { color: '#fff', fontWeight: '600' },
+
+  // Jobs
+  jobCard: {
+    flexDirection: 'column',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E6EEF0',
+    marginBottom: 12,
+  },
+  jobMeta: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginTop: 6,
+    gap: 8 
+  },
+  jobAction: { backgroundColor: '#176B51', paddingHorizontal: 12, paddingVertical: 8 },
+  jobActionText: { color: '#fff', fontWeight: '700' },
+
+  // Date input
+  dateInput: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    minWidth: 130,
+  },
+  clearDateBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#F3F4F6',
     borderRadius: 8,
   },
   payButtonDisabled: { opacity: 0.6 },
@@ -511,6 +720,115 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontSize: 14, color: "#64748B", textAlign: "center", maxWidth: 200, marginBottom: 24 },
   emptyButton: { backgroundColor: "#000", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
   emptyButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1a2e4c",
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    maxWidth: 200,
+    marginBottom: 24,
+  },
+  emptyButton: {
+    backgroundColor: "#000",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+
+  // Job Cards
+  jobsContainer: {
+    gap: 12,
+  },
+  jobHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  jobImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  jobTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1a2e4c",
+    flex: 1,
+    marginRight: 8,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  statusOpen: {
+    backgroundColor: "#DCFCE7",
+  },
+  statusOther: {
+    backgroundColor: "#F1F5F9",
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#166534",
+    textTransform: "uppercase",
+  },
+  jobMetaText: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+  jobFooter: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  jobPrice: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#176B51",
+  },
+  viewApplicantsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+  },
+  viewApplicantsText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#176B51',
+  },
+  loadingWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#64748B",
+  },
+
+  /* FOOTER */
   footer: {
     marginTop: 60,
     paddingTop: 40,
@@ -553,4 +871,148 @@ const styles = StyleSheet.create({
   },
   footerCopyright: { fontSize: 12, color: "#9CA3AF" },
   footerVersion: { fontSize: 12, color: "#9CA3AF", fontWeight: "500" },
+  footerCopyright: {
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  footerVersion: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontWeight: "500",
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a2e4c',
+    flex: 1,
+  },
+  modalLoading: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyApplicants: {
+    padding: 60,
+    alignItems: 'center',
+  },
+  emptyApplicantsText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#64748B',
+  },
+  applicantsList: {
+    padding: 16,
+  },
+  applicantCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  applicantHeader: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  applicantAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginRight: 12,
+  },
+  applicantAvatarPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  applicantInfo: {
+    flex: 1,
+  },
+  applicantEmail: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1a2e4c',
+    marginBottom: 4,
+  },
+  applicantDetail: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 2,
+  },
+  applicantStatus: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statusPending: {
+    backgroundColor: '#FEF3C7',
+  },
+  statusAccepted: {
+    backgroundColor: '#DCFCE7',
+  },
+  statusRejected: {
+    backgroundColor: '#FEE2E2',
+  },
+  appliedDate: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  applicantActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  acceptBtn: {
+    flex: 1,
+    backgroundColor: '#176B51',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  acceptBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  rejectBtn: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  rejectBtnText: {
+    color: '#64748B',
+    fontWeight: '600',
+    fontSize: 14,
+  },
 });

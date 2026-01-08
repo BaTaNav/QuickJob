@@ -17,12 +17,13 @@ import {
   SafeAreaView,
   LayoutAnimation,
   UIManager,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import {
   ArrowLeft,
   Calendar,
-  
+
   AlertCircle,
   Briefcase,
   Scissors,
@@ -35,6 +36,8 @@ import {
   Dog,
 } from "lucide-react-native";
 import { getClientId, jobsAPI } from "@/services/api";
+import * as ImagePicker from 'expo-image-picker';
+
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -87,7 +90,11 @@ interface JobFormData {
   category_id: number | null;
   title: string;
   description: string;
-  area_text: string;
+  // Structured address fields (new)
+  street?: string;
+  house_number?: string;
+  postal_code?: string;
+  city?: string;
   hourly_or_fixed: "hourly" | "fixed";
   hourly_rate: number | null;
   fixed_price: number | null;
@@ -102,7 +109,7 @@ interface JobFormData {
 export default function PostJob() {
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
-  
+
   // Format helpers for inputs
   const formatDateForInput = (d: Date) => {
     const yyyy = d.getFullYear();
@@ -118,14 +125,40 @@ export default function PostJob() {
 
   // Small helper to ensure we have a valid Date object
   const formFormDataStartSafe = (d: Date | null) => d ? new Date(d) : new Date();
-  
+
   // State
   const [clientId, setClientId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [language, setLanguage] = useState<"nl" | "fr" | "en">("nl");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  
+  // ... existing state ...
+  const [image, setImage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+
+  // --- PASTE THIS BLOCK INSIDE THE COMPONENT ---
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to make this work!');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setImage(result.assets[0].uri);
+    }
+  };
+  // ---------------------------------------------
+
   // Native Pickers State
   const [pickerMode, setPickerMode] = useState<"date" | "startTime" | "endTime" | null>(null);
 
@@ -141,7 +174,7 @@ export default function PostJob() {
 
   const confirmWebModal = () => {
     if (!webModal) return;
-    
+
     if (webModal.mode === 'date') {
       const [y, m, d] = webModal.value.split('-').map(Number);
       const newStart = new Date(formData.start_time);
@@ -150,7 +183,7 @@ export default function PostJob() {
     } else {
       // Time Logic
       const [hh, mm] = webModal.value.split(':').map(Number);
-      
+
       if (webModal.target === 'start') {
         const newStart = new Date(formData.start_time);
         newStart.setHours(hh, mm);
@@ -158,12 +191,12 @@ export default function PostJob() {
       } else if (webModal.target === 'end') {
         const newEnd = new Date(formFormDataStartSafe(formData.start_time));
         newEnd.setHours(hh, mm);
-        
+
         // Validation: End time must be after start time
         if (newEnd <= formFormDataStartSafe(formData.start_time)) {
-             if (Platform.OS === 'web') alert('Eindtijd moet na de starttijd liggen.');
-             else Alert.alert('Fout', 'Eindtijd moet na de starttijd liggen.');
-             return;
+          if (Platform.OS === 'web') alert('Eindtijd moet na de starttijd liggen.');
+          else Alert.alert('Fout', 'Eindtijd moet na de starttijd liggen.');
+          return;
         }
         setFormData(p => ({ ...p, end_time: newEnd, duration: null })); // Reset duration if end time is set manually
       }
@@ -173,36 +206,21 @@ export default function PostJob() {
 
   const cancelWebModal = () => setWebModal(null);
 
-  // Auto-focus + keyboard handling for modal (also lock body scroll on web)
+  // Auto-focus + keyboard handling for modal
   React.useEffect(() => {
     if (!webModal) return;
     // Small timeout to allow render
     setTimeout(() => webModalInputRef.current?.focus?.(), 50);
-
-    // Prevent body scroll while modal is open on web
-    if (Platform.OS === 'web') {
-      const prevOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-
-      const onKey = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') cancelWebModal();
-        if (e.key === 'Enter') confirmWebModal();
-      };
-
-      window.addEventListener('keydown', onKey);
-      return () => {
-        window.removeEventListener('keydown', onKey);
-        document.body.style.overflow = prevOverflow || '';
-      };
-    }
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') cancelWebModal();
       if (e.key === 'Enter') confirmWebModal();
     };
 
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    if (Platform.OS === 'web') {
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    }
   }, [webModal]);
 
   const [formData, setFormData] = useState<JobFormData>({
@@ -210,7 +228,11 @@ export default function PostJob() {
     category_id: null,
     title: "",
     description: "",
-    area_text: "",
+  // new structured address defaults
+  street: "",
+  house_number: "",
+  postal_code: "",
+  city: "",
     hourly_or_fixed: "hourly",
     hourly_rate: null,
     fixed_price: null,
@@ -220,10 +242,14 @@ export default function PostJob() {
     urgent: false,
   });
 
+
+  // Address validation errors
+  const [addressErrors, setAddressErrors] = useState<{ street?: string; house_number?: string; postal_code?: string; city?: string }>({});
+
   // Initialization
   useEffect(() => {
     if (Platform.OS === "web") document.title = "QuickJob | Post a Job";
-    
+
     (async () => {
       const stored = await getClientId();
       if (stored) {
@@ -294,10 +320,34 @@ export default function PostJob() {
   };
 
   // Validation
-  const isStep1Valid = !!formData.category_id && formData.title.trim().length > 3;
-  const isStep2Valid = true; 
+  // Require full structured address (street, house_number, 4-digit postal_code, city) as part of step 1
+  const validateAddressFields = (data: JobFormData) => {
+    if (!data.street || data.street.trim().length < 2) return false;
+    if (!data.house_number || data.house_number.trim().length < 1) return false;
+    if (!data.postal_code || !/^\d{4}$/.test(String(data.postal_code).trim())) return false;
+    if (!data.city || data.city.trim().length < 2) return false;
+    return true;
+  };
+
+  const composeAddress = (data: JobFormData) => {
+    const parts: string[] = [];
+    if (data.street) {
+      let s = data.street.trim();
+      if (data.house_number) s += ` ${data.house_number.trim()}`;
+      parts.push(s);
+    }
+    if (data.postal_code) parts.push(String(data.postal_code).trim());
+    if (data.city) parts.push(data.city.trim());
+    return parts.length > 0 ? parts.join(' ') : '';
+  };
+
+  // Lightweight address parser: attempts to extract street, house_number, postal_code, city from a single input
+  // No single-line full-address input: users fill street, house_number, postal_code and city separately.
+
+  const isStep1Valid = !!formData.category_id && formData.title.trim().length > 3 && validateAddressFields(formData);
+  const isStep2Valid = true;
   const isStep3Valid = (formData.hourly_or_fixed === "fixed" ? (formData.fixed_price || 0) > 0 : (formData.duration || 0) > 0);
-  
+
   const getStepValidity = () => {
     if (currentStep === 1) return isStep1Valid;
     if (currentStep === 2) return isStep2Valid;
@@ -305,11 +355,87 @@ export default function PostJob() {
     return true;
   };
 
-  const handlePostJob = async () => {
-    if (!formData.client_id) return setError("Sessie verlopen");
-    
-    setLoading(true);
+  // Add this constant at the TOP of your file (outside the component) if not already there
+  const API_URL = 'http://localhost:3000'; // Use your computer's IP if on real device
+
+// ... imports remain the same
+
+ 
+const handlePostJob = async () => {
+    // 1. Validation
+    if (!formData.client_id) {
+      Alert.alert("Error", "Sessie verlopen. Log opnieuw in.");
+      return;
+    }
+    if (!formData.title || !formData.category_id || !formData.start_time) {
+      Alert.alert("Error", "Vul alle verplichte velden in.");
+      return;
+    }
+    // Validate structured address before attempting to post
+    const validateAddress = () => {
+      const errs: any = {};
+      if (!formData.street || formData.street.trim().length < 2) errs.street = 'Straat is verplicht';
+      if (!formData.house_number || formData.house_number.trim().length < 1) errs.house_number = 'Huisnummer is verplicht';
+      if (!formData.postal_code || !/^\d{4}$/.test(String(formData.postal_code).trim())) errs.postal_code = 'Ongeldige postcode (4 cijfers)';
+      if (!formData.city || formData.city.trim().length < 2) errs.city = 'Gemeente is verplicht';
+      setAddressErrors(errs);
+      return Object.keys(errs).length === 0;
+    };
+
+    if (!validateAddress()) {
+      setError('Controleer het adresformulier.');
+      return;
+    }
+
+    setUploading(true);
+    let uploadedImageUrl = null;
+
     try {
+      // 2. Image Upload Logic (Handles both Web and Mobile)
+      if (image) {
+        const uploadBody = new FormData();
+        const filename = image.split('/').pop() || 'upload.jpg';
+        
+        if (Platform.OS === 'web') {
+          // --- WEB SPECIFIC LOGIC ---
+          // On web, we must fetch the URI and convert to a Blob
+          const response = await fetch(image);
+          const blob = await response.blob();
+          uploadBody.append('image', blob, filename);
+        } else {
+          // --- MOBILE SPECIFIC LOGIC ---
+          const match = /\.(\w+)$/.exec(filename);
+          const type = match ? `image/${match[1]}` : `image/jpeg`;
+          
+          // @ts-ignore
+          uploadBody.append('image', {
+            uri: image,
+            name: filename,
+            type,
+          });
+        }
+
+        // Upload to backend
+        const uploadUrl = `${API_URL}/jobs/upload-image`;
+        console.log('Uploading image to', uploadUrl);
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'POST',
+          body: uploadBody,
+          // IMPORTANT: Do NOT set Content-Type header manually here
+        });
+
+        const uploadData = await uploadRes.json();
+        
+        if (!uploadRes.ok) {
+           throw new Error(uploadData.error || "Image upload failed");
+        }
+        
+        if (uploadData.url) {
+          uploadedImageUrl = uploadData.url;
+        }
+      }
+
+      // 3. Prepare Job Payload
       let finalEndTime = formData.end_time;
       if (!finalEndTime && formData.duration) {
         finalEndTime = new Date(formData.start_time);
@@ -319,26 +445,35 @@ export default function PostJob() {
         finalEndTime.setHours(finalEndTime.getHours() + 2);
       }
 
-      const payload = {
+  const payload = {
         client_id: formData.client_id,
         category_id: formData.category_id!,
         title: formData.title,
         description: formData.description || undefined,
-        area_text: formData.area_text || undefined,
+  // Structured address fields (Belgium-only)
+  street: formData.street || undefined,
+  house_number: formData.house_number || undefined,
+  postal_code: formData.postal_code || undefined,
+  city: formData.city || undefined,
         hourly_or_fixed: formData.hourly_or_fixed,
         hourly_rate: formData.hourly_rate,
         fixed_price: formData.fixed_price,
         start_time: formData.start_time.toISOString(),
         end_time: finalEndTime?.toISOString(),
+        image_url: uploadedImageUrl,
       };
 
+      // 4. Send Job to Backend
       await jobsAPI.createJob(payload);
-      
-      // Direct navigatie naar dashboard na succesvolle plaatsing
+
+      Alert.alert("Success", "Job posted successfully!");
       router.replace("/Client/DashboardClient" as never);
+
     } catch (err: any) {
-      setError(err?.message || "Er ging iets mis bij het plaatsen.");
+      console.error(err);
+      Alert.alert("Error", err.message || "Er ging iets mis.");
     } finally {
+      setUploading(false);
       setLoading(false);
     }
   };
@@ -352,7 +487,7 @@ export default function PostJob() {
       {[1, 2, 3, 4].map((step) => (
         <View key={step} style={styles.progressSegment}>
           <View style={[
-            styles.progressBar, 
+            styles.progressBar,
             step <= currentStep ? styles.progressBarActive : styles.progressBarInactive
           ]} />
         </View>
@@ -366,11 +501,11 @@ export default function PostJob() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
+
       {/* --- Header --- */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={() => router.back()} 
+        <TouchableOpacity
+          onPress={() => router.back()}
           style={styles.iconButton}
           accessibilityRole="button"
           accessibilityLabel="Ga terug"
@@ -380,7 +515,7 @@ export default function PostJob() {
         <Text style={styles.headerTitle} accessibilityRole="header">Job Plaatsen</Text>
         <View style={{ width: 40 }} />
       </View>
-      
+
       {renderProgressBar()}
 
       {error ? (
@@ -390,31 +525,31 @@ export default function PostJob() {
         </TouchableOpacity>
       ) : null}
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : undefined} 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
         <View style={isDesktop ? styles.desktopContainer : styles.mobileContainer}>
-          
+
           {/* --- Main Form Area --- */}
-          <ScrollView 
+          <ScrollView
             ref={scrollRef}
-            style={styles.scrollView} 
+            style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
             {currentStep === 1 && (
               <View style={styles.stepContainer}>
                 <Text style={styles.stepTitle}>Wat voor klus is het?</Text>
-                
+
                 {/* Category Grid */}
                 <View style={styles.gridContainer} accessibilityRole="radiogroup">
                   {JOB_CATEGORIES.map((cat) => {
                     const Icon = cat.icon;
                     const isSelected = formData.category_id === cat.id;
                     return (
-                      <TouchableOpacity 
-                        key={cat.id} 
+                      <TouchableOpacity
+                        key={cat.id}
                         style={[styles.gridItem, isSelected && styles.gridItemActive]}
                         onPress={() => setFormData(prev => ({ ...prev, category_id: cat.id, title: "" }))}
                         accessibilityRole="radio"
@@ -434,18 +569,18 @@ export default function PostJob() {
                 {formData.category_id && (
                   <View style={styles.section}>
                     <Text style={styles.label}>Titel van de opdracht *</Text>
-                    
+
                     <View style={styles.suggestionsRow}>
                       {TITLE_SUGGESTIONS[getCategoryDetails(formData.category_id)?.key || ""]?.map((sugg, i) => (
-                         <TouchableOpacity 
-                            key={i} 
-                            onPress={() => setFormData(prev => ({ ...prev, title: sugg }))} 
-                            style={styles.chip}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Kies suggestie: ${sugg}`}
-                         >
-                           <Text style={styles.chipText}>{sugg}</Text>
-                         </TouchableOpacity>
+                        <TouchableOpacity
+                          key={i}
+                          onPress={() => setFormData(prev => ({ ...prev, title: sugg }))}
+                          style={styles.chip}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Kies suggestie: ${sugg}`}
+                        >
+                          <Text style={styles.chipText}>{sugg}</Text>
+                        </TouchableOpacity>
                       ))}
                     </View>
 
@@ -458,21 +593,89 @@ export default function PostJob() {
                       accessibilityLabel="Titel van de opdracht"
                       accessibilityHint="Vul een korte titel in"
                     />
+
+
                   </View>
+
                 )}
-                
-                {/* Location */}
+                {/* Image Picker UI */}
+                <View style={{ marginBottom: 20, alignItems: 'center' }}>
+                  <TouchableOpacity
+                    onPress={pickImage}
+                    style={{
+                      width: '100%',
+                      height: 150,
+                      backgroundColor: '#f0f0f0',
+                      borderRadius: 10,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: '#ccc',
+                      borderStyle: 'dashed'
+                    }}
+                  >
+                    {image ? (
+                      <Image source={{ uri: image }} style={{ width: '100%', height: '100%', borderRadius: 10 }} />
+                    ) : (
+                      <Text style={{ color: '#666' }}>+ Upload Job Photo</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  {image && (
+                    <TouchableOpacity onPress={() => setImage(null)} style={{ marginTop: 10 }}>
+                      <Text style={{ color: 'red' }}>Remove Photo</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+
+                {/* Location / Structured Address */}
                 <View style={styles.section}>
-                  <Text style={styles.label}>Locatie (Zone/Gemeente)</Text>
-                  <View style={styles.inputWithIcon}>
-                    <MapPin size={20} color="#9CA3AF" style={{ marginRight: 8 }} />
+                  <Text style={styles.label}>Adres</Text>
+
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
                     <TextInput
-                      style={{ flex: 1, paddingVertical: 10 }}
-                      value={formData.area_text}
-                      onChangeText={t => setFormData(p => ({ ...p, area_text: t }))}
-                      placeholder="bv. Brussel Centrum"
-                      accessibilityLabel="Locatie"
+                      style={[styles.input, { flex: 2, marginRight: 8 }]}
+                      placeholder="Straat"
+                      value={formData.street}
+                      onChangeText={t => setFormData(p => ({ ...p, street: t }))}
+                      accessibilityLabel="Straat"
                     />
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="Huisnr"
+                      value={formData.house_number}
+                      onChangeText={t => setFormData(p => ({ ...p, house_number: t }))}
+                      accessibilityLabel="Huisnummer"
+                    />
+                  </View>
+                  {addressErrors.street ? <Text style={styles.addressError}>{addressErrors.street}</Text> : null}
+                  {addressErrors.house_number ? <Text style={styles.addressError}>{addressErrors.house_number}</Text> : null}
+
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                    <TextInput
+                      style={[styles.input, { flex: 1, marginRight: 8 }]}
+                      placeholder="Postcode"
+                      keyboardType="numeric"
+                      value={String(formData.postal_code || '')}
+                      onChangeText={t => setFormData(p => ({ ...p, postal_code: t }))}
+                      accessibilityLabel="Postcode"
+                    />
+                    <TextInput
+                      style={[styles.input, { flex: 2 }]}
+                      placeholder="Gemeente"
+                      value={formData.city}
+                      onChangeText={t => setFormData(p => ({ ...p, city: t }))}
+                      accessibilityLabel="Gemeente"
+                    />
+                  </View>
+                  {addressErrors.postal_code ? <Text style={styles.addressError}>{addressErrors.postal_code}</Text> : null}
+                  {addressErrors.city ? <Text style={styles.addressError}>{addressErrors.city}</Text> : null}
+
+                  {/* Country removed — Belgium only, handled server-side if needed */}
+
+                  <View style={{ marginTop: 10 }}>
+                    
                   </View>
                 </View>
               </View>
@@ -481,15 +684,14 @@ export default function PostJob() {
             {currentStep === 2 && (
               <View style={styles.stepContainer}>
                 <Text style={styles.stepTitle}>Wanneer?</Text>
-                
+
                 <View style={styles.card}>
                   <Text style={styles.label}>Datum</Text>
-                  <TouchableOpacity 
-                    nativeID="date-selector"
-                    style={styles.dateSelector} 
+                  <TouchableOpacity
+                    style={styles.dateSelector}
                     onPress={() => {
                       if (Platform.OS === 'web') {
-                        openWebModal('date','date', formData.start_time);
+                        openWebModal('date', 'date', formData.start_time);
                       } else {
                         setPickerMode('date');
                       }
@@ -504,7 +706,7 @@ export default function PostJob() {
 
                     <Text style={styles.changeLink}>Wijzig</Text>
                     {Platform.OS === 'web' && (
-                      <TouchableOpacity onPress={() => openWebModal('date','date', formData.start_time)} style={{ marginLeft: 8 }}>
+                      <TouchableOpacity onPress={() => openWebModal('date', 'date', formData.start_time)} style={{ marginLeft: 8 }}>
                         <Text style={{ color: '#176B51', fontWeight: '600' }}>Open picker</Text>
                       </TouchableOpacity>
                     )}
@@ -512,63 +714,62 @@ export default function PostJob() {
                 </View>
 
                 <View style={styles.timeRow}>
-                   <View style={[styles.card, { flex: 1 }]}>
-                      <Text style={styles.label}>Starttijd</Text>
-                      <TouchableOpacity 
-                        nativeID="start-selector"
-                        style={styles.timeSelector} 
-                        onPress={() => {
-                          if (Platform.OS === 'web') {
-                            openWebModal('time','start', formFormDataStartSafe(formData.start_time));
-                          } else {
-                            setPickerMode('startTime');
-                          }
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel="Starttijd selecteren"
-                      >
-                        <Text style={styles.timeBig}>
-                          {formData.start_time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </Text>
-                        {Platform.OS === 'web' && (
-                          <TouchableOpacity onPress={() => openWebModal('time','start', formFormDataStartSafe(formData.start_time))} style={{ marginTop: 6 }}>
-                            <Text style={{ color: '#176B51', fontWeight: '600' }}>Open picker</Text>
-                          </TouchableOpacity>
-                        )}
-                      </TouchableOpacity>
-                   </View>
-                   
-                   <View style={{ justifyContent: 'center', paddingTop: 20 }}>
-                     <ArrowLeft size={20} color="#ccc" style={{ transform: [{ rotate: '180deg' }] }} />
-                   </View>
+                  <View style={[styles.card, { flex: 1 }]}>
+                    <Text style={styles.label}>Starttijd</Text>
+                    <TouchableOpacity
+                      style={styles.timeSelector}
+                      onPress={() => {
+                        if (Platform.OS === 'web') {
+                          openWebModal('time', 'start', formFormDataStartSafe(formData.start_time));
+                        } else {
+                          setPickerMode('startTime');
+                        }
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Starttijd selecteren"
+                    >
+                      <Text style={styles.timeBig}>
+                        {formData.start_time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                      {Platform.OS === 'web' && (
+                        <TouchableOpacity onPress={() => openWebModal('time', 'start', formFormDataStartSafe(formData.start_time))} style={{ marginTop: 6 }}>
+                          <Text style={{ color: '#176B51', fontWeight: '600' }}>Open picker</Text>
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  </View>
 
-                   <View style={[styles.card, { flex: 1 }]}>
-                      <Text style={styles.label}>Eindtijd (optioneel)</Text>
-                      <TouchableOpacity 
-                        nativeID="end-selector"
-                        style={styles.timeSelector} 
-                        onPress={() => {
-                          if (Platform.OS === 'web') {
-                            openWebModal('time','end', formFormDataStartSafe(formData.end_time || formData.start_time));
-                          } else {
-                            setPickerMode('endTime');
-                          }
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel="Eindtijd selecteren"
-                      >
-                        <Text style={[styles.timeBig, !formData.end_time && { color: '#ccc' }]}>
-                          {formData.end_time 
-                            ? formFormDataStartSafe(formData.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-                            : "--:--"}
-                        </Text>
-                        {Platform.OS === 'web' && (
-                          <TouchableOpacity onPress={() => openWebModal('time','end', formFormDataStartSafe(formData.end_time || formData.start_time))} style={{ marginTop: 6 }}>
-                            <Text style={{ color: '#176B51', fontWeight: '600' }}>Open picker</Text>
-                          </TouchableOpacity>
-                        )}
-                      </TouchableOpacity>
-                   </View>
+                  <View style={{ justifyContent: 'center', paddingTop: 20 }}>
+                    <ArrowLeft size={20} color="#ccc" style={{ transform: [{ rotate: '180deg' }] }} />
+                  </View>
+
+                  <View style={[styles.card, { flex: 1 }]}>
+                    <Text style={styles.label}>Eindtijd (optioneel)</Text>
+                    <TouchableOpacity
+
+                      style={styles.timeSelector}
+                      onPress={() => {
+                        if (Platform.OS === 'web') {
+                          openWebModal('time', 'end', formFormDataStartSafe(formData.end_time || formData.start_time));
+                        } else {
+                          setPickerMode('endTime');
+                        }
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Eindtijd selecteren"
+                    >
+                      <Text style={[styles.timeBig, !formData.end_time && { color: '#ccc' }]}>
+                        {formData.end_time
+                          ? formFormDataStartSafe(formData.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                          : "--:--"}
+                      </Text>
+                      {Platform.OS === 'web' && (
+                        <TouchableOpacity onPress={() => openWebModal('time', 'end', formFormDataStartSafe(formData.end_time || formData.start_time))} style={{ marginTop: 6 }}>
+                          <Text style={{ color: '#176B51', fontWeight: '600' }}>Open picker</Text>
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 {!formData.end_time && (
@@ -585,7 +786,7 @@ export default function PostJob() {
                 <Text style={styles.stepTitle}>Budget & Details</Text>
 
                 <View style={styles.toggleContainer} accessibilityRole="radiogroup">
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.toggleBtn, formData.hourly_or_fixed === 'hourly' && styles.toggleBtnActive]}
                     onPress={() => setFormData(p => ({ ...p, hourly_or_fixed: 'hourly' }))}
                     accessibilityRole="radio"
@@ -594,7 +795,7 @@ export default function PostJob() {
                   >
                     <Text style={[styles.toggleText, formData.hourly_or_fixed === 'hourly' && styles.toggleTextActive]}>Per Uur</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.toggleBtn, formData.hourly_or_fixed === 'fixed' && styles.toggleBtnActive]}
                     onPress={() => setFormData(p => ({ ...p, hourly_or_fixed: 'fixed' }))}
                     accessibilityRole="radio"
@@ -611,8 +812,8 @@ export default function PostJob() {
                       <Text style={styles.label}>Verwachte duur (uren)</Text>
                       <View style={styles.presetsRow}>
                         {DURATION_PRESETS.map(d => (
-                          <TouchableOpacity 
-                            key={d} 
+                          <TouchableOpacity
+                            key={d}
                             style={[styles.presetCircle, formData.duration === d && styles.presetCircleActive]}
                             onPress={() => handleSetDuration(d)}
                             accessibilityRole="button"
@@ -628,8 +829,8 @@ export default function PostJob() {
                       <Text style={styles.label}>Totaal budget (€)</Text>
                       <View style={styles.presetsRow}>
                         {FIXED_PRICE_PRESETS.map(p => (
-                          <TouchableOpacity 
-                            key={p} 
+                          <TouchableOpacity
+                            key={p}
                             style={[styles.presetCircle, formData.fixed_price === p && styles.presetCircleActive]}
                             onPress={() => setFormData(pr => ({ ...pr, fixed_price: p }))}
                             accessibilityRole="button"
@@ -639,8 +840,8 @@ export default function PostJob() {
                           </TouchableOpacity>
                         ))}
                       </View>
-                      <TextInput 
-                        placeholder="Ander bedrag..." 
+                      <TextInput
+                        placeholder="Ander bedrag..."
                         keyboardType="numeric"
                         style={styles.input}
                         onChangeText={(t) => setFormData(p => ({ ...p, fixed_price: Number(t) }))}
@@ -652,43 +853,43 @@ export default function PostJob() {
 
                 <View style={[styles.card, { marginTop: 16 }]}>
                   <View style={styles.rowBetween}>
-                     <View>
-                        <Text style={[styles.label, { marginBottom: 2 }]}>Spoed Opdracht</Text>
-                        <Text style={styles.helperText}>Moet binnen 24u gebeuren (+10%)</Text>
-                     </View>
-                     <Switch 
-                       value={formData.urgent} 
-                       onValueChange={v => setFormData(p => ({ ...p, urgent: v }))}
-                       trackColor={{ false: "#eee", true: "#176B51" }}
-                       accessibilityLabel="Spoed opdracht inschakelen"
-                     />
+                    <View>
+                      <Text style={[styles.label, { marginBottom: 2 }]}>Spoed Opdracht</Text>
+                      <Text style={styles.helperText}>Moet binnen 24u gebeuren (+10%)</Text>
+                    </View>
+                    <Switch
+                      value={formData.urgent}
+                      onValueChange={v => setFormData(p => ({ ...p, urgent: v }))}
+                      trackColor={{ false: "#eee", true: "#176B51" }}
+                      accessibilityLabel="Spoed opdracht inschakelen"
+                    />
                   </View>
                 </View>
 
                 <View style={{ marginTop: 24 }}>
-                   <Text style={styles.label}>Omschrijving</Text>
-                   <View style={styles.suggestionsRow}>
-                      {DESCRIPTION_TEMPLATES.map((t, i) => (
-                        <TouchableOpacity 
-                            key={i} 
-                            style={styles.chipSmall} 
-                            onPress={() => handleAddTemplate(t)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Voeg tekst toe: ${t}`}
-                        >
-                          <Text style={styles.chipTextSmall}>+ {t}</Text>
-                        </TouchableOpacity>
-                      ))}
-                   </View>
-                   <TextInput
-                      style={styles.textArea}
-                      multiline
-                      numberOfLines={4}
-                      placeholder="Beschrijf de taak zo duidelijk mogelijk..."
-                      value={formData.description}
-                      onChangeText={t => setFormData(p => ({ ...p, description: t }))}
-                      accessibilityLabel="Omschrijving van de taak"
-                   />
+                  <Text style={styles.label}>Omschrijving</Text>
+                  <View style={styles.suggestionsRow}>
+                    {DESCRIPTION_TEMPLATES.map((t, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={styles.chipSmall}
+                        onPress={() => handleAddTemplate(t)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Voeg tekst toe: ${t}`}
+                      >
+                        <Text style={styles.chipTextSmall}>+ {t}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TextInput
+                    style={styles.textArea}
+                    multiline
+                    numberOfLines={4}
+                    placeholder="Beschrijf de taak zo duidelijk mogelijk..."
+                    value={formData.description}
+                    onChangeText={t => setFormData(p => ({ ...p, description: t }))}
+                    accessibilityLabel="Omschrijving van de taak"
+                  />
                 </View>
               </View>
             )}
@@ -696,21 +897,21 @@ export default function PostJob() {
             {currentStep === 4 && (
               <View style={styles.stepContainer}>
                 <Text style={styles.stepTitle}>Overzicht</Text>
-                
+
                 <View style={styles.summaryCard}>
                   <View style={styles.summaryHeader}>
                     <View style={styles.iconCircle}>
-                       {(() => {
-                         const CatIcon = getCategoryDetails(formData.category_id)?.icon || Home;
-                         return <CatIcon color="#fff" size={24} />;
-                       })()}
+                      {(() => {
+                        const CatIcon = getCategoryDetails(formData.category_id)?.icon || Home;
+                        return <CatIcon color="#fff" size={24} />;
+                      })()}
                     </View>
                     <View style={{ flex: 1 }}>
-                       <Text style={styles.summaryTitle}>{formData.title}</Text>
-                       <Text style={styles.summarySub}>{getCategoryDetails(formData.category_id)?.name_nl}</Text>
+                      <Text style={styles.summaryTitle}>{formData.title}</Text>
+                      <Text style={styles.summarySub}>{getCategoryDetails(formData.category_id)?.name_nl}</Text>
                     </View>
                   </View>
-                  
+
                   <View style={styles.divider} />
 
                   <View style={styles.summaryRow}>
@@ -720,20 +921,20 @@ export default function PostJob() {
                     </Text>
                   </View>
                   
-                  <View style={styles.summaryRow}>
-                     <MapPin size={18} color="#666" />
-                     <Text style={styles.summaryText}>{formData.area_text || "Geen locatie opgegeven"}</Text>
-                  </View>
+            <View style={styles.summaryRow}>
+              <MapPin size={18} color="#666" />
+              <Text style={styles.summaryText}>{composeAddress(formData) || "Geen locatie opgegeven"}</Text>
+            </View>
 
                   <View style={styles.summaryRow}>
-                     <DollarSign size={18} color="#666" />
-                     <Text style={styles.summaryText}>
-                       {formData.hourly_or_fixed === 'fixed' 
-                         ? `Vaste prijs: €${formData.fixed_price}` 
-                         : `Per uur (${formData.duration ? formData.duration + 'u' : 'Duur onbekend'})`}
-                     </Text>
+                    <DollarSign size={18} color="#666" />
+                    <Text style={styles.summaryText}>
+                      {formData.hourly_or_fixed === 'fixed'
+                        ? `Vaste prijs: €${formData.fixed_price}`
+                        : `Per uur (${formData.duration ? formData.duration + 'u' : 'Duur onbekend'})`}
+                    </Text>
                   </View>
-                  
+
                   {formData.urgent && (
                     <View style={styles.urgentBadge}>
                       <Text style={styles.urgentBadgeText}>⚡ SPOED OPDRACHT</Text>
@@ -748,11 +949,65 @@ export default function PostJob() {
                   </View>
                 ) : null}
               </View>
+
+
             )}
 
             {/* Bottom Spacer: ensures content scrolls above the footer */}
             <View style={{ height: 120 }} />
 
+            {/* Web-centered modal for date/time pickers*/}
+            {Platform.OS === 'web' && webModal && (
+              <Pressable style={styles.webModalOverlay} onPress={() => cancelWebModal()}>
+                <Pressable
+                  style={styles.webModalCard}
+                  onPress={(e: any) => e.stopPropagation()}
+                >
+                  <TouchableOpacity onPress={cancelWebModal} style={{ position: 'absolute', top: 10, right: 10, padding: 6 }} accessibilityLabel="Close picker">
+                    <Text style={{ fontSize: 16, color: '#6B7280' }}>✕</Text>
+                  </TouchableOpacity>
+
+                  <Text style={styles.webModalTitle}>{webModal.mode === 'date' ? 'Choose date' : `Choose time (${webModal.target === 'start' ? 'Start' : 'End'})`}</Text>
+
+                  {webModal.mode === 'date' && (
+                    <Text style={{ marginTop: 8, color: '#6B7280' }}>{(() => {
+                      const parts = (webModal.value || '').split('-');
+                      if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                      return webModal.value;
+                    })()}</Text>
+                  )}
+
+                  <input
+                    ref={webModalInputRef as any}
+                    type={webModal.mode}
+                    value={webModal.value}
+                    onClick={(e: any) => e.stopPropagation()}
+                    onChange={(e: any) => setWebModal(m => m ? ({ ...m, value: e.target.value }) : m)}
+                    onKeyDown={(e: any) => { if (e.key === 'Enter') confirmWebModal(); if (e.key === 'Escape') cancelWebModal(); }}
+                    style={{ fontSize: 18, padding: 10, marginTop: 12, width: '100%', border: '1px solid #ccc', borderRadius: 6 }}
+                  />
+                  <TouchableOpacity onPress={pickImage} style={styles.imagePicker}>
+                    <Text style={styles.imagePickerText}>
+                      {image ? "Change Photo" : "Add Photo"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {image && (
+                    <Image source={{ uri: image }} style={{ width: '100%', height: 200, borderRadius: 10, marginTop: 10 }} />
+                  )}
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 18 }}>
+                    <TouchableOpacity onPress={cancelWebModal} style={styles.webModalButtonSecondary}>
+                      <Text style={{ color: '#374151' }}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={confirmWebModal} style={styles.webModalButtonPrimary}>
+                      <Text style={{ color: '#fff' }}>Confirm</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Pressable>
+              </Pressable>
+
+            )}
 
           </ScrollView>
 
@@ -761,8 +1016,13 @@ export default function PostJob() {
             <View style={styles.desktopSidebar}>
               <Text style={styles.sidebarTitle}>Live Preview</Text>
               <View style={styles.previewCard}>
-                 <Text style={styles.previewTitle}>{formData.title || "Titel..."}</Text>
-                 <Text style={styles.previewText}>{getCategoryDetails(formData.category_id)?.name_nl || "Categorie..."}</Text>
+                <Text style={styles.previewTitle}>{formData.title || "Titel..."}</Text>
+                <Text style={styles.previewText}>{getCategoryDetails(formData.category_id)?.name_nl || "Categorie..."}</Text>
+                <View style={{ height: 8 }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <MapPin size={14} color="#666" />
+                  <Text style={[styles.previewText, { fontSize: 13 }]}>{composeAddress(formData) || 'Geen locatie'}</Text>
+                </View>
                  <View style={styles.divider} />
                  <Text style={styles.previewPrice}>
                     {formData.hourly_or_fixed === 'fixed' 
@@ -779,17 +1039,17 @@ export default function PostJob() {
           <View style={styles.footer}>
             <View style={styles.footerInner}>
               {currentStep > 1 && (
-                <TouchableOpacity 
-                    onPress={handlePrevStep} 
-                    style={styles.navButtonSecondary}
-                    accessibilityRole="button"
-                    accessibilityLabel="Ga naar vorige stap"
+                <TouchableOpacity
+                  onPress={handlePrevStep}
+                  style={styles.navButtonSecondary}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ga naar vorige stap"
                 >
                   <Text style={styles.navButtonTextSecondary}>Vorige</Text>
                 </TouchableOpacity>
               )}
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 onPress={currentStep === 4 ? handlePostJob : handleNextStep}
                 disabled={!getStepValidity() || loading}
                 style={[styles.navButtonPrimary, (!getStepValidity() || loading) && styles.disabledButton]}
@@ -798,12 +1058,12 @@ export default function PostJob() {
                 accessibilityState={{ disabled: !getStepValidity() || loading }}
               >
                 {loading ? <ActivityIndicator color="#fff" /> : (
-                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                     <Text style={styles.navButtonTextPrimary}>
-                       {currentStep === 4 ? "Plaats Job" : "Volgende"}
-                     </Text>
-                     {currentStep !== 4 && <ChevronRight size={18} color="#fff" />}
-                   </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={styles.navButtonTextPrimary}>
+                      {currentStep === 4 ? "Plaats Job" : "Volgende"}
+                    </Text>
+                    {currentStep !== 4 && <ChevronRight size={18} color="#fff" />}
+                  </View>
                 )}
               </TouchableOpacity>
             </View>
@@ -811,51 +1071,6 @@ export default function PostJob() {
 
         </View>
       </KeyboardAvoidingView>
-
-      {/* Web-centered modal for date/time pickers (rendered at top level on web) */}
-      {Platform.OS === 'web' && webModal && (
-        <Pressable style={[styles.webModalOverlay, { position: 'fixed' }]} onPress={() => cancelWebModal()}>
-          <Pressable 
-            style={styles.webModalCard} 
-            onPress={(e: any) => e.stopPropagation()} 
-            accessibilityRole="dialog"
-            accessibilityLabel={webModal.mode === 'date' ? 'Date picker' : 'Time picker'}
-          >
-            <TouchableOpacity onPress={cancelWebModal} style={{ position: 'absolute', top: 10, right: 10, padding: 6 }} accessibilityLabel="Close picker">
-              <Text style={{ fontSize: 16, color: '#6B7280' }}>✕</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.webModalTitle}>{webModal.mode === 'date' ? 'Choose date' : `Choose time (${webModal.target === 'start' ? 'Start' : 'End'})`}</Text>
-
-            {webModal.mode === 'date' && (
-              <Text style={{ marginTop: 8, color: '#6B7280' }}>{(() => {
-                const parts = (webModal.value || '').split('-');
-                if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-                return webModal.value;
-              })()}</Text>
-            )}
-
-            <input
-              ref={webModalInputRef as any}
-              type={webModal.mode}
-              value={webModal.value}
-              onClick={(e: any) => e.stopPropagation()}
-              onChange={(e: any) => setWebModal(m => m ? ({ ...m, value: e.target.value }) : m)}
-              onKeyDown={(e: any) => { if (e.key === 'Enter') confirmWebModal(); if (e.key === 'Escape') cancelWebModal(); }}
-              style={{ fontSize: 18, padding: 10, marginTop: 12, width: '100%', border: '1px solid #ccc', borderRadius: 6 }}
-            />
-
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 18 }}>
-              <TouchableOpacity onPress={cancelWebModal} style={styles.webModalButtonSecondary}>
-                <Text style={{ color: '#374151' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={confirmWebModal} style={styles.webModalButtonPrimary}>
-                <Text style={{ color: '#fff' }}>Confirm</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      )}
 
       {/* --- Native Modals --- */}
       {Platform.OS !== 'web' && pickerMode && DateTimePicker && (
@@ -897,7 +1112,7 @@ const styles = StyleSheet.create({
     padding: 8,
     marginLeft: -8,
   },
-  
+
   // Progress Bar
   progressContainer: {
     flexDirection: "row",
@@ -955,7 +1170,7 @@ const styles = StyleSheet.create({
     borderLeftColor: "#eee",
     padding: 24,
     // Add padding bottom so content doesn't get hidden behind footer
-    paddingBottom: 100, 
+    paddingBottom: 100,
   },
 
   // Grid Styles (Category)
@@ -1077,7 +1292,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-  
+
   // Date Time Specifics
   dateSelector: {
     flexDirection: "row",
@@ -1356,6 +1571,18 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#176B51",
   },
+  imagePicker: {
+    backgroundColor: '#e0e0e0',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  imagePickerText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '600',
+  },
 
   /* Web modal picker styles */
   webModalOverlay: {
@@ -1370,7 +1597,7 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     // Web specific fix to ensure full coverage
     ...Platform.select({
-        web: { position: 'fixed', height: '100vh', width: '100vw' } as any
+      web: { position: 'fixed', height: '100vh', width: '100vw' } as any
     })
   },
   webModalCard: {
@@ -1387,4 +1614,5 @@ const styles = StyleSheet.create({
   webModalTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
   webModalButtonPrimary: { backgroundColor: '#176B51', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
   webModalButtonSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#F3F4F6' },
+  addressError: { color: '#DC2626', marginTop: 6, fontSize: 13 },
 });

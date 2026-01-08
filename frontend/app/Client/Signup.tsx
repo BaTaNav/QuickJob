@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, Alert } from 'react-native';
 import * as Linking from 'expo-linking';
 
-const API_BASE_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://192.168.129.7:3000';
+const API_BASE_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://10.2.88.146:3000';
 
 const Signup = () => {
   const [formData, setFormData] = useState({

@@ -202,10 +202,11 @@ export const studentAPI = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ status: 'cancelled' }),
+      body: JSON.stringify({ status: 'withdrawn' }),
     });
     if (!response.ok) {
-      throw new Error('Failed to cancel application');
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to cancel application');
     }
     return response.json();
   },
@@ -252,10 +253,13 @@ export const studentAPI = {
 
 // Jobs API Endpoints
 export const jobsAPI = {
-  // Get available jobs
-  async getAvailableJobs(status = 'open', limit = 50) {
+  // Get available jobs (optionally exclude those already applied by a student)
+  async getAvailableJobs(status = 'open', limit = 50, studentId?: number) {
     try {
-      const url = `${API_BASE_URL}/jobs/available?status=${status}&limit=${limit}`;
+      let url = `${API_BASE_URL}/jobs/available?status=${status}&limit=${limit}`;
+      if (studentId) {
+        url += `&studentId=${studentId}`;
+      }
       logRequest('GET', url);
       
       const response = await fetch(url);
@@ -308,7 +312,6 @@ export const jobsAPI = {
     category_id: number;
     title: string;
     description?: string;
-    area_text?: string;
     hourly_or_fixed: 'hourly' | 'fixed';
     hourly_rate?: number | null;
     fixed_price?: number | null;
@@ -324,12 +327,25 @@ export const jobsAPI = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(jobData),
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create job');
+        // Try to surface the full response body for easier debugging (may be JSON or plain text)
+        let text = '';
+        try {
+          text = await response.text();
+        } catch (e) {
+          text = `<unable to read response body: ${e}>`;
+        }
+        console.error(`[API Error] POST ${url} returned ${response.status}: ${text}`);
+        // Attempt to parse JSON error if present
+        try {
+          const parsed = JSON.parse(text);
+          throw new Error(parsed.error || parsed.message || text || 'Failed to create job');
+        } catch (e) {
+          throw new Error(text || 'Failed to create job');
+        }
       }
-      
+
       const data = await response.json();
       console.log('[API Success] Job created:', data);
       return data;
@@ -363,6 +379,56 @@ export const jobsAPI = {
     const data = await response.json();
     // Backend now returns {jobs: [], message: string, count: number}
     return data.jobs || data;
+  },
+
+  // Get applicants for a specific job
+  async getJobApplicants(jobId: number) {
+    try {
+      const url = `${API_BASE_URL}/jobs/${jobId}/applicants`;
+      logRequest('GET', url);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[API Error]', response.status, errorText);
+        throw new Error(`Failed to fetch applicants: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Applicants:', data.applicants?.length || 0, 'applicants');
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Network error - is the backend running?');
+    }
+  },
+
+  // Update application status (accept/reject)
+  async updateApplicationStatus(jobId: number, applicationId: number, status: 'accepted' | 'rejected') {
+    try {
+      const url = `${API_BASE_URL}/jobs/${jobId}/applicants/${applicationId}`;
+      logRequest('PATCH', url);
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[API Error]', response.status, errorText);
+        throw new Error(`Failed to update application: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Application updated:', data);
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Failed to update application');
+    }
   },
 };
 

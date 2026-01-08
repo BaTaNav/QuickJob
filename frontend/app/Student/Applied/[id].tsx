@@ -1,381 +1,292 @@
-import * as React from 'react';
-import { StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
-import { Text, View } from '@/components/Themed';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StyleSheet, TouchableOpacity, ScrollView, Text, View, ActivityIndicator, Alert } from "react-native";
+import * as React from "react";
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
 import { studentAPI, getStudentId } from '../../../services/api';
 
-export default function AppliedJobDetail() {
+export default function ApplicationDetail() {
   const params = useLocalSearchParams();
-  const applicationId = params.id as string | undefined;
+  const applicationId = params.id as string;
   const router = useRouter();
-
-  const [application, setApplication] = React.useState<any | null>(null);
+  
+  const [application, setApplication] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
+  const [cancelling, setCancelling] = React.useState(false);
 
   React.useEffect(() => {
-    const load = async () => {
-      if (!applicationId) {
-        setError('No application id provided');
-        setLoading(false);
+    loadApplication();
+  }, [applicationId]);
+
+  const loadApplication = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const sid = await getStudentId();
+      if (!sid) {
+        setError('Student ID not found');
         return;
       }
-      try {
-        setLoading(true);
-        setError('');
-        const sid = await getStudentId();
-        if (!sid) {
-          setError('Please log in');
-          return;
-        }
-        const data = await studentAPI.getApplications(Number(sid));
-        const app = data.find((a: any) => a.id === Number(applicationId));
-        
-        if (!app) {
-          setError('Application not found');
-          return;
-        }
-        
-        // Ensure job data is properly structured
-        if (!app.jobs) {
-          app.jobs = {
-            title: 'Job',
-            description: '',
-            area_text: '',
-            start_time: null,
-            fixed_price: null,
-            hourly_or_fixed: 'hourly',
-            category: null
-          };
-        }
-        
+      const applications = await studentAPI.getApplications(Number(sid));
+      const app = applications.find((a: any) => a.id === Number(applicationId));
+      if (app) {
         setApplication(app);
-      } catch (err: any) {
-        setError(err?.message || 'Failed to load application');
-      } finally {
-        setLoading(false);
+      } else {
+        setError('Application not found');
       }
-    };
-    load();
-  }, [applicationId]);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load application';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelApplication = async () => {
+    try {
+      setCancelling(true);
+      
+      // Cancel the application first
+      const sid = await getStudentId();
+      if (!sid || !application) {
+        throw new Error('Missing student ID or application data');
+      }
+      
+      console.log('Cancelling application:', { studentId: sid, applicationId: application.id });
+      await studentAPI.cancelApplication(Number(sid), application.id);
+      console.log('Cancel succeeded, navigating...');
+      
+      // Navigate back to available tab so job reappears in the list
+      router.replace('/Student/Dashboard?tab=available');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel application';
+      console.error('Cancel failed:', errorMessage);
+      alert(errorMessage);
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Clock size={16} color="#F59E0B" />;
+      case 'accepted':
+        return <CheckCircle size={16} color="#10B981" />;
+      case 'rejected':
+        return <XCircle size={16} color="#EF4444" />;
+      default:
+        return <AlertCircle size={16} color="#6B7280" />;
+    }
+  };
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator color="#176B51" />
-        <Text style={styles.emptySubtitle}>Loading application...</Text>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#176B51" />
+        <Text style={styles.loadingText}>Loading application...</Text>
       </View>
     );
   }
 
   if (error || !application) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.pageTitle}>Application not found</Text>
-        <Text style={styles.emptySubtitle}>{error || 'Could not load application'}</Text>
-        <Pressable onPress={() => router.push('/Student/Dashboard?tab=pending')}>
-          <Text style={{ color: '#176B51', marginTop: 12, fontWeight: '600' }}>Back to pending</Text>
-        </Pressable>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorTitle}>⚠️ {error || 'Application not found'}</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Text style={styles.backBtnText}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   const job = application.jobs;
-  const getStatusInfo = () => {
-    const status = application.status || 'pending';
-    
-    switch (status) {
-      case 'pending':
-        return {
-          icon: <Clock size={24} color="#F59E0B" />,
-          label: 'Pending Review',
-          color: '#F59E0B',
-          bgColor: '#FEF3C7',
-        };
-      case 'accepted':
-        return {
-          icon: <CheckCircle size={24} color="#10B981" />,
-          label: 'Accepted',
-          color: '#10B981',
-          bgColor: '#D1FAE5',
-        };
-      case 'rejected':
-        return {
-          icon: <XCircle size={24} color="#EF4444" />,
-          label: 'Rejected',
-          color: '#EF4444',
-          bgColor: '#FEE2E2',
-        };
-      case 'cancelled':
-        return {
-          icon: <AlertCircle size={24} color="#6B7280" />,
-          label: 'Cancelled',
-          color: '#6B7280',
-          bgColor: '#F3F4F6',
-        };
-      default:
-        return {
-          icon: <Clock size={24} color="#176B51" />,
-          label: 'Submitted',
-          color: '#176B51',
-          bgColor: '#F0F9F6',
-        };
-    }
-  };
-
-  const statusInfo = getStatusInfo();
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* Status Badge */}
-      <View style={[styles.statusBadge, { backgroundColor: statusInfo.bgColor }]}>
-        <View style={styles.statusIconContainer}>
-          {statusInfo.icon}
-        </View>
-        <Text style={[styles.statusLabel, { color: statusInfo.color }]}>
-          {statusInfo.label}
-        </Text>
-        <Text style={styles.appliedDate}>
-          Applied: {new Date(application.applied_at).toLocaleDateString('nl-BE', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
+      <View style={styles.statusBadge}>
+        {getStatusIcon(application.status)}
+        <Text style={styles.statusText}>
+          {application.status === 'pending' && 'Pending Review'}
+          {application.status === 'accepted' && 'Accepted'}
+          {application.status === 'rejected' && 'Rejected'}
         </Text>
       </View>
 
-      {/* Job Details Section */}
-      <View style={styles.jobDetailsSection}>
-        <Text style={styles.category}>{job?.category?.name_nl || job?.category?.name_en || 'Category'}</Text>
-        <Text style={styles.pageTitle}>{job?.title}</Text>
-        {job?.start_time && (
-          <Text style={styles.jobMeta}>
-            {new Date(job.start_time).toLocaleString('nl-BE')}
-            {job?.area_text ? ` • ${job.area_text}` : ''}
-          </Text>
+      {/* Job Title */}
+      <Text style={styles.jobTitle}>{job?.title || 'Job'}</Text>
+
+      {/* Job Details */}
+      <View style={styles.detailsContainer}>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Description</Text>
+          <Text style={styles.detailValue}>{job?.description || 'No description'}</Text>
+        </View>
+
+        {job?.area_text && (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Location</Text>
+            <Text style={styles.detailValue}>{job.area_text}</Text>
+          </View>
         )}
-      </View>
 
-      {/* Description */}
-      {job?.description && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.sectionText}>{job?.description}</Text>
-        </View>
-      )}
+        {job?.start_time && (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Start Date</Text>
+            <Text style={styles.detailValue}>
+              {new Date(job.start_time).toLocaleDateString('nl-BE', { 
+                day: 'numeric', 
+                month: 'long', 
+                year: 'numeric' 
+              })}
+            </Text>
+          </View>
+        )}
 
-      {/* Location */}
-      {job?.area_text && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Location</Text>
-          <Text style={styles.sectionText}>{job.area_text}</Text>
-        </View>
-      )}
+        {job?.fixed_price && (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Budget</Text>
+            <Text style={styles.detailValue}>€{job.fixed_price}</Text>
+          </View>
+        )}
 
-      {/* Start Date */}
-      {job?.start_time && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Start Date & Time</Text>
-          <Text style={styles.sectionText}>
-            {new Date(job.start_time).toLocaleString('nl-BE', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Applied On</Text>
+          <Text style={styles.detailValue}>
+            {new Date(application.applied_at).toLocaleDateString('nl-BE', { 
+              day: 'numeric', 
+              month: 'long', 
+              year: 'numeric' 
             })}
           </Text>
         </View>
-      )}
-
-      {/* Budget */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Budget</Text>
-        <Text style={styles.sectionText}>
-          {job?.hourly_or_fixed === 'fixed' && job?.fixed_price 
-            ? `Fixed price: €${job.fixed_price}` 
-            : job?.hourly_or_fixed === 'hourly' 
-              ? 'Hourly rate'
-              : 'Not specified'
-          }
-        </Text>
       </View>
 
-      {/* Action Buttons */}
-      <View style={styles.buttonContainer}>
-        <Pressable 
-          style={styles.primaryBtn}
-          onPress={() => router.push('/Student/Dashboard?tab=pending')}
-        >
-          <Text style={styles.primaryBtnText}>Back to pending</Text>
-        </Pressable>
-
-        {application.status === 'pending' && (
-          <Pressable 
-            style={styles.secondaryBtn}
-            onPress={() => {
-              // TODO: Implement cancel application functionality
-              alert('Cancel application feature coming soon');
-            }}
-          >
-            <Text style={styles.secondaryBtnText}>Cancel application</Text>
-          </Pressable>
-        )}
-      </View>
-
-      {/* Status Information */}
+      {/* Actions */}
       {application.status === 'pending' && (
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>What's next?</Text>
-          <Text style={styles.infoText}>
-            • The client is reviewing your application{'\n'}
-            • You'll be notified when they respond{'\n'}
-            • Check this page for status updates
-          </Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.cancelBtn} 
+          onPress={handleCancelApplication}
+          disabled={cancelling}
+        >
+          {cancelling ? (
+            <ActivityIndicator color="#FFF" size="small" />
+          ) : (
+            <Text style={styles.cancelBtnText}>Cancel Application</Text>
+          )}
+        </TouchableOpacity>
       )}
 
-      {application.status === 'accepted' && (
-        <View style={[styles.infoBox, { backgroundColor: '#D1FAE5', borderLeftColor: '#10B981' }]}>
-          <Text style={[styles.infoTitle, { color: '#10B981' }]}>Congratulations!</Text>
-          <Text style={styles.infoText}>
-            • Your application has been accepted{'\n'}
-            • Contact the client to confirm details{'\n'}
-            • Prepare for the job start date{'\n'}
-            • Complete the work as agreed
-          </Text>
-        </View>
-      )}
-
-      {application.status === 'rejected' && (
-        <View style={[styles.infoBox, { backgroundColor: '#FEE2E2', borderLeftColor: '#EF4444' }]}>
-          <Text style={[styles.infoTitle, { color: '#EF4444' }]}>Keep going!</Text>
-          <Text style={styles.infoText}>
-            • Don't be discouraged{'\n'}
-            • Check available jobs on the dashboard{'\n'}
-            • Update your profile to stand out{'\n'}
-            • The right opportunity is waiting!
-          </Text>
-        </View>
-      )}
+      {/* Back Button */}
+      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <Text style={styles.backBtnText}>Go Back</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    backgroundColor: '#fff',
+    flex: 1,
+    backgroundColor: '#FFF',
   },
-  jobDetailsSection: {
-    marginBottom: 16,
-  },
-  category: {
-    color: '#176B51',
-    fontWeight: '700',
-    marginBottom: 6,
-    fontSize: 14,
-  },
-  pageTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 6,
-    color: '#1B1B1B',
-  },
-  jobMeta: {
-    color: '#7A7F85',
-    marginBottom: 4,
-  },
-  appliedDate: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 4,
-  },
-  category: {
-    color: '#176B51',
-    fontWeight: '700',
-    marginBottom: 6,
-    fontSize: 14,
-  },
-  pageTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 6,
-    color: '#1B1B1B',
-  },
-  jobMeta: {
-    color: '#7A7F85',
-    marginBottom: 16,
-    fontSize: 14,
-  },
-  section: {
-    marginTop: 16,
-  },
-  sectionTitle: {
-    fontWeight: '700',
-    marginBottom: 6,
-    fontSize: 16,
-    color: '#1B1B1B',
-  },
-  sectionText: {
-    color: '#4A4A4A',
-    lineHeight: 20,
-    fontSize: 14,
-  },
-  buttonContainer: {
-    marginTop: 32,
-    gap: 12,
-  },
-  primaryBtn: {
-    backgroundColor: '#176B51',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  primaryBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  secondaryBtn: {
-    backgroundColor: '#fff',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#EF4444',
-  },
-  secondaryBtnText: {
-    color: '#EF4444',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  infoBox: {
-    backgroundColor: '#F0F9F6',
+  contentContainer: {
     padding: 16,
-    borderRadius: 10,
-    marginTop: 24,
-    borderLeftWidth: 4,
-    borderLeftColor: '#176B51',
+    paddingBottom: 32,
   },
-  infoTitle: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+  },
+  loadingText: {
+    marginTop: 12,
     fontSize: 16,
+    color: '#666',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    padding: 16,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#EF4444',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 16,
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#92400E',
+  },
+  jobTitle: {
+    fontSize: 24,
     fontWeight: '700',
-    color: '#176B51',
-    marginBottom: 8,
+    color: '#1F2937',
+    marginBottom: 20,
   },
-  infoText: {
-    color: '#4A4A4A',
+  detailsContainer: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
+  },
+  detailRow: {
+    marginBottom: 16,
+  },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  detailValue: {
+    fontSize: 16,
+    color: '#1F2937',
+    marginTop: 4,
     lineHeight: 22,
-    fontSize: 14,
   },
-  emptySubtitle: {
-    color: '#7A7F85',
-    marginTop: 8,
-    fontSize: 14,
+  cancelBtn: {
+    backgroundColor: '#DC2626',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cancelBtnText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  backBtn: {
+    backgroundColor: '#E5E7EB',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  backBtnText: {
+    color: '#1F2937',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
