@@ -133,12 +133,27 @@ export default function DashboardClient() {
 
       if (amount < 50) {
         Alert.alert('Error', 'Bedrag moet minimaal €0.50 zijn');
+        setPayingJobId(null);
         return;
       }
 
-      // TEMP: For demo we use student_id = 1 
-      // TODO: In real app, get from job.accepted_student_id or job_applications table
-      const studentId = 1;
+      // Find the accepted student for this completed job
+      let studentId = null;
+      try {
+        const applicantsData = await jobsAPI.getJobApplicants(job.id);
+        const acceptedApplicant = applicantsData.applicants?.find(
+          (app: any) => app.status === 'accepted'
+        );
+        studentId = acceptedApplicant?.student?.id;
+      } catch (err) {
+        console.error('Failed to get accepted student:', err);
+      }
+
+      if (!studentId) {
+        Alert.alert('Error', 'Geen geaccepteerde student gevonden voor deze job. Accepteer eerst een applicant.');
+        setPayingJobId(null);
+        return;
+      }
 
       // Create payment intent
       const { client_secret } = await paymentAPI.createPaymentIntent({
