@@ -1130,4 +1130,43 @@ router.get("/:jobId/payment-info", async (req, res) => {
   }
 });
 
+
+/**
+ * GET /jobs/:id
+ * Get a specific job with full details
+ * NOTE: This must be AFTER specific routes like /client/:clientId and /:jobId/applicants
+ */
+router.get("/:id", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.id);
+
+    const { data, error } = await supabase
+      .from("jobs")
+      .select(
+        `
+        id, client_id, category_id,
+        title, description, area_text, street, house_number, postal_code, city, latitude, longitude,
+        hourly_or_fixed, hourly_rate, fixed_price,
+        start_time, status, created_at, image_url,
+        job_categories (
+          id, key, name_nl, name_fr, name_en
+        )
+      `
+      )
+      .eq("id", jobId)
+      .single();
+
+    if (error?.code === "PGRST116" || !data) {
+      return res.status(404).json({ error: "No job found with this ID" });
+    }
+    if (error) throw error;
+
+    const job = mapJobRow(data);
+    res.json(job);
+  } catch (err) {
+    console.error("Error fetching job:", err);
+    res.status(500).json({ error: "Failed to fetch job" });
+  }
+});
+
 module.exports = router;
