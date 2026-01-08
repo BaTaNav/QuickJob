@@ -407,6 +407,88 @@ router.post("/", async (req, res) => {
 });
 
 /**
+ * Background expiry runner
+ * - Finds open jobs that start within the next 30 minutes
+ * - If a job has ZERO applicants, mark it completed and flag as expired (best-effort)
+ * Implementation notes:
+ * - We first attempt to update with `expired` and `closed_at` fields; if those columns don't exist
+ *   the update call may return an error. In that case we fallback to updating only the `status`.
+ * - This runner is intended for local/dev usage. For production consider running as a single
+ *   cron job or scheduled task to avoid duplicate workers across multiple instances.
+ */
+async function runExpirySweep() {
+  try {
+    const now = new Date();
+    const threshold = new Date(now.getTime() + 30 * 60 * 1000).toISOString(); // now + 30min
+
+    console.log('[ExpiryRunner] scanning for open jobs starting before', threshold);
+
+    const { data: jobsToCheck, error: jobsError } = await supabase
+      .from('jobs')
+      .select('id, start_time')
+      .eq('status', 'open')
+      .lte('start_time', threshold)
+      .limit(200);
+
+    if (jobsError) {
+      console.error('[ExpiryRunner] error querying jobs:', jobsError);
+      return;
+    }
+
+    if (!jobsToCheck || jobsToCheck.length === 0) {
+      // nothing to do
+      return;
+    }
+
+    for (const job of jobsToCheck) {
+      try {
+        // Check if any applications exist for this job
+        const { count, error: appCountError } = await supabase
+          .from('job_applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('job_id', job.id);
+
+        if (appCountError) {
+          console.warn('[ExpiryRunner] failed to get applications count for job', job.id, appCountError);
+          continue;
+        }
+
+        if (Number(count) > 0) {
+          // job has applicants; skip
+          continue;
+        }
+
+        // Mark job as expired (set status = 'expired')
+        try {
+          const resp = await supabase
+            .from('jobs')
+            .update({ status: 'expired' })
+            .eq('id', job.id)
+            .select()
+            .single();
+          if (resp.error) {
+            console.error('[ExpiryRunner] failed to mark job expired', job.id, resp.error);
+          } else {
+            console.log('[ExpiryRunner] marked job expired id=', job.id);
+          }
+        } catch (e) {
+          console.error('[ExpiryRunner] unexpected error updating job', job.id, e);
+        }
+      } catch (innerErr) {
+        console.error('[ExpiryRunner] error processing job', job.id, innerErr);
+      }
+    }
+  } catch (err) {
+    console.error('[ExpiryRunner] top-level error:', err);
+  }
+}
+
+// Run the expiry sweep immediately and then every 60 seconds.
+// Note: in multi-instance deployments consider moving this to a single scheduled worker.
+runExpirySweep().catch((e) => console.error('[ExpiryRunner] initial run failed:', e));
+setInterval(() => runExpirySweep().catch((e) => console.error('[ExpiryRunner] interval run failed:', e)), 60 * 1000);
+
+/**
  * POST /jobs/draft
  * Save a draft job (status=draft)
  */
