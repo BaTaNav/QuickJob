@@ -1,9 +1,9 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, Image, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, Image, ActivityIndicator, Platform, TextInput, Alert, Linking } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as React from "react";
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock, MapPin, Briefcase } from 'lucide-react-native';
-import { jobsAPI, studentAPI, getStudentId } from '../../services/api';
+import { jobsAPI, studentAPI, getStudentId, paymentAPI } from '../../services/api';
 
 // Platform detection
 const isWeb = Platform.OS === 'web';
@@ -274,6 +274,25 @@ export default function StudentDashboard() {
     return '';
   };
 
+  // Trigger Stripe onboarding for the current student
+  const startStripeOnboarding = async () => {
+    try {
+      const studentId = await getStudentId();
+      if (!studentId) {
+        Alert.alert('Error', 'Student ID not found');
+        return;
+      }
+      const res = await paymentAPI.connectStudentAccount(parseInt(studentId, 10));
+      if (res?.onboarding_url) {
+        Alert.alert('Stripe Onboarding', 'Opening Stripe onboarding in browser...');
+        Linking.openURL(res.onboarding_url);
+      } else {
+        Alert.alert('Stripe', 'No onboarding URL received.');
+      }
+    } catch (err: any) {
+      Alert.alert('Stripe onboarding failed', err?.message || 'Unknown error');
+    }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFB" }} edges={['top']}>
