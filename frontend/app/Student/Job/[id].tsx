@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   jobImage: {
-    width: '100%',
+    width: '20%',
     height: 200,
     borderRadius: 12,
     marginBottom: 20,
