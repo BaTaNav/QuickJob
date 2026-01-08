@@ -53,7 +53,7 @@ router.post("/connect-account", async (req, res) => {
         transfers: { requested: true },
       },
     });
-        accountId = account.id;
+    accountId = account.id;
 
     const { error: upsertError } = await supabase
       .from("student_stripe_accounts")
@@ -127,6 +127,92 @@ router.post("/create-payment-intent", async (req, res) => {
     client_secret: paymentIntent.client_secret,
   });
 });
+
+
+/**
+ * POST /payments/request-payment
+ * Client vraagt betaling aan voor een afgeronde job
+ * Body: { job_id, client_id, student_id, amount (in cents), currency }
+ */
+router.post("/request-payment", async (req, res) => {
+  if (!ensureStripe(res)) return;
+  
+  const { job_id, client_id, student_id, amount, currency } = req.body;
+  const amountInt = parseInt(amount, 10);
+  
+  // Validatie
+  if (!job_id || !client_id || !student_id || !amountInt) {
+    return res.status(400).json({
+      error: "Missing required fields: job_id, client_id, student_id, amount",
+    });
+  }
+
+  // Controleer of job echt in "completed" status is
+  const { data: job, error: jobError } = await supabase
+    .from("jobs")
+    .select("id, status, client_id, hourly_or_fixed, hourly_rate, fixed_price")
+    .eq("id", job_id)
+    .maybeSingle();
+
+  if (jobError) return res.status(500).json({ error: "Supabase fout (job lookup)", details: jobError });
+  if (!job) return res.status(404).json({ error: "Job niet gevonden" });
+  if (job.status !== "completed") {
+    return res.status(400).json({ error: "Job moet 'completed' status hebben voordat je kan betalen" });
+  }
+  if (job.client_id !== parseInt(client_id, 10)) {
+    return res.status(403).json({ error: "Je bent niet de client van deze job" });
+  }
+
+  // Controleer of student een Stripe account heeft
+  const { data: accountRow, error: accountError } = await supabase
+    .from("student_stripe_accounts")
+    .select("stripe_account_id, details_submitted")
+    .eq("student_id", student_id)
+    .maybeSingle();
+
+  if (accountError) return res.status(500).json({ error: "Supabase fout (account lookup)", details: accountError });
+  if (!accountRow?.stripe_account_id) {
+    return res.status(400).json({ error: "Student heeft nog geen Stripe account geregistreerd" });
+  }
+  if (!accountRow.details_submitted) {
+    return res.status(400).json({ error: "Student moet eerst Stripe onboarding afmaken" });
+  }
+
+  const currencyCode = (currency || defaultCurrency).toLowerCase();
+  const feeAmount = feePercent > 0 ? Math.round(amountInt * (feePercent / 100)) : undefined;
+
+  try {
+    // Maak Payment Intent aan
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInt,
+      currency: currencyCode,
+      automatic_payment_methods: { enabled: true },
+      description: `Job ${job_id} - ${job.hourly_or_fixed === "hourly" ? "Uurloon" : "Vaste prijs"} betaling`,
+      transfer_data: { destination: accountRow.stripe_account_id },
+      application_fee_amount: feeAmount,
+      metadata: {
+        student_id: String(student_id),
+        job_id: String(job_id),
+        client_id: String(client_id),
+        payment_type: "job_completion",
+      },
+    });
+
+    res.status(201).json({
+      payment_intent_id: paymentIntent.id,
+      client_secret: paymentIntent.client_secret,
+      amount: amountInt,
+      currency: currencyCode,
+      job_id: job_id,
+      student_id: student_id,
+      message: "Payment intent aangemaakt. Client kan nu betalen.",
+    });
+  } catch (err) {
+    console.error("Error creating payment intent:", err);
+    res.status(500).json({ error: "Fout bij maken van payment intent", details: err.message });
+  }
+});
+
 
 async function paymentsWebhookHandler(req, res) {
   if (!stripe) return res.status(500).json({ error: "Stripe secret key ontbreekt" });
