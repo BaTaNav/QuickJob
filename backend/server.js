@@ -19,9 +19,11 @@ const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.set("trust proxy", 1);
 app.use(publicApiLimiter);
 app.get("/", (req, res) => res.send("QuickJob Backend API is running!"));
 app.get("/health", (req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
+app.set("trust proxy", 1);
 
 app.use("/auth", require("./auth/auth"));
 

@@ -66,6 +66,7 @@ const requireStudentSelf = (req, res, next) => {
 router.use(verifyJwt, requireRole("student"));
 
 // OPTIONAL anti-spam (remove if you don’t want it)
+
 router.use(slowDownAuth, authLimiter);
 
 /**
@@ -77,7 +78,7 @@ router.get("/me", (req, res) => {
 
 /**
  * GET /students/:studentId/dashboard
- * Get the student dashboard with all job categories (today, upcoming, available, pending, archive)
+ * Get the student dashboard with all job categories (today, upcoming, available, pending, archive) 
  */
 router.get("/:studentId/dashboard", requireStudentSelf, async (req, res) => {
   try {
