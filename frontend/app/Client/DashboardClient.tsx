@@ -214,6 +214,57 @@ function DashboardClientContent() {
     }
   };
 
+  // Handle marking job as completed
+  const handleMarkAsCompleted = async (job: any) => {
+    // --- WEB SPECIFIEKE AFHANDELING ---
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Weet je zeker dat job "${job.title}" voltooid is?`);
+      if (confirmed) {
+        performCompletion(job);
+      }
+      return;
+    }
+
+    // --- MOBILE AFHANDELING ---
+    Alert.alert(
+      'Job Voltooien',
+      'Weet je zeker dat het werk klaar is?',
+      [
+        { text: 'Annuleren', style: 'cancel' },
+        {
+          text: 'Ja, Voltooien',
+          onPress: () => performCompletion(job)
+        }
+      ]
+    );
+  };
+
+  // Helper functie voor de daadwerkelijke actie
+  const performCompletion = async (job: any) => {
+    try {
+      const clientId = await getClientId();
+      console.log('Marking completed. ClientID:', clientId);
+
+      if (!clientId) {
+          const msg = 'Je bent niet ingelogd (Geen Client ID).';
+          Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Fout', msg);
+          return;
+      }
+
+      console.log('Sending update request for job:', job.id);
+      await jobsAPI.updateJobStatus(job.id, 'completed', parseInt(clientId));
+      
+      const successMsg = "Job is voltooid! Hij staat nu bij 'Completed'.";
+      Platform.OS === 'web' ? window.alert(successMsg) : Alert.alert("Succes", successMsg);
+      
+      await fetchJobs(); 
+    } catch (error: any) {
+      console.error('Update failed:', error);
+      const errorMsg = "Kon status niet updaten: " + error.message;
+      Platform.OS === 'web' ? window.alert(errorMsg) : Alert.alert("Fout", errorMsg);
+    }
+  };
+
   // Render a single job card
   const renderJobCard = (job: any) => {
     const isExpired = job.status === 'expired';
@@ -273,6 +324,16 @@ function DashboardClientContent() {
             ? `€${job.fixed_price || 0}` 
             : `€${job.hourly_rate || 0}/uur`}
         </Text>
+        
+        {/* Show Mark as Completed button for today's jobs that are not completed yet */}
+        {activeTab === 'Today' && job.status !== 'completed' && (
+          <TouchableOpacity 
+            style={styles.completeButton}
+            onPress={() => handleMarkAsCompleted(job)}
+          >
+            <Text style={styles.completeButtonText}>✓ Voltooid</Text>
+          </TouchableOpacity>
+        )}
         
         {/* Show Pay button only for completed jobs */}
         {job.status === 'completed' && (
@@ -851,6 +912,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#176B51',
+  },
+  completeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10B981',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  completeButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 
   /* FOOTER */

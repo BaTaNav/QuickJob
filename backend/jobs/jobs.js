@@ -978,115 +978,101 @@ router.delete("/:jobId", async (req, res) => {
 
 /**
  * PATCH /jobs/:jobId/status
- * Update job status (voor job lifecycle)
- * Mogelijke statussen: open → pending → in_progress → completed → paid
- * Body: { status, updated_by_role } (role: 'client' of 'student')
+ * Update job status
  */
 router.patch("/:jobId/status", async (req, res) => {
   try {
+    console.log("=== PATCH /jobs/status Aangeroepen ===");
     const jobId = parseInt(req.params.jobId, 10);
-    const { status, updated_by_role, student_id, client_id } = req.body;
+    const { status, updated_by_role, student_id } = req.body;
+
+    console.log(`Job: ${jobId}, Nieuwe Status: ${status}, Door: ${updated_by_role}`);
 
     if (!jobId) {
       return res.status(400).json({ error: "Invalid job ID" });
     }
 
-    const validStatuses = ["open", "pending", "in_progress", "completed", "paid", "cancelled"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ 
-        error: "Invalid status",
-        valid_statuses: validStatuses 
-      });
-    }
-
-    // Haal huidige job op
+    // 1. Haal de huidige job op
     const { data: job, error: fetchError } = await supabase
       .from("jobs")
-      .select("id, status, client_id, title")
+      .select("*")
       .eq("id", jobId)
       .single();
 
     if (fetchError || !job) {
+      console.error("Job niet gevonden:", fetchError);
       return res.status(404).json({ error: "Job not found" });
     }
 
-    // Validatie logica op basis van status transition
     const currentStatus = job.status;
+    console.log(`Huidige status in DB: ${currentStatus}`);
 
-    // Status transition validatie
-    const allowedTransitions = {
-      "open": ["pending", "cancelled"],
-      "pending": ["in_progress", "cancelled"],
-      "in_progress": ["completed", "cancelled"],
-      "completed": ["paid"],
-      "paid": [], // Final state
-      "cancelled": [], // Final state
-    };
+    // 2. Validatie Logica
+    let isAllowed = false;
+    let errorMessage = "";
 
-    if (!allowedTransitions[currentStatus]?.includes(status)) {
-      return res.status(400).json({ 
-        error: `Cannot transition from '${currentStatus}' to '${status}'`,
-        allowed_transitions: allowedTransitions[currentStatus] || []
-      });
+    // SCENARIO A: De CLIENT wil iets aanpassen
+    if (updated_by_role === 'client') {
+        // Een client mag een job in principe altijd sluiten ('completed') 
+        // zolang hij niet al 'paid' of 'cancelled' is.
+        if (status === 'completed') {
+            if (['paid', 'cancelled'].includes(currentStatus)) {
+                isAllowed = false;
+                errorMessage = "Job is al betaald of geannuleerd.";
+            } else {
+                isAllowed = true; // Client is de baas
+            }
+        } 
+        // Andere status wijzigingen door client (bv. cancel)
+        else {
+            isAllowed = true; 
+        }
+    } 
+    // SCENARIO B: De STUDENT wil iets aanpassen (strengere regels)
+    else if (updated_by_role === 'student') {
+        if (status === 'in_progress' && ['pending', 'assigned', 'open'].includes(currentStatus)) isAllowed = true;
+        else if (status === 'completed' && currentStatus === 'in_progress') isAllowed = true;
+        else {
+            isAllowed = false;
+            errorMessage = "Student mag deze statuswijziging niet doen.";
+        }
+    }
+    // Foutieve rol
+    else {
+        isAllowed = false;
+        errorMessage = "Onbekende rol of missende updated_by_role.";
     }
 
-    // Rol-specifieke validatie
-    if (status === "in_progress" && updated_by_role !== "student") {
-      return res.status(403).json({ error: "Only student can mark job as in_progress" });
+    if (!isAllowed) {
+        console.warn(`Status update geweigerd: ${errorMessage}`);
+        return res.status(403).json({ error: errorMessage });
     }
 
-    if (status === "completed" && updated_by_role !== "student") {
-      return res.status(403).json({ error: "Only student can mark job as completed" });
-    }
-
-    if (status === "paid" && updated_by_role !== "client") {
-      return res.status(403).json({ error: "Only client can mark job as paid (via payment)" });
-    }
-
-    // Voor 'completed' status: controleer of er een accepted application is
-    if (status === "completed") {
-      const { data: acceptedApp, error: appError } = await supabase
-        .from("job_applications")
-        .select("id, student_id")
-        .eq("job_id", jobId)
-        .eq("status", "accepted")
-        .maybeSingle();
-
-      if (appError || !acceptedApp) {
-        return res.status(400).json({ 
-          error: "Can only complete job with an accepted student application" 
-        });
-      }
-
-      // Optioneel: verifieer dat de juiste student de job markeert als completed
-      if (student_id && acceptedApp.student_id !== parseInt(student_id, 10)) {
-        return res.status(403).json({ 
-          error: "Only the assigned student can mark this job as completed" 
-        });
-      }
-    }
-
-    // Update job status
+    // 3. Update uitvoeren in Database
     const { data: updatedJob, error: updateError } = await supabase
       .from("jobs")
       .update({ 
-        status,
-        updated_at: new Date().toISOString()
+        status: status
+        // updated_at verwijderd omdat kolom niet bestaat
       })
       .eq("id", jobId)
       .select()
       .single();
 
-    if (updateError) throw updateError;
+    if (updateError) {
+        console.error("Supabase update error:", updateError);
+        throw updateError;
+    }
 
+    console.log("Update succesvol!", updatedJob);
     res.json({
       message: `Job status updated to '${status}'`,
-      job: updatedJob,
-      previous_status: currentStatus,
+      job: updatedJob
     });
+
   } catch (err) {
-    console.error("Error updating job status:", err);
-    res.status(500).json({ error: "Failed to update job status" });
+    console.error("CRITICAL ERROR updating job status:", err);
+    res.status(500).json({ error: "Failed to update job status", details: err.message });
   }
 });
 
@@ -1123,8 +1109,8 @@ router.post("/:jobId/mark-in-progress", async (req, res) => {
     const { data: updatedJob, error: updateError } = await supabase
       .from("jobs")
       .update({ 
-        status: "in_progress",
-        updated_at: new Date().toISOString()
+        status: "in_progress"
+        // updated_at verwijderd
       })
       .eq("id", jobId)
       .eq("status", "pending") // Only allow transition from pending
@@ -1200,8 +1186,8 @@ router.post("/:jobId/mark-completed", async (req, res) => {
     const { data: updatedJob, error: updateError } = await supabase
       .from("jobs")
       .update({ 
-        status: "completed",
-        updated_at: new Date().toISOString()
+        status: "completed"
+        // updated_at verwijderd
       })
       .eq("id", jobId)
       .select()

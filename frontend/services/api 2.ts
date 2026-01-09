@@ -3,8 +3,9 @@ import { Platform } from 'react-native';
 // API Service for QuickJob Backend
 // For web: http://localhost:3000
 // For mobile simulator: Use your computer's IP address (e.g., http://192.168.1.x:3000)
-const API_BASE_URL = 'http://localhost:3000';
-
+const API_BASE_URL = Platform.OS === 'web' 
+  ? 'http://localhost:3000' 
+  : 'http://localhost:3000' ;
 // Add logging for debugging
 const logRequest = (method: string, url: string) => {
   console.log(`[API] ${method} ${url}`);
