@@ -1333,6 +1333,23 @@ router.get("/:id", async (req, res) => {
     if (error) throw error;
 
     const job = mapJobRow(data);
+    
+    // Get accepted applicant info if job is completed or has accepted applicants
+    const { data: acceptedApp } = await supabase
+      .from("job_applications")
+      .select("student_id, users!job_applications_student_id_fkey(id, email)")
+      .eq("job_id", jobId)
+      .eq("status", "accepted")
+      .limit(1)
+      .maybeSingle();
+    
+    if (acceptedApp?.users) {
+      job.accepted_applicant = {
+        student_id: acceptedApp.student_id,
+        email: acceptedApp.users.email,
+      };
+    }
+    
     res.json(job);
   } catch (err) {
     console.error("Error fetching job:", err);

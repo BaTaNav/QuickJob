@@ -1,0 +1,5 @@
+[dotenv@17.2.3] injecting env (10) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[ExpiryRunner] scanning for open jobs starting before 2026-01-09T15:26:20.057Z
+🚀 Server running on http://localhost:3000
+[ExpiryRunner] scanning for open jobs starting before 2026-01-09T15:27:20.059Z
