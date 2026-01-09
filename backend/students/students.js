@@ -3,6 +3,10 @@ const supabase = require("../supabaseClient");
 const verifyJwt = require("../auth/verifyJwt");
 const requireRole = require("../auth/requireRole");
 
+// OPTIONAL (only if you already created middleware/rateLimiters.js)
+// If you don't want rate limiting here, remove these 2 lines and the 2 middlewares below.
+const { authLimiter, slowDownAuth } = require("../auth/rateLimiters");
+
 const router = express.Router();
 
 /**
@@ -35,20 +39,45 @@ function mapJobRow(row) {
   };
 }
 
-router.get("/me", verifyJwt, requireRole("student"), (req, res) => {
+/**
+ * ✅ Student can only access his own :studentId
+ */
+const requireStudentSelf = (req, res, next) => {
+  if (!req.user?.sub) return res.status(401).json({ error: "Unauthorized" });
+
+  // student can only use routes for his own id
+  if (String(req.user.sub) !== String(req.params.studentId)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  next();
+};
+
+/* =========================
+   PROTECTED ROUTES (ALL)
+   ========================= */
+
+// everything in this router requires token + student role
+router.use(verifyJwt, requireRole("student"));
+
+// OPTIONAL anti-spam (remove if you don’t want it)
+router.use(slowDownAuth, authLimiter);
+
+/**
+ * GET /students/me
+ */
+router.get("/me", (req, res) => {
   res.json({ message: "student ok", user: req.user });
 });
-
 
 /**
  * GET /students/:studentId/dashboard
  * Get the student dashboard with all job categories (today, upcoming, available, pending, archive)
  */
-router.get("/:studentId/dashboard", async (req, res) => {
+router.get("/:studentId/dashboard", requireStudentSelf, async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
 
-    // Fetch all student's applications
     const { data: applications, error: appError } = await supabase
       .from("job_applications")
       .select("id, job_id, status, applied_at")
@@ -57,20 +86,18 @@ router.get("/:studentId/dashboard", async (req, res) => {
     if (appError) throw appError;
 
     if (!applications || applications.length === 0) {
-
       return res.json({
         today: [],
         upcoming: [],
         pending: [],
         archive: [],
         counts: { today: 0, upcoming: 0, pending: 0, archive: 0 },
-        message: "No job applications yet"
+        message: "No job applications yet",
       });
     }
 
     const appliedJobIds = applications.map((app) => app.job_id);
 
-    // Fetch jobs from applications
     let jobsQuery = supabase
       .from("jobs")
       .select(
@@ -88,7 +115,7 @@ router.get("/:studentId/dashboard", async (req, res) => {
     if (appliedJobIds.length > 0) {
       jobsQuery = jobsQuery.in("id", appliedJobIds);
     } else {
-      jobsQuery = jobsQuery.eq("id", -1); // Return no jobs if no applications
+      jobsQuery = jobsQuery.eq("id", -1);
     }
 
     const { data: jobs, error: jobsError } = await jobsQuery.order("start_time", {
@@ -106,7 +133,6 @@ router.get("/:studentId/dashboard", async (req, res) => {
       };
     });
 
-    // Categorize jobs
     const now = new Date();
     const todayISO = now.toISOString().slice(0, 10);
 
@@ -119,20 +145,13 @@ router.get("/:studentId/dashboard", async (req, res) => {
       const startDateISO = job.start_time.slice(0, 10);
       const appStatus = job.application_status;
 
-      // Archive: completed or rejected or cancelled
       if (appStatus === "completed" || appStatus === "rejected" || appStatus === "cancelled") {
         archive.push(job);
-      }
-      // Pending: awaiting response
-      else if (appStatus === "pending") {
+      } else if (appStatus === "pending") {
         pending.push(job);
-      }
-      // Today: starts today
-      else if (startDateISO === todayISO && appStatus === "accepted") {
+      } else if (startDateISO === todayISO && appStatus === "accepted") {
         today.push(job);
-      }
-      // Upcoming: future date and accepted
-      else if (startDateISO > todayISO && appStatus === "accepted") {
+      } else if (startDateISO > todayISO && appStatus === "accepted") {
         upcoming.push(job);
       }
     }
@@ -157,13 +176,11 @@ router.get("/:studentId/dashboard", async (req, res) => {
 
 /**
  * GET /students/:studentId/profile
- * Get student profile info
  */
-router.get("/:studentId/profile", async (req, res) => {
+router.get("/:studentId/profile", requireStudentSelf, async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
 
-    // Fetch user data
     const { data: userData, error: userError } = await supabase
       .from("users")
       .select("id, email, phone, role, created_at")
@@ -171,24 +188,21 @@ router.get("/:studentId/profile", async (req, res) => {
       .eq("role", "student")
       .single();
 
-    if (userError?.code === 'PGRST116' || !userData) {
+    if (userError?.code === "PGRST116" || !userData) {
       return res.status(404).json({ error: "No student registered with this ID" });
     }
     if (userError) throw userError;
 
-    // Fetch student profile data
     const { data: profileData, error: profileError } = await supabase
       .from("student_profiles")
       .select("school_name, field_of_study, academic_year, radius_km, verification_status, active_since")
       .eq("id", studentId)
       .single();
 
-    if (profileError && profileError.code !== 'PGRST116') {
-      // PGRST116 = no rows returned, which is okay for new users
+    if (profileError && profileError.code !== "PGRST116") {
       throw profileError;
     }
 
-    // Combine user and profile data
     const data = {
       ...userData,
       ...(profileData || {}),
@@ -203,20 +217,13 @@ router.get("/:studentId/profile", async (req, res) => {
 
 /**
  * PATCH /students/:studentId/profile
- * Update student profile info (protected - JWT temporarily disabled)
+ * ✅ Now protected
  */
-router.patch("/:studentId/profile", /* verifyJwt, */ async (req, res) => {
+router.patch("/:studentId/profile", requireStudentSelf, async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
-
-    // TODO: Verify the user is updating their own profile when JWT is enabled
-    // if (req.user.id !== studentId.toString()) {
-    //   return res.status(403).json({ error: "Unauthorized" });
-    // }
-
     const { phone, school_name, field_of_study, academic_year, radius_km } = req.body;
 
-    // Update users table
     const userUpdateData = {};
     if (phone) userUpdateData.phone = phone;
 
@@ -230,7 +237,6 @@ router.patch("/:studentId/profile", /* verifyJwt, */ async (req, res) => {
       if (userError) throw userError;
     }
 
-    // Update student_profiles table
     const profileUpdateData = {};
     if (school_name) profileUpdateData.school_name = school_name;
     if (field_of_study) profileUpdateData.field_of_study = field_of_study;
@@ -259,24 +265,17 @@ router.patch("/:studentId/profile", /* verifyJwt, */ async (req, res) => {
 
 /**
  * POST /students/:studentId/apply
- * Apply for a job (JWT temporarily disabled)
+ * ✅ Now protected
  */
-router.post("/:studentId/apply", /* verifyJwt, */ async (req, res) => {
+router.post("/:studentId/apply", requireStudentSelf, async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
     const { job_id, cover_letter } = req.body;
 
-    // TODO: Verify the user is applying for themselves when JWT is enabled
-    // if (req.user.id !== studentId.toString()) {
-    //   return res.status(403).json({ error: "Unauthorized" });
-    // }
-
-    // Validate inputs
     if (!job_id) {
       return res.status(400).json({ error: "job_id is required" });
     }
 
-    // Check if already applied
     const { data: existingApp } = await supabase
       .from("job_applications")
       .select("id")
@@ -288,7 +287,6 @@ router.post("/:studentId/apply", /* verifyJwt, */ async (req, res) => {
       return res.status(409).json({ error: "Already applied to this job" });
     }
 
-    // Create application
     const { data, error } = await supabase
       .from("job_applications")
       .insert({
@@ -311,9 +309,8 @@ router.post("/:studentId/apply", /* verifyJwt, */ async (req, res) => {
 
 /**
  * GET /students/:studentId/applications
- * Get all applications for a student
  */
-router.get("/:studentId/applications", async (req, res) => {
+router.get("/:studentId/applications", requireStudentSelf, async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
 
@@ -337,7 +334,7 @@ router.get("/:studentId/applications", async (req, res) => {
     res.json({
       applications,
       message: applications.length === 0 ? "No job applications yet" : null,
-      count: applications.length
+      count: applications.length,
     });
   } catch (err) {
     console.error("Error fetching applications:", err);
@@ -347,20 +344,14 @@ router.get("/:studentId/applications", async (req, res) => {
 
 /**
  * PATCH /students/:studentId/applications/:applicationId
- * Update application status (only by student to cancel - JWT temporarily disabled)
+ * ✅ Now protected
  */
-router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (req, res) => {
+router.patch("/:studentId/applications/:applicationId", requireStudentSelf, async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
     const applicationId = parseInt(req.params.applicationId);
     const { status } = req.body;
 
-    // TODO: Verify the user is updating their own application when JWT is enabled
-    // if (req.user.id !== studentId.toString()) {
-    //   return res.status(403).json({ error: "Unauthorized" });
-    // }
-
-    // Only allow cancelling applications (status: cancelled)
     if (status !== "cancelled") {
       return res.status(400).json({ error: "Only cancellation is allowed from student side" });
     }
@@ -385,9 +376,8 @@ router.patch("/:studentId/applications/:applicationId", /* verifyJwt, */ async (
 
 /**
  * GET /students/:studentId/documents
- * Get documents uploaded by student for verification
  */
-router.get("/:studentId/documents", async (req, res) => {
+router.get("/:studentId/documents", requireStudentSelf, async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
 
@@ -403,7 +393,7 @@ router.get("/:studentId/documents", async (req, res) => {
     res.json({
       documents,
       message: documents.length === 0 ? "No documents uploaded yet" : null,
-      count: documents.length
+      count: documents.length,
     });
   } catch (err) {
     console.error("Error fetching documents:", err);
@@ -413,17 +403,12 @@ router.get("/:studentId/documents", async (req, res) => {
 
 /**
  * POST /students/:studentId/documents
- * Upload document for verification (JWT temporarily disabled)
+ * ✅ Now protected
  */
-router.post("/:studentId/documents", /* verifyJwt, */ async (req, res) => {
+router.post("/:studentId/documents", requireStudentSelf, async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
     const { document_type, file_url } = req.body;
-
-    // TODO: Verify the user is uploading for themselves when JWT is enabled
-    // if (req.user.id !== studentId.toString()) {
-    //   return res.status(403).json({ error: "Unauthorized" });
-    // }
 
     if (!document_type || !file_url) {
       return res.status(400).json({ error: "document_type and file_url are required" });
@@ -452,25 +437,20 @@ router.post("/:studentId/documents", /* verifyJwt, */ async (req, res) => {
 
 /**
  * GET /students/:studentId/reviews
- * Get reviews for a student from completed jobs
  */
-router.get("/:studentId/reviews", async (req, res) => {
+router.get("/:studentId/reviews", requireStudentSelf, async (req, res) => {
   try {
     const studentId = parseInt(req.params.studentId);
 
     const { data, error } = await supabase
       .from("job_reviews")
-      .select(
-        `
-        id, rating, comment, created_at
-      `
-      )
+      .select(`id, rating, comment, created_at`)
       .eq("student_id", studentId)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
 
-    const reviews = data.map((review) => ({
+    const reviews = (data || []).map((review) => ({
       id: review.id,
       rating: review.rating,
       comment: review.comment,
@@ -479,9 +459,12 @@ router.get("/:studentId/reviews", async (req, res) => {
 
     res.json({
       reviews,
-      avg_rating: reviews.length > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(2) : null,
+      avg_rating:
+        reviews.length > 0
+          ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(2)
+          : null,
       message: reviews.length === 0 ? "No reviews yet" : null,
-      count: reviews.length
+      count: reviews.length,
     });
   } catch (err) {
     console.error("Error fetching reviews:", err);

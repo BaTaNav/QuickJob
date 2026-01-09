@@ -3,39 +3,20 @@ const bcrypt = require("bcrypt");
 const supabaseModule = require("../supabaseClient");
 const jwt = require("jsonwebtoken");
 
+const verifyJwt = require("../auth/verifyJwt");
+const requireRole = require("../auth/requireRole");
+
+const {
+  loginLimiter,
+  authLimiter,
+  slowDownAuth,
+  createJobLimiter,
+} = require("../auth/rateLimiters");
+
 const router = express.Router();
 
 // IMPORTANT: support both export styles of supabaseClient
 const supabase = supabaseModule.supabase || supabaseModule;
-
-/**
- * JWT middleware (based on what you sent)
- * Requires: Authorization: Bearer <token>
- */
-const verifyJwt = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res
-      .status(401)
-      .json({ error: "Missing or invalid Authorization header" });
-  }
-
-  const token = authHeader.slice(7);
-
-  try {
-    if (!process.env.JWT_SECRET) {
-      console.error("JWT_SECRET ontbreekt in environment");
-      return res.status(500).json({ error: "Serverconfiguratie fout." });
-    }
-
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = payload; // { sub, role, email, iat, exp }
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: "Invalid or expired token" });
-  }
-};
 
 /**
  * Only allow:
@@ -45,7 +26,7 @@ const verifyJwt = (req, res, next) => {
 const requireSelfOrAdmin = (req, res, next) => {
   if (!req.user?.sub) return res.status(401).json({ error: "Unauthorized" });
 
-  // allow admin to do anything (remove this if you don't want it)
+  // allow admin to do anything (keep if you want admin to access clients)
   if (req.user.role === "admin") return next();
 
   // only allow clients for themselves
@@ -150,7 +131,7 @@ router.post("/register-client", async (req, res) => {
 });
 
 // POST /clients/login - Login client (+ JWT token)
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -192,7 +173,7 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Ongeldige email of password." });
     }
 
-    // JWT payload (same style you used)
+    // JWT payload
     const payload = {
       sub: user.id,
       role: user.role,
@@ -226,9 +207,9 @@ router.post("/login", async (req, res) => {
 
 /* =========================
    PROTECTED ROUTES
-   Everything below REQUIRES token
+   Everything below REQUIRES token + rate limit
    ========================= */
-router.use(verifyJwt);
+router.use(verifyJwt, requireRole("client", "admin"), slowDownAuth, authLimiter);
 
 /* =========================
    CLIENT PROFILE ROUTES (protected)
@@ -397,10 +378,10 @@ router.delete("/:id", requireSelfOrAdmin, async (req, res) => {
    JOBS ROUTES (protected)
    ========================= */
 
-// POST /clients/:id/jobs - Create job
-router.post("/:id/jobs", requireSelfOrAdmin, async (req, res) => {
+// POST /clients/:id/jobs - Create job (extra strict rate limit)
+router.post("/:id/jobs", createJobLimiter, requireSelfOrAdmin, async (req, res) => {
   try {
-    const clientId = Number(req.params.id);
+    const clientId = req.params.id;
     const {
       title,
       description = null,
@@ -417,9 +398,9 @@ router.post("/:id/jobs", requireSelfOrAdmin, async (req, res) => {
     }
 
     if (!["hourly", "fixed"].includes(hourly_or_fixed)) {
-      return res
-        .status(400)
-        .json({ error: "hourly_or_fixed must be 'hourly' or 'fixed'" });
+      return res.status(400).json({
+        error: "hourly_or_fixed must be 'hourly' or 'fixed'",
+      });
     }
 
     if (hourly_or_fixed === "hourly" && !hourly_rate) {
@@ -516,8 +497,8 @@ router.get("/:id/jobs", requireSelfOrAdmin, async (req, res) => {
 // PATCH /clients/:id/jobs/:jobId - Update job
 router.patch("/:id/jobs/:jobId", requireSelfOrAdmin, async (req, res) => {
   try {
-    const clientId = Number(req.params.id);
-    const jobId = Number(req.params.jobId);
+    const clientId = req.params.id;
+    const jobId = req.params.jobId;
 
     const {
       title,
@@ -531,10 +512,6 @@ router.patch("/:id/jobs/:jobId", requireSelfOrAdmin, async (req, res) => {
       end_time,
       status,
     } = req.body;
-
-    if (Number.isNaN(clientId) || Number.isNaN(jobId)) {
-      return res.status(400).json({ error: "Invalid client or job id" });
-    }
 
     // 1) Check if client exists
     const { data: clientData, error: clientError } = await supabase
@@ -558,9 +535,9 @@ router.patch("/:id/jobs/:jobId", requireSelfOrAdmin, async (req, res) => {
       .single();
 
     if (jobError && jobError.code === "PGRST116") {
-      return res
-        .status(404)
-        .json({ error: "Job not found or does not belong to this client" });
+      return res.status(404).json({
+        error: "Job not found or does not belong to this client",
+      });
     }
     if (jobError) throw jobError;
 
@@ -585,12 +562,11 @@ router.patch("/:id/jobs/:jobId", requireSelfOrAdmin, async (req, res) => {
       updates.hourly_or_fixed &&
       !["hourly", "fixed"].includes(updates.hourly_or_fixed)
     ) {
-      return res
-        .status(400)
-        .json({ error: "hourly_or_fixed must be 'hourly' or 'fixed'" });
+      return res.status(400).json({
+        error: "hourly_or_fixed must be 'hourly' or 'fixed'",
+      });
     }
 
-    // 4) Update job
     const { data, error } = await supabase
       .from("jobs")
       .update(updates)
@@ -614,13 +590,14 @@ router.patch("/:id/jobs/:jobId", requireSelfOrAdmin, async (req, res) => {
 // DELETE /clients/:id/jobs/:jobId - Delete job
 router.delete("/:id/jobs/:jobId", requireSelfOrAdmin, async (req, res) => {
   try {
-    const { id, jobId } = req.params;
+    const clientId = req.params.id;
+    const jobId = req.params.jobId;
 
     // Check if client exists
     const { data: clientData, error: clientError } = await supabase
       .from("users")
       .select("id")
-      .eq("id", id)
+      .eq("id", clientId)
       .eq("role", "client")
       .single();
 
@@ -634,22 +611,21 @@ router.delete("/:id/jobs/:jobId", requireSelfOrAdmin, async (req, res) => {
       .from("jobs")
       .select("*")
       .eq("id", jobId)
-      .eq("client_id", id)
+      .eq("client_id", clientId)
       .single();
 
     if (jobError && jobError.code === "PGRST116") {
-      return res
-        .status(404)
-        .json({ error: "Job not found or does not belong to this client" });
+      return res.status(404).json({
+        error: "Job not found or does not belong to this client",
+      });
     }
     if (jobError) throw jobError;
 
-    // Delete job
     const { data, error } = await supabase
       .from("jobs")
       .delete()
       .eq("id", jobId)
-      .eq("client_id", id)
+      .eq("client_id", clientId)
       .select()
       .single();
 

@@ -7,7 +7,8 @@ const { supabase } = require("./supabaseClient"); // or remove if unused
 const clientsRouter = require("./clients/clients");
 const jobsRouter = require("./jobs/jobs");
 const studentsRouter = require("./students/students");
-const adminRouter = require("./Admin/Admin");
+const adminRouter = require("./Admin");
+const { publicApiLimiter } = require("./auth/rateLimiters");
 
 // ✅ correct paths
 const verifyJwt = require("./auth/verifyJwt");
@@ -18,11 +19,12 @@ const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-
+app.use(publicApiLimiter);
 app.get("/", (req, res) => res.send("QuickJob Backend API is running!"));
 app.get("/health", (req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
 
 app.use("/auth", require("./auth/auth"));
+
 
 // Routers
 app.use("/clients", clientsRouter);
