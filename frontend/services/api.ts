@@ -443,6 +443,37 @@ export const jobsAPI = {
       throw new Error(error.message || 'Failed to update application');
     }
   },
+
+  // Update job status
+  async updateJobStatus(jobId: number, status: string, clientId: number) {
+    try {
+      const url = `${API_BASE_URL}/jobs/${jobId}/status`;
+      logRequest('PATCH', url);
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status, 
+          updated_by_role: 'client',
+          client_id: clientId 
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[API Error]', response.status, errorText);
+        throw new Error(`Failed to update job status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('[API Success] Job status updated:', data);
+      return data;
+    } catch (error: any) {
+      console.error('[API Exception]', error);
+      throw new Error(error.message || 'Failed to update job status');
+    }
+  },
 };
 
 // Auth API
