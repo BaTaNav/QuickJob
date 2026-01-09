@@ -212,6 +212,42 @@ function DashboardClientContent() {
     }
   };
 
+  // Handle marking job as completed
+  const handleMarkAsCompleted = async (job: any) => {
+    try {
+      Alert.alert(
+        'Job voltooien',
+        `Weet je zeker dat deze job "${job.title}" voltooid is?`,
+        [
+          {
+            text: 'Annuleren',
+            style: 'cancel'
+          },
+          {
+            text: 'Ja, voltooid',
+            onPress: async () => {
+              try {
+                const clientId = await getClientId();
+                if (!clientId) {
+                  Alert.alert('Error', 'Geen client sessie gevonden');
+                  return;
+                }
+                
+                await jobsAPI.updateJobStatus(job.id, 'completed', parseInt(clientId));
+                Alert.alert('Succes', 'Job is gemarkeerd als voltooid! 🎉');
+                fetchJobs(); // Refresh jobs list
+              } catch (err: any) {
+                Alert.alert('Error', err.message || 'Kon job status niet updaten');
+              }
+            }
+          }
+        ]
+      );
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Er ging iets mis');
+    }
+  };
+
   // Render a single job card
   const renderJobCard = (job: any) => {
     const isExpired = job.status === 'expired';
