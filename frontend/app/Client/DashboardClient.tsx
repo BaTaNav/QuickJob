@@ -272,6 +272,16 @@ function DashboardClientContent() {
             : `€${job.hourly_rate || 0}/uur`}
         </Text>
         
+        {/* Show Mark as Completed button for today's jobs that are not completed yet */}
+        {activeTab === 'Today' && job.status !== 'completed' && (
+          <TouchableOpacity 
+            style={styles.completeButton}
+            onPress={() => handleMarkAsCompleted(job)}
+          >
+            <Text style={styles.completeButtonText}>✓ Voltooid</Text>
+          </TouchableOpacity>
+        )}
+        
         {/* Show Pay button only for completed jobs */}
         {job.status === 'completed' && (
           <TouchableOpacity 
@@ -849,6 +859,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#176B51',
+  },
+  completeButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  completeButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 
   /* FOOTER */
