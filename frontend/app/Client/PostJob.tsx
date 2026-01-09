@@ -276,7 +276,7 @@ export default function PostJob() {
     hourly_or_fixed: "hourly",
     hourly_rate: null,
     fixed_price: null,
-    start_time: new Date(Date.now() + 7200000),
+    start_time: new Date(Date.now() + 9000000),
     end_time: null,
     duration: null,
     urgent: false,
