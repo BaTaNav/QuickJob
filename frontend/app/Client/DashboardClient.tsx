@@ -1,19 +1,30 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Image, Modal } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Image, Modal, Alert, Linking } from "react-native";
 import { useRouter } from 'expo-router';
-import { RefreshCw, Plus, ArrowDown, Handshake, User, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, Users, X } from "lucide-react-native";
-import { jobsAPI, getClientId } from "@/services/api";
+import { RefreshCw, Plus, ArrowDown, Handshake, User, Users, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, X, CreditCard } from "lucide-react-native";
+import { jobsAPI, getClientId, paymentAPI } from "@/services/api";
+import { StripeProvider, useStripe } from '@/services/stripe';
+import PaymentModal from '@/components/PaymentModal';
 
-export default function DashboardClient() {
+// Stripe publishable key (vervang met je ECHTE test key!)
+const STRIPE_PUBLISHABLE_KEY = 'pk_test_51SnKnBD3r0NQD7o9ndTkrFfUSHT9Jp5m9IrIaGBZaS51qYjt368MzWfPfUnMYUkBcVGDFYH6wsZWca2zyg8piYoN00Ua1cqjXE';
+
+function DashboardClientContent() {
   const [activeTab, setActiveTab] = useState("Open");
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [payingJobId, setPayingJobId] = useState<number | null>(null);
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [applicants, setApplicants] = useState<any[]>([]);
   const [loadingApplicants, setLoadingApplicants] = useState(false);
   const [showApplicantsModal, setShowApplicantsModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentJob, setPaymentJob] = useState<any>(null);
   const router = useRouter();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   // Fetch jobs from backend
   const fetchJobs = useCallback(async () => {
@@ -101,17 +112,106 @@ export default function DashboardClient() {
 
   const tabs = ["Open", "Today", "Planned", "Completed"];
 
-    // Force Browser Tab Title on Web
-    useEffect(() => {
-      if (Platform.OS === 'web') {
-        document.title = "QuickJob | Dashboard-Client";
-      }
-    }, []);
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      document.title = "QuickJob | Dashboard-Client";
+    }
+  }, []);
 
-  // Format date for display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Handle payment for completed job
+  const handlePayment = async (job: any) => {
+    try {
+      setPayingJobId(job.id);
+      
+      const clientId = await getClientId();
+      if (!clientId) {
+        Alert.alert('Error', 'Geen client sessie gevonden');
+        return;
+      }
+
+      // Calculate amount in cents
+      const amount = job.hourly_or_fixed === 'fixed' 
+        ? Math.round((job.fixed_price || 0) * 100)
+        : Math.round((job.hourly_rate || 0) * 100 * 8); // Assume 8 hours for hourly
+
+      if (amount < 50) {
+        Alert.alert('Error', 'Bedrag moet minimaal €0.50 zijn');
+        setPayingJobId(null);
+        return;
+      }
+
+      // Find the accepted student for this completed job
+      let studentId = null;
+      try {
+        const applicantsData = await jobsAPI.getJobApplicants(job.id);
+        const acceptedApplicant = applicantsData.applicants?.find(
+          (app: any) => app.status === 'accepted'
+        );
+        studentId = acceptedApplicant?.student?.id;
+      } catch (err) {
+        console.error('Failed to get accepted student:', err);
+      }
+
+      if (!studentId) {
+        Alert.alert('Error', 'Geen geaccepteerde student gevonden voor deze job. Accepteer eerst een applicant.');
+        setPayingJobId(null);
+        return;
+      }
+
+      // Create payment intent
+      const { client_secret } = await paymentAPI.createPaymentIntent({
+        student_id: studentId,
+        job_id: job.id,
+        client_id: parseInt(clientId),
+        amount,
+        currency: 'eur',
+        description: `Betaling voor ${job.title}`,
+      });
+
+      // On web, show payment modal instead of payment sheet
+      if (Platform.OS === 'web') {
+        setPaymentClientSecret(client_secret);
+        setPaymentAmount(amount);
+        setPaymentJob(job);
+        setShowPaymentModal(true);
+        setPayingJobId(null);
+        return;
+      }
+
+      // On mobile, use payment sheet
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: 'QuickJob',
+        paymentIntentClientSecret: client_secret,
+        defaultBillingDetails: {
+          name: 'Client',
+        },
+      });
+
+      if (initError) {
+        Alert.alert('Error', initError.message);
+        setPayingJobId(null);
+        return;
+      }
+
+      // Present payment sheet
+      const { error: paymentError } = await presentPaymentSheet();
+
+      if (paymentError) {
+        Alert.alert('Betaling geannuleerd', paymentError.message);
+      } else {
+        Alert.alert('Succes', 'Betaling succesvol! 🎉');
+        fetchJobs(); // Refresh jobs
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Betaling mislukt');
+    } finally {
+      setPayingJobId(null);
+    }
   };
 
   // Render a single job card
@@ -172,20 +272,41 @@ export default function DashboardClient() {
           {job.hourly_or_fixed === 'fixed' 
             ? `€${job.fixed_price || 0}` 
             : `€${job.hourly_rate || 0}/uur`}
-        </Text>        {(job.applicant_count > 0 || job.pending_applicants > 0 || job.accepted_applicants > 0) && (
+        </Text>
+        
+        {/* Show Pay button only for completed jobs */}
+        {job.status === 'completed' && (
           <TouchableOpacity 
-            style={styles.viewApplicantsBtn}
-            onPress={() => {
-              setSelectedJob(job);
-              fetchApplicants(job.id);
-            }}
+            style={[styles.payButton, payingJobId === job.id && styles.payButtonDisabled]}
+            onPress={() => handlePayment(job)}
+            disabled={payingJobId === job.id}
           >
-            <Users size={16} color="#176B51" />
-            <Text style={styles.viewApplicantsText}>
-              {job.applicant_count || 0} applicant{job.applicant_count !== 1 ? 's' : ''}
-            </Text>
+            {payingJobId === job.id ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <CreditCard size={16} color="#fff" />
+                <Text style={styles.payButtonText}>Betalen</Text>
+              </>
+            )}
           </TouchableOpacity>
-        )}      </View>
+        )}
+      </View>
+
+      {(job.applicant_count > 0 || job.pending_applicants > 0 || job.accepted_applicants > 0) && (
+        <TouchableOpacity 
+          style={styles.viewApplicantsBtn}
+          onPress={() => {
+            setSelectedJob(job);
+            fetchApplicants(job.id);
+          }}
+        >
+          <Users size={16} color="#176B51" />
+          <Text style={styles.viewApplicantsText}>
+            {job.applicant_count || 0} applicant{job.applicant_count !== 1 ? 's' : ''}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
   };
@@ -201,12 +322,9 @@ export default function DashboardClient() {
           <Text style={styles.headerTitle}>QuickJob</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity style={styles.iconButton} onPress={() => {
-            fetchJobs();
-          }}>
+          <TouchableOpacity style={styles.iconButton} onPress={fetchJobs}>
             <RefreshCw size={20} color="#64748B" />
           </TouchableOpacity>
-
           <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/Client/Profile' as never)}>
             <User size={20} color="#1B1B1B" />
           </TouchableOpacity>
@@ -406,59 +524,33 @@ export default function DashboardClient() {
             <View style={styles.footerLinks}>
               <View style={styles.footerColumn}>
                 <Text style={styles.footerColumnTitle}>Company</Text>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>About Us</Text>
-                </TouchableOpacity>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>Contact</Text>
-                </TouchableOpacity>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>Careers</Text>
-                </TouchableOpacity>
+                <TouchableOpacity><Text style={styles.footerLink}>About Us</Text></TouchableOpacity>
+                <TouchableOpacity><Text style={styles.footerLink}>Contact</Text></TouchableOpacity>
+                <TouchableOpacity><Text style={styles.footerLink}>Careers</Text></TouchableOpacity>
               </View>
 
               <View style={styles.footerColumn}>
                 <Text style={styles.footerColumnTitle}>Support</Text>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>Help Center</Text>
-                </TouchableOpacity>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>Safety</Text>
-                </TouchableOpacity>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>FAQ</Text>
-                </TouchableOpacity>
+                <TouchableOpacity><Text style={styles.footerLink}>Help Center</Text></TouchableOpacity>
+                <TouchableOpacity><Text style={styles.footerLink}>Safety</Text></TouchableOpacity>
+                <TouchableOpacity><Text style={styles.footerLink}>FAQ</Text></TouchableOpacity>
               </View>
 
               <View style={styles.footerColumn}>
                 <Text style={styles.footerColumnTitle}>Legal</Text>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>Privacy Policy</Text>
-                </TouchableOpacity>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>Terms of Service</Text>
-                </TouchableOpacity>
-                <TouchableOpacity>
-                  <Text style={styles.footerLink}>Cookie Policy</Text>
-                </TouchableOpacity>
+                <TouchableOpacity><Text style={styles.footerLink}>Privacy Policy</Text></TouchableOpacity>
+                <TouchableOpacity><Text style={styles.footerLink}>Terms of Service</Text></TouchableOpacity>
+                <TouchableOpacity><Text style={styles.footerLink}>Cookie Policy</Text></TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.footerSocial}>
               <Text style={styles.footerSocialTitle}>Follow Us</Text>
               <View style={styles.socialIcons}>
-                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Instagram')}>
-                  <Instagram size={20} color="#E4405F" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('LinkedIn')}>
-                  <Linkedin size={20} color="#0A66C2" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Facebook')}>
-                  <Facebook size={20} color="#1877F2" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.socialIcon} onPress={() => console.log('Twitter')}>
-                  <Twitter size={20} color="#1DA1F2" />
-                </TouchableOpacity>
+                <TouchableOpacity style={styles.socialIcon}><Instagram size={20} color="#E4405F" /></TouchableOpacity>
+                <TouchableOpacity style={styles.socialIcon}><Linkedin size={20} color="#0A66C2" /></TouchableOpacity>
+                <TouchableOpacity style={styles.socialIcon}><Facebook size={20} color="#1877F2" /></TouchableOpacity>
+                <TouchableOpacity style={styles.socialIcon}><Twitter size={20} color="#1DA1F2" /></TouchableOpacity>
               </View>
             </View>
 
@@ -468,15 +560,28 @@ export default function DashboardClient() {
             </View>
 
             <View style={styles.footerBottom}>
-              <Text style={styles.footerCopyright}>
-                © 2025 QuickJob. All rights reserved.
-              </Text>
+              <Text style={styles.footerCopyright}>© 2025 QuickJob. All rights reserved.</Text>
               <Text style={styles.footerVersion}>v1.0.0</Text>
             </View>
           </View>
 
         </View>
       </ScrollView>
+
+      {/* Payment Modal (Web only) */}
+      {Platform.OS === 'web' && showPaymentModal && (
+        <PaymentModal
+          onClose={() => setShowPaymentModal(false)}
+          clientSecret={paymentClientSecret}
+          amount={paymentAmount}
+          jobTitle={paymentJob?.title || ''}
+          onSuccess={() => {
+            Alert.alert('Succes', 'Betaling succesvol! 🎉');
+            fetchJobs();
+            setShowPaymentModal(false);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -502,69 +607,27 @@ const styles = StyleSheet.create({
     borderBottomColor: "#EFF0F6",
     paddingTop: Platform.OS === 'android' ? 48 : 56,
   },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#1a2e4c",
-  },
-  iconButton: {
-    padding: 8,
-    backgroundColor: "#F7F9FC",
-    borderRadius: 999,
-  },
-
-  // Content
-  contentContainer: {
-    padding: 24,
-    paddingBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1a2e4c",
-    marginBottom: 16,
-  },
-
-  // Stats
-  statsGrid: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 24,
-  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerTitle: { fontSize: 20, fontWeight: "800", color: "#1a2e4c" },
+  iconButton: { padding: 8, backgroundColor: "#F7F9FC", borderRadius: 999 },
+  contentContainer: { padding: 24, paddingBottom: 32 },
+  sectionTitle: { fontSize: 18, fontWeight: "700", color: "#1a2e4c", marginBottom: 16 },
+  statsGrid: { flexDirection: "row", gap: 12, marginBottom: 24 },
   statCard: {
-    flex: 1, // Allows cards to scale with width
+    flex: 1,
     backgroundColor: "#fff",
     padding: 16,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    // Shadow equivalent
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
   },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#176B51", // QuickJob Green
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#64748B",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-
-  // Actions
+  statNumber: { fontSize: 24, fontWeight: "700", color: "#176B51", marginBottom: 4 },
+  statLabel: { fontSize: 12, fontWeight: "500", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.5 },
   createJobBtn: {
     width: "100%",
     backgroundColor: "#176B51",
@@ -580,14 +643,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  createJobText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 16,
-    marginLeft: 8,
-  },
-
-  // Tabs
+  createJobText: { color: "#fff", fontWeight: "700", fontSize: 16, marginLeft: 8 },
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "#fff",
@@ -676,21 +732,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 8,
   },
-  clearDateText: { color: '#1a2e4c', fontWeight: '600' },
-  datePickerBtn: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#F4F6F7', borderRadius: 8 },
-  datePickerText: { color: '#1a2e4c', fontWeight: '600' },
-
-  // Empty State
-  emptyWrapper: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 48,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderStyle: "dashed",
+  payButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#176B51',
+    borderRadius: 8,
   },
+  payButtonDisabled: { opacity: 0.6 },
+  payButtonText: { fontSize: 14, fontWeight: "600", color: "#fff" },
+  loadingWrapper: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
+  loadingText: { marginTop: 12, fontSize: 14, color: "#64748B" },
+  emptyWrapper: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
   emptyIcon: {
     width: 48,
     height: 48,
@@ -797,16 +852,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#176B51',
   },
-  loadingWrapper: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 48,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#64748B",
-  },
 
   /* FOOTER */
   footer: {
@@ -819,54 +864,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
   },
-  footerSection: {
-    marginBottom: 24,
-  },
-  footerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#176B51",
-    marginBottom: 8,
-  },
-  footerDescription: {
-    fontSize: 14,
-    color: "#6B7280",
-    lineHeight: 20,
-  },
-  footerLinks: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 24,
-  },
-  footerColumn: {
-    flex: 1,
-  },
-  footerColumnTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 12,
-  },
-  footerLink: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginBottom: 8,
-  },
-  footerSocial: {
-    marginBottom: 24,
-    alignItems: "center",
-  },
-  footerSocialTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 12,
-  },
-  socialIcons: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 12,
-  },
+  footerSection: { marginBottom: 24 },
+  footerTitle: { fontSize: 20, fontWeight: "700", color: "#176B51", marginBottom: 8 },
+  footerDescription: { fontSize: 14, color: "#6B7280", lineHeight: 20 },
+  footerLinks: { flexDirection: "row", justifyContent: "space-between", marginBottom: 24 },
+  footerColumn: { flex: 1 },
+  footerColumnTitle: { fontSize: 14, fontWeight: "600", color: "#1F2937", marginBottom: 12 },
+  footerLink: { fontSize: 13, color: "#6B7280", marginBottom: 8 },
+  footerSocial: { marginBottom: 24, alignItems: "center" },
+  footerSocialTitle: { fontSize: 14, fontWeight: "600", color: "#1F2937", marginBottom: 12 },
+  socialIcons: { flexDirection: "row", justifyContent: "center", gap: 12 },
   socialIcon: {
     width: 40,
     height: 40,
@@ -877,15 +884,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-  footerContact: {
-    alignItems: "center",
-    marginBottom: 20,
-    gap: 8,
-  },
-  footerContactText: {
-    fontSize: 13,
-    color: "#6B7280",
-  },
+  footerContact: { alignItems: "center", marginBottom: 20, gap: 8 },
+  footerContactText: { fontSize: 13, color: "#6B7280" },
   footerBottom: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1046,3 +1046,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+
+// Wrap with StripeProvider
+export default function DashboardClient() {
+  return (
+    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+      <DashboardClientContent />
+    </StripeProvider>
+  );
+}

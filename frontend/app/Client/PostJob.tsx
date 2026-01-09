@@ -92,7 +92,6 @@ interface JobFormData {
   category_id: number | null;
   title: string;
   description: string;
-  // Structured address fields (new)
   street?: string;
   house_number?: string;
   postal_code?: string;
@@ -134,12 +133,10 @@ export default function PostJob() {
   const [language, setLanguage] = useState<"nl" | "fr" | "en">("nl");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // ... existing state ...
   const [image, setImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
 
-  // --- PASTE THIS BLOCK INSIDE THE COMPONENT ---
 
 
   const pickImage = async () => {
@@ -189,7 +186,7 @@ export default function PostJob() {
         // so they appear in the same place (slightly above center of viewport).
         const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
         const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-        const cardHeight = 280; 
+        const cardHeight = 280;
 
         // Try to use the trigger width as a hint for card width, but fall back to a sensible viewport fraction
         let preferredCardWidth = Math.min(520, Math.floor((el && typeof el.getBoundingClientRect === 'function') ? (el.getBoundingClientRect().width || viewportWidth * 0.6) : viewportWidth * 0.6));
@@ -251,7 +248,6 @@ export default function PostJob() {
 
   const cancelWebModal = () => setWebModal(null);
 
-  // Auto-focus + keyboard handling for modal
   React.useEffect(() => {
     if (!webModal) return;
     // Small timeout to allow render
@@ -273,15 +269,14 @@ export default function PostJob() {
     category_id: null,
     title: "",
     description: "",
-  // new structured address defaults
-  street: "",
-  house_number: "",
-  postal_code: "",
-  city: "",
+    street: "",
+    house_number: "",
+    postal_code: "",
+    city: "",
     hourly_or_fixed: "hourly",
     hourly_rate: null,
     fixed_price: null,
-    start_time: new Date(),
+    start_time: new Date(Date.now() + 7200000),
     end_time: null,
     duration: null,
     urgent: false,
@@ -386,8 +381,6 @@ export default function PostJob() {
     return parts.length > 0 ? parts.join(' ') : '';
   };
 
-  // Lightweight address parser: attempts to extract street, house_number, postal_code, city from a single input
-  // No single-line full-address input: users fill street, house_number, postal_code and city separately.
 
   const isStep1Valid = !!formData.category_id && formData.title.trim().length > 3 && validateAddressFields(formData);
   const isStep2Valid = true;
@@ -490,16 +483,16 @@ export default function PostJob() {
         finalEndTime.setHours(finalEndTime.getHours() + 2);
       }
 
-  const payload = {
+      const payload = {
         client_id: formData.client_id,
         category_id: formData.category_id!,
         title: formData.title,
         description: formData.description || undefined,
-  // Structured address fields (Belgium-only)
-  street: formData.street || undefined,
-  house_number: formData.house_number || undefined,
-  postal_code: formData.postal_code || undefined,
-  city: formData.city || undefined,
+        // Structured address fields (Belgium-only)
+        street: formData.street || undefined,
+        house_number: formData.house_number || undefined,
+        postal_code: formData.postal_code || undefined,
+        city: formData.city || undefined,
         hourly_or_fixed: formData.hourly_or_fixed,
         hourly_rate: formData.hourly_rate,
         fixed_price: formData.fixed_price,
@@ -720,7 +713,7 @@ export default function PostJob() {
                   {/* Country removed — Belgium only, handled server-side if needed */}
 
                   <View style={{ marginTop: 10 }}>
-                    
+
                   </View>
                 </View>
               </View>
@@ -967,11 +960,11 @@ export default function PostJob() {
                       {formData.start_time.toLocaleDateString()} om {formData.start_time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                   </View>
-                  
-            <View style={styles.summaryRow}>
-              <MapPin size={18} color="#666" />
-              <Text style={styles.summaryText}>{composeAddress(formData) || "Geen locatie opgegeven"}</Text>
-            </View>
+
+                  <View style={styles.summaryRow}>
+                    <MapPin size={18} color="#666" />
+                    <Text style={styles.summaryText}>{composeAddress(formData) || "Geen locatie opgegeven"}</Text>
+                  </View>
 
                   <View style={styles.summaryRow}>
                     <DollarSign size={18} color="#666" />
@@ -1037,9 +1030,7 @@ export default function PostJob() {
                     style={styles.webModalInput as any}
                   />
 
-                  {image && (
-                    <Image source={{ uri: image }} style={{ width: '100%', height: 200, borderRadius: 10, marginTop: 10 }} />
-                  )}
+
 
                   <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 18 }}>
                     <TouchableOpacity onPress={cancelWebModal} style={styles.webModalButtonSecondary}>
@@ -1068,12 +1059,12 @@ export default function PostJob() {
                   <MapPin size={14} color="#666" />
                   <Text style={[styles.previewText, { fontSize: 13 }]}>{composeAddress(formData) || 'Geen locatie'}</Text>
                 </View>
-                 <View style={styles.divider} />
-                 <Text style={styles.previewPrice}>
-                    {formData.hourly_or_fixed === 'fixed' 
-                      ? `€${formData.fixed_price || 0}` 
-                      : `~ €${(formData.duration || 0) * 20} (schatting)`}
-                 </Text>
+                <View style={styles.divider} />
+                <Text style={styles.previewPrice}>
+                  {formData.hourly_or_fixed === 'fixed'
+                    ? `€${formData.fixed_price || 0}`
+                    : `~ €${(formData.duration || 0) * 20} (schatting)`}
+                </Text>
               </View>
               {/* Extra spacer in sidebar to prevent overlap if content grows */}
               <View style={{ height: 100 }} />
@@ -1621,7 +1612,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-/* Web modal picker styles */
+  /* Web modal picker styles */
   webModalOverlay: {
     position: 'fixed',
     top: 0,

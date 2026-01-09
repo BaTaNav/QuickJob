@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // For mobile simulator: Use your computer's IP addressr
 const API_BASE_URL = Platform.OS === 'web' 
   ? 'http://localhost:3000' 
-  : 'http://10.2.88.146:3000';
+  : 'http://192.168.129.7:3000';
 
 // Add logging for debugging
 const logRequest = (method: string, url: string) => {
@@ -532,6 +532,125 @@ export const authAPI = {
   },
 };
 
+// Payment API Endpoints
+export const paymentAPI = {
+  // Connect Stripe account for a student (returns onboarding URL)
+  async connectStudentAccount(student_id: number) {
+    try {
+      const url = `${API_BASE_URL}/payments/connect-account`;
+      logRequest('POST', url);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to initiate Stripe onboarding');
+      }
+      const result = await response.json();
+      return result; // { onboarding_url, stripe_account_id, ... }
+    } catch (error: any) {
+      console.error('[Payment API Exception] Connect account failed:', error);
+      throw new Error(error.message || 'Stripe onboarding failed');
+    }
+  },
+
+  // Create payment intent for a job
+  async createPaymentIntent(data: {
+    student_id: number;
+    job_id: number;
+    client_id: number;
+    amount: number;
+    currency?: string;
+    description?: string;
+  }) {
+    try {
+      const url = `${API_BASE_URL}/payments/create-payment-intent`;
+      logRequest('POST', url);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Payment API Error]', response.status, errorText);
+        throw new Error(`Failed to create payment intent: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('[Payment API Success]', result);
+      return result;
+    } catch (error: any) {
+      console.error('[Payment API Exception]', error);
+      throw new Error(error.message || 'Payment failed');
+    }
+  },
+
+  // Request payment from client for a completed job
+  async requestPayment(data: {
+    job_id: number;
+    client_id: number;
+    student_id: number;
+    amount: number;
+    currency?: string;
+  }) {
+    try {
+      const url = `${API_BASE_URL}/payments/request-payment`;
+      logRequest('POST', url);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Payment API Error]', response.status, errorText);
+        throw new Error(`Failed to request payment: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('[Payment API Success] Payment request created:', result);
+      return result;
+    } catch (error: any) {
+      console.error('[Payment API Exception]', error);
+      throw new Error(error.message || 'Failed to request payment');
+    }
+  },
+
+  // Get payment status
+  async getPaymentStatus(paymentIntentId: string) {
+    try {
+      const url = `${API_BASE_URL}/payments/payment/${paymentIntentId}`;
+      logRequest('GET', url);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Payment API Error]', response.status, errorText);
+        throw new Error(`Failed to get payment status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('[Payment API Success] Payment status:', result);
+      return result;
+    } catch (error: any) {
+      console.error('[Payment Status Error]', error);
+      throw error;
+    }
+  },
+};
+
 // Admin API
 export const adminAPI = {
   async getPendingStudents() {
@@ -582,9 +701,7 @@ export const adminAPI = {
     application_id?: number | null;
     student_id?: number | null;
     client_id?: number | null;
-    severity?: 'low' | 'medium' | 'high';
-    status?: 'open' | 'in_review' | 'resolved' | 'dismissed';
-    admin_notes?: string | null;
+    incident_type?: string;
   }) {
     const url = `${API_BASE_URL}/incidents`;
     logRequest('POST', url);
@@ -598,21 +715,13 @@ export const adminAPI = {
     return data;
   },
 
-  async updateIncident(
-    id: number,
-    payload: Partial<{
-      status: 'open' | 'in_review' | 'resolved' | 'dismissed';
-      severity: 'low' | 'medium' | 'high';
-      description: string | null;
-      admin_notes: string | null;
-    }>
-  ) {
+  async updateIncidentStatus(id: number, status: string) {
     const url = `${API_BASE_URL}/incidents/${id}`;
     logRequest('PATCH', url);
     const res = await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ status }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to update incident');

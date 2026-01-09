@@ -185,7 +185,7 @@ export default function StudentProfile() {
                     </Pressable>
                     <RNView style={isWeb ? styles.leftIdentity : styles.headerIdentityMobile}>
                       <Text style={styles.leftName}>
-                        {profile?.school_name || 'Student'}
+                        {profile?.email || 'Student'}
                       </Text>
                       <Text style={styles.leftEmail}>{profile?.email || 'student@example.com'}</Text>
                     </RNView>
