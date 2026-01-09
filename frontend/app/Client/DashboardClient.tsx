@@ -82,7 +82,12 @@ function DashboardClientContent() {
   const openJobs = jobs.filter(j => j.status === 'open');
   // Treat jobs that already have an accepted applicant as planned in the UI
   // (some historical accepts may have left job.status as 'pending')
-  const plannedJobs = jobs.filter(j => j.status === 'planned' || j.status === 'assigned' || (j.accepted_applicants && j.accepted_applicants > 0) || !!j.accepted_applicant);
+  // EXCLUDE completed jobs so they don't appear in Planned tab
+  const plannedJobs = jobs.filter(j => 
+    (j.status === 'planned' || j.status === 'assigned' || (j.accepted_applicants && j.accepted_applicants > 0) || !!j.accepted_applicant)
+    && j.status !== 'completed'
+    && j.status !== 'expired'
+  );
   // Include expired jobs in Completed view so clients can see which jobs expired
   const completedJobs = jobs.filter(j => j.status === 'completed' || j.status === 'expired');
   const todayJobs = jobs.filter(j => {
