@@ -585,10 +585,10 @@ router.get("/:studentId/reviews", async (req, res) => {
     const studentId = parseInt(req.params.studentId);
 
     const { data, error } = await supabase
-      .from("job_reviews")
+      .from("reviews")
       .select(
         `
-        id, rating, comment, created_at
+        id, rating, comment, created_at, client_id, job_id
       `
       )
       .eq("student_id", studentId)
@@ -612,6 +612,348 @@ router.get("/:studentId/reviews", async (req, res) => {
   } catch (err) {
     console.error("Error fetching reviews:", err);
     res.status(500).json({ error: "Failed to fetch reviews" });
+  }
+});
+
+/**
+ * POST /students/reviews
+ * Create a new review for a student
+ * client_id comes from auth token (or temporary workaround: from body)
+ * student_id is fetched from jobs table using job_id
+ */
+router.post("/reviews", async (req, res) => {
+  try {
+    const { job_id, rating, comment, client_id: clientIdFromBody } = req.body;
+
+    // Validate required fields
+    if (!job_id || !rating || !comment) {
+      return res.status(400).json({ 
+        error: "Missing required fields: job_id, rating, comment" 
+      });
+    }
+
+    // Validate rating is between 1 and 5
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ error: "Rating must be between 1 and 5" });
+    }
+
+    // TODO: Get client_id from auth token when JWT is implemented
+    // For now, accept from body as temporary workaround
+    const client_id = clientIdFromBody; // req.user.id when auth is ready
+
+    if (!client_id) {
+      return res.status(401).json({ error: "Client authentication required" });
+    }
+
+    // Fetch job to get student_id and verify client ownership
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .select("id, client_id")
+      .eq("id", job_id)
+      .single();
+
+    if (jobError || !job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    // Verify the client owns this job
+    if (job.client_id !== parseInt(client_id)) {
+      return res.status(403).json({ error: "You can only review your own jobs" });
+    }
+
+    // Get the accepted applicant (student) for this job
+    const { data: application, error: appError } = await supabase
+      .from("job_applications")
+      .select("student_id")
+      .eq("job_id", job_id)
+      .eq("status", "accepted")
+      .maybeSingle();
+
+    if (appError || !application) {
+      return res.status(400).json({ error: "No accepted student found for this job" });
+    }
+
+    const student_id = application.student_id;
+
+    // Insert review into database
+    const { data: review, error } = await supabase
+      .from("reviews")
+      .insert({
+        student_id: parseInt(student_id),
+        client_id: parseInt(client_id),
+        job_id: parseInt(job_id),
+        rating: parseInt(rating),
+        comment: comment.trim(),
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (error) {
+      // Check if it's a duplicate review error
+      if (error.code === '23505') {
+        return res.status(409).json({ error: "You have already reviewed this job" });
+      }
+      console.error("Database error creating review:", error);
+      return res.status(400).json({ error: error.message || "Database error" });
+    }
+
+    res.status(201).json({
+      message: "Review created successfully",
+      review,
+    });
+  } catch (err) {
+    console.error("Error creating review:", err);
+    res.status(500).json({ error: err.message || "Failed to create review" });
+  }
+});
+
+/**
+ * GET /students/reviews/job/:jobId
+ * Get all reviews for a specific job
+ */
+router.get("/reviews/job/:jobId", async (req, res) => {
+  try {
+    const { jobId } = req.params;
+
+    const { data: reviews, error } = await supabase
+      .from("reviews")
+      .select(`
+        *,
+        student:users!reviews_student_id_fkey(id, email, first_name, last_name),
+        client:users!reviews_client_id_fkey(id, email, first_name, last_name)
+      `)
+      .eq("job_id", jobId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching job reviews:", error);
+      return res.status(500).json({ error: "Failed to fetch reviews" });
+    }
+
+    res.json({ reviews: reviews || [] });
+  } catch (err) {
+    console.error("Error in GET /reviews/job/:jobId:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+/**
+ * GET /students/reviews/student/:studentId
+ * Get all reviews for a specific student with pagination
+ */
+router.get("/reviews/student/:studentId", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const { data: reviews, error } = await supabase
+      .from("reviews")
+      .select(`
+        *,
+        client:users!reviews_client_id_fkey(id, email, first_name, last_name),
+        job:jobs(id, title)
+      `)
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error("Error fetching student reviews:", error);
+      return res.status(500).json({ error: "Failed to fetch reviews" });
+    }
+
+    res.json({ reviews: reviews || [] });
+  } catch (err) {
+    console.error("Error in GET /reviews/student/:studentId:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+/**
+ * GET /students/reviews/client/:clientId
+ * Get all reviews created by a specific client (optional - for client's own review history)
+ */
+router.get("/reviews/client/:clientId", async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const { data: reviews, error } = await supabase
+      .from("reviews")
+      .select(`
+        *,
+        student:users!reviews_student_id_fkey(id, email, first_name, last_name),
+        job:jobs(id, title)
+      `)
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error("Error fetching client reviews:", error);
+      return res.status(500).json({ error: "Failed to fetch reviews" });
+    }
+
+    res.json({ reviews: reviews || [] });
+  } catch (err) {
+    console.error("Error in GET /reviews/client/:clientId:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+/**
+ * GET /students/reviews/student/:studentId/summary
+ * Get review summary for a student (average rating + count)
+ */
+router.get("/reviews/student/:studentId/summary", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    const { data: reviews, error } = await supabase
+      .from("reviews")
+      .select("rating")
+      .eq("student_id", studentId);
+
+    if (error) {
+      console.error("Error fetching review summary:", error);
+      return res.status(500).json({ error: "Failed to fetch review summary" });
+    }
+
+    const count = reviews?.length || 0;
+    const average = count > 0
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) / count
+      : 0;
+
+    res.json({
+      student_id: parseInt(studentId),
+      average_rating: Math.round(average * 10) / 10, // Round to 1 decimal
+      review_count: count,
+    });
+  } catch (err) {
+    console.error("Error in GET /reviews/student/:studentId/summary:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+/**
+ * PATCH /students/reviews/:id
+ * Update a review (only by the client who created it)
+ */
+router.patch("/reviews/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating, comment, client_id: clientIdFromBody } = req.body;
+
+    // TODO: Get client_id from auth token when JWT is implemented
+    const client_id = clientIdFromBody; // req.user.id when auth is ready
+
+    if (!client_id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Check if review exists and belongs to this client
+    const { data: existingReview, error: fetchError } = await supabase
+      .from("reviews")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !existingReview) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+
+    if (existingReview.client_id !== parseInt(client_id)) {
+      return res.status(403).json({ error: "You can only update your own reviews" });
+    }
+
+    // Build update object
+    const updates = {};
+    if (rating !== undefined) {
+      if (rating < 1 || rating > 5) {
+        return res.status(400).json({ error: "Rating must be between 1 and 5" });
+      }
+      updates.rating = parseInt(rating);
+    }
+    if (comment !== undefined) {
+      updates.comment = comment.trim();
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+
+    // Update review
+    const { data: updatedReview, error: updateError } = await supabase
+      .from("reviews")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("Error updating review:", updateError);
+      return res.status(500).json({ error: "Failed to update review" });
+    }
+
+    res.json({
+      message: "Review updated successfully",
+      review: updatedReview,
+    });
+  } catch (err) {
+    console.error("Error in PATCH /reviews/:id:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+/**
+ * DELETE /students/reviews/:id
+ * Delete a review (only by the client who created it)
+ */
+router.delete("/reviews/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { client_id: clientIdFromBody } = req.body;
+
+    // TODO: Get client_id from auth token when JWT is implemented
+    const client_id = clientIdFromBody; // req.user.id when auth is ready
+
+    if (!client_id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Check if review exists and belongs to this client
+    const { data: existingReview, error: fetchError } = await supabase
+      .from("reviews")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !existingReview) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+
+    if (existingReview.client_id !== parseInt(client_id)) {
+      return res.status(403).json({ error: "You can only delete your own reviews" });
+    }
+
+    // Delete review
+    const { error: deleteError } = await supabase
+      .from("reviews")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      console.error("Error deleting review:", deleteError);
+      return res.status(500).json({ error: "Failed to delete review" });
+    }
+
+    res.json({ message: "Review deleted successfully" });
+  } catch (err) {
+    console.error("Error in DELETE /reviews/:id:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 

@@ -389,20 +389,28 @@ function DashboardClientContent() {
         
         {/* Show Pay button only for completed jobs */}
         {job.status === 'completed' && (
-          <TouchableOpacity 
-            style={[styles.payButton, payingJobId === job.id && styles.payButtonDisabled]}
-            onPress={() => handlePayment(job)}
-            disabled={payingJobId === job.id}
-          >
-            {payingJobId === job.id ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <CreditCard size={16} color="#fff" />
-                <Text style={styles.payButtonText}>Betalen</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity 
+              style={[styles.payButton, payingJobId === job.id && styles.payButtonDisabled]}
+              onPress={() => handlePayment(job)}
+              disabled={payingJobId === job.id}
+            >
+              {payingJobId === job.id ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <CreditCard size={16} color="#fff" />
+                  <Text style={styles.payButtonText}>Betalen</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.reviewButton}
+              onPress={() => router.push(`/Client/Review?jobId=${job.id}` as never)}
+            >
+              <Text style={styles.reviewButtonText}>✍️ Review</Text>
+            </TouchableOpacity>
+          </>
         )}
       </View>
 
@@ -865,6 +873,17 @@ const styles = StyleSheet.create({
   },
   payButtonDisabled: { opacity: 0.6 },
   payButtonText: { fontSize: 14, fontWeight: "600", color: "#fff" },
+  reviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#F59E0B',
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  reviewButtonText: { fontSize: 14, fontWeight: "600", color: "#fff" },
   loadingWrapper: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
   loadingText: { marginTop: 12, fontSize: 14, color: "#64748B" },
   emptyWrapper: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
