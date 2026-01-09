@@ -111,19 +111,14 @@ export default function StudentDashboard() {
         setPendingApplications([]);
         return;
       }
+      // Fetch all applications once. The backend returns applications with a joined
+      // `jobs` object for each application (see /students/:id/applications).
       const data = await studentAPI.getApplications(Number(sid));
-      // Split applications into pending and accepted (upcoming)
+      // Split into application-level groups for filtering and counts
       const pending = data.filter((app: any) => app.status === 'pending');
       const accepted = data.filter((app: any) => app.status === 'accepted');
-      setPendingApplications(pending || []);
+      setPendingApplications(pending || []); // keep as application objects (have job_id and jobs)
       setUpcomingApplications(accepted || []);
-      if (sid) {
-        const apps = await studentAPI.getApplications(parseInt(sid, 10));
-        // Map applications to Job structure if needed. Assuming apps have a 'job' property.
-        // Adjust this mapping based on actual API response structure.
-        const jobs = apps.map((app: any) => app.job).filter(Boolean); 
-        setPendingApplications(jobs);
-      }
     } catch (err) {
        console.log('Error fetching pending jobs:', err);
     } finally {
@@ -275,9 +270,11 @@ export default function StudentDashboard() {
 
   const mockJobs: Record<'today' | 'upcoming' | 'available' | 'pending' | 'archive', Array<any>> = {
     today: [],
-    upcoming: upcomingApplications,
+    // upcomingApplications and pendingApplications are arrays of application objects
+    // returned by the API which include a `jobs` sub-object with the job row.
+    upcoming: upcomingApplications.map((a: any) => a.jobs || a.job || a),
     available: availableJobs,
-    pending: pendingApplications,
+    pending: pendingApplications.map((a: any) => a.jobs || a.job || a),
     archive: [],
   };
 
