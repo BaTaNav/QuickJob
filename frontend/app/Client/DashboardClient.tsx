@@ -897,15 +897,19 @@ const styles = StyleSheet.create({
     color: '#176B51',
   },
   completeButton: {
-    backgroundColor: '#4CAF50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10B981',
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    paddingHorizontal: 12,
     borderRadius: 8,
+    gap: 6,
   },
   completeButtonText: {
     color: '#fff',
-    fontWeight: '600',
     fontSize: 14,
+    fontWeight: '600',
   },
 
   /* FOOTER */

@@ -959,9 +959,9 @@ router.patch("/:jobId/status", async (req, res) => {
       return res.status(403).json({ error: "Only student can mark job as in_progress" });
     }
 
-    if (status === "completed" && updated_by_role !== "student") {
-      return res.status(403).json({ error: "Only student can mark job as completed" });
-    }
+if (status === "completed" && updated_by_role !== "student" && updated_by_role !== "client") {
+  return res.status(403).json({ error: "Only student or client can mark job as completed" });
+}
 
     if (status === "paid" && updated_by_role !== "client") {
       return res.status(403).json({ error: "Only client can mark job as paid (via payment)" });
