@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Image, Modal, Alert, Linking } from "react-native";
 import { useRouter } from 'expo-router';
-import { RefreshCw, Plus, ArrowDown, Handshake, User, Users, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, X, CreditCard } from "lucide-react-native";
+import { RefreshCw, Plus, ArrowDown, Handshake, User, Users, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, X, CreditCard, Trash } from "lucide-react-native";
 import { jobsAPI, getClientId, paymentAPI } from "@/services/api";
 import { StripeProvider, useStripe } from '@/services/stripe';
 import PaymentModal from '@/components/PaymentModal';
@@ -239,6 +239,48 @@ function DashboardClientContent() {
     );
   };
 
+  // Handle deleting a job
+  const handleDeleteJob = async (job: any) => {
+    // --- WEB ---
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Weet je zeker dat je job "${job.title}" wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`)) {
+         performDelete(job);
+      }
+      return;
+    }
+
+    // --- MOBILE ---
+    Alert.alert(
+      'Job Verwijderen',
+      `Weet je zeker dat je "${job.title}" wilt verwijderen?`,
+      [
+        { text: 'Annuleren', style: 'cancel' },
+        { text: 'Verwijderen', style: 'destructive', onPress: () => performDelete(job) }
+      ]
+    );
+  };
+
+  const performDelete = async (job: any) => {
+      try {
+          const clientId = await getClientId();
+          if (!clientId) {
+              const msg = "Geen client sessie gevonden.";
+              Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Fout', msg);
+              return;
+          }
+          
+          await jobsAPI.deleteJob(job.id, parseInt(clientId));
+          
+          const successMsg = "Job succesvol verwijderd.";
+          Platform.OS === 'web' ? window.alert(successMsg) : Alert.alert('Succes', successMsg);
+          fetchJobs(); // Refresh
+      } catch (err: any) {
+          console.error("Delete error:", err);
+           const errorMsg = "Kon job niet verwijderen: " + err.message;
+           Platform.OS === 'web' ? window.alert(errorMsg) : Alert.alert('Fout', errorMsg);
+      }
+  };
+
   // Helper functie voor de daadwerkelijke actie
   const performCompletion = async (job: any) => {
     try {
@@ -325,6 +367,16 @@ function DashboardClientContent() {
             : `€${job.hourly_rate || 0}/uur`}
         </Text>
         
+        {/* DELETE BUTTON FOR OPEN JOBS */}
+        {job.status === 'open' && (
+             <TouchableOpacity 
+                style={styles.deleteButton}
+                onPress={() => handleDeleteJob(job)}
+             >
+                <Trash size={18} color="#EF4444" />
+             </TouchableOpacity>
+        )}
+
         {/* Show Mark as Completed button for today's jobs that are not completed yet */}
         {activeTab === 'Today' && job.status !== 'completed' && (
           <TouchableOpacity 
@@ -777,6 +829,15 @@ const styles = StyleSheet.create({
   },
   jobAction: { backgroundColor: '#176B51', paddingHorizontal: 12, paddingVertical: 8 },
   jobActionText: { color: '#fff', fontWeight: '700' },
+
+  deleteButton: {
+    padding: 8,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
 
   // Date input
   dateInput: {
