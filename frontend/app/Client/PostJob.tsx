@@ -971,8 +971,8 @@ export default function PostJob() {
                     <DollarSign size={18} color="#666" />
                     <Text style={styles.summaryText}>
                       {formData.hourly_or_fixed === 'fixed'
-                        ? `Vaste prijs: €${formData.fixed_price}`
-                        : `Per uur (${formData.duration ? formData.duration + 'u' : 'Duur onbekend'})`}
+                        ? `Vaste prijs: €${formData.urgent && formData.fixed_price ? Math.round(formData.fixed_price * 1.1 * 100) / 100 : formData.fixed_price}${formData.urgent ? ` (+10% spoed)` : ''}`
+                        : `€${formData.urgent && formData.duration ? Math.round((formData.duration * 20) * 1.1 * 100) / 100 : (formData.duration || 0) * 20} voor ${formData.duration || 0}u${formData.urgent ? ' (+10% spoed)' : ''}`}
                     </Text>
                   </View>
 
@@ -1063,8 +1063,8 @@ export default function PostJob() {
                 <View style={styles.divider} />
                 <Text style={styles.previewPrice}>
                   {formData.hourly_or_fixed === 'fixed'
-                    ? `€${formData.fixed_price || 0}`
-                    : `~ €${(formData.duration || 0) * 20} (schatting)`}
+                    ? `€${formData.urgent && formData.fixed_price ? Math.round(formData.fixed_price * 1.1 * 100) / 100 : formData.fixed_price || 0}${formData.urgent ? ' (+10%)' : ''}`
+                    : `€${formData.urgent && formData.duration ? Math.round((formData.duration * 20) * 1.1 * 100) / 100 : (formData.duration || 0) * 20}${formData.urgent ? ' (+10%)' : ''}`}
                 </Text>
               </View>
               {/* Extra spacer in sidebar to prevent overlap if content grows */}
