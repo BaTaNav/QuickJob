@@ -56,6 +56,7 @@ export default function StudentDashboard() {
   const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>(initialTab);
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
   const [pendingApplications, setPendingApplications] = React.useState<any[]>([]);
+  const [upcomingApplications, setUpcomingApplications] = React.useState<any[]>([]);
   const [dashboardData, setDashboardData] = React.useState<any>({ today: [], upcoming: [], pending: [], archive: [] });
 
   // Canonical job categories (kept in sync with PostJob.JOB_CATEGORIES)
@@ -104,14 +105,20 @@ export default function StudentDashboard() {
   const fetchPending = React.useCallback(async () => {
     try {
       setLoading(true);
-      const studentId = await getStudentId();
-      if (studentId) {
-        const apps = await studentAPI.getApplications(parseInt(studentId, 10));
-        // Map applications to Job structure if needed. Assuming apps have a 'job' property.
-        // Adjust this mapping based on actual API response structure.
-        const jobs = apps.map((app: any) => app.job).filter(Boolean); 
-        setPendingApplications(jobs);
+      setError('');
+      const sid = await getStudentId();
+      if (!sid) {
+        setPendingApplications([]);
+        return;
       }
+      // Fetch all applications once. The backend returns applications with a joined
+      // `jobs` object for each application (see /students/:id/applications).
+      const data = await studentAPI.getApplications(Number(sid));
+      // Split into application-level groups for filtering and counts
+      const pending = data.filter((app: any) => app.status === 'pending');
+      const accepted = data.filter((app: any) => app.status === 'accepted');
+      setPendingApplications(pending || []); // keep as application objects (have job_id and jobs)
+      setUpcomingApplications(accepted || []);
     } catch (err) {
        console.log('Error fetching pending jobs:', err);
     } finally {
@@ -263,9 +270,11 @@ export default function StudentDashboard() {
 
   const mockJobs: Record<'today' | 'upcoming' | 'available' | 'pending' | 'archive', Array<any>> = {
     today: [],
-    upcoming: [],
+    // upcomingApplications and pendingApplications are arrays of application objects
+    // returned by the API which include a `jobs` sub-object with the job row.
+    upcoming: upcomingApplications.map((a: any) => a.jobs || a.job || a),
     available: availableJobs,
-    pending: pendingApplications,
+    pending: pendingApplications.map((a: any) => a.jobs || a.job || a),
     archive: [],
   };
 
@@ -473,23 +482,19 @@ export default function StudentDashboard() {
       {!loading && !error && jobs.length > 0 ? (
         <View style={styles.jobsContainer}>
           <View style={styles.jobsList}>
-            {tab === 'pending' ? (
+            {tab === 'pending' && (
               // Render pending applications
               pendingApplications.map((app: any) => (
                 <Pressable
                   key={app.id}
                   style={styles.jobCard}
-
                   onPress={() => router.push(`/Student/Applied/${app.id}` as never)}
-
                 >
                   <JobImage uri={app.jobs?.image_url} />
                   <View style={styles.pendingHeader}>
                     <Clock size={16} color="#F59E0B" />
                     <Text style={styles.pendingBadge}>Pending Review</Text>
                   </View>
-
-
 
                   <Text style={styles.jobTitle}>{app.jobs?.title || 'Job'}</Text>
                   <Text style={styles.jobDescription}>{app.jobs?.description || 'Geen beschrijving'}</Text>
@@ -498,11 +503,35 @@ export default function StudentDashboard() {
                     {app.jobs?.start_time ? ` • Starts: ${new Date(app.jobs.start_time).toLocaleDateString('nl-BE')}` : ''}
                     {app.jobs?.area_text ? ` • ${app.jobs.area_text}` : ''}
                   </Text>
-
                 </Pressable>
-
               ))
-            ) : (
+            )}
+
+            {tab === 'upcoming' && (
+              // Render upcoming (accepted) applications
+              upcomingApplications.map((app: any) => (
+                <Pressable
+                  key={app.id}
+                  style={styles.jobCard}
+                  onPress={() => router.push(`/Student/Applied/${app.id}` as never)}
+                >
+                  <JobImage uri={app.jobs?.image_url} />
+                  <View style={styles.pendingHeader}>
+                    <Clock size={16} color="#10B981" />
+                    <Text style={[styles.pendingBadge, { color: '#10B981' }]}>Upcoming</Text>
+                  </View>
+
+                  <Text style={styles.jobTitle}>{app.jobs?.title || 'Job'}</Text>
+                  <Text style={styles.jobDescription}>{app.jobs?.description || 'Geen beschrijving'}</Text>
+                  <Text style={styles.jobMeta}>
+                    {app.jobs?.start_time ? new Date(app.jobs.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
+                    {app.jobs?.area_text ? ` • ${app.jobs.area_text}` : ''}
+                  </Text>
+                </Pressable>
+              ))
+            )}
+
+            {tab === 'available' && (
               // Render available jobs
               filteredJobs.map((job: any) => (
                 <Pressable
