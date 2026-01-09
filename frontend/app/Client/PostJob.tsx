@@ -20,7 +20,7 @@ import {
   Image,
   Modal,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import {
   ArrowLeft,
   Calendar,
@@ -542,6 +542,7 @@ export default function PostJob() {
 
       {/* --- Header --- */}
       <View style={styles.header}>
+              <Stack.Screen options={{ headerShown: false }} />
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.iconButton}
