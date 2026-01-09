@@ -1,11 +1,7 @@
-import { Platform } from 'react-native';
-
 // API Service for QuickJob Backend
 // For web: http://localhost:3000
 // For mobile simulator: Use your computer's IP address (e.g., http://192.168.1.x:3000)
-const API_BASE_URL = Platform.OS === 'web' 
-  ? 'http://localhost:3000' 
-  : 'http://10.2.88.69:3000';
+const API_BASE_URL = 'http://localhost:3000';
 
 // Add logging for debugging
 const logRequest = (method: string, url: string) => {
@@ -171,7 +167,7 @@ export const studentAPI = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ status: 'withdrawn' }),
+      body: JSON.stringify({ status: 'cancelled' }),
     });
     if (!response.ok) {
       throw new Error('Failed to cancel application');

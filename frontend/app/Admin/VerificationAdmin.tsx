@@ -1,163 +1,211 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput, Image } from "react-native";
-import { Handshake, Search, LogOut, Home, User } from "lucide-react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, TextInput, ActivityIndicator, Alert } from "react-native";
+import { Handshake, Search, LogOut, Check, X, ShieldAlert } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { adminAPI } from "@/services/api"; 
+
+const isMobile = Platform.OS !== 'web';
 
 export default function AdminVerificationPage() {
     const router = useRouter();
-  const [activeTab, setActiveTab] = useState("verification"); // 'verification' or 'incidents'
+    const [pendingStudents, setPendingStudents] = useState<any[]>([]);
+    const [verifiedStudents, setVerifiedStudents] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState("");
 
-    // Force Browser Tab Title on Web
     useEffect(() => {
       if (Platform.OS === 'web') {
         document.title = "QuickJob | Verification-Admin";
       }
     }, []);
 
+    const fetchData = useCallback(async () => {
+        try {
+            setLoading(true);
+            const [pending, verified] = await Promise.all([
+                adminAPI.getPendingStudents(),
+                adminAPI.getVerifiedStudents()
+            ]);
+            setPendingStudents(pending);
+            setVerifiedStudents(verified);
+        } catch (error) {
+            console.error("Error fetching verification data:", error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    const handleVerify = async (id: number, status: 'verified' | 'rejected') => {
+        try {
+            await adminAPI.verifyStudent(id, status);
+            // Update local state direct voor snelle UI feedback
+            setPendingStudents(prev => prev.filter(s => s.id !== id));
+            fetchData(); // Refresh lists to be sure
+            if (Platform.OS !== 'web') Alert.alert("Succes", `Student ${status === 'verified' ? 'goedgekeurd' : 'geweigerd'}`);
+        } catch (error) {
+            console.error("Verification error:", error);
+            if (Platform.OS !== 'web') Alert.alert("Error", "Actie mislukt");
+        }
+    };
+
+    const filteredVerified = verifiedStudents.filter(s => 
+        (s.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (s.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (s.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* Top Navigation Bar */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Handshake size={28} color="#176B51" strokeWidth={2.5} />
-          <Text style={styles.headerTitle}>QuickJob</Text>
-          <TouchableOpacity 
-            onPress={() => router.push("/Admin/DashboardAdmin")}
-            style={styles.navTab}
-          >
-            <Text style={[styles.subTabText, activeTab === "home" && styles.activeSubTabText]}>
-              Home
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => router.push("/Admin/VerificationAdmin")}
-            style={styles.navTab}
-          >
-            <Text style={[styles.subTabText, activeTab === "verification" && styles.activeSubTabText]}>
-              Studenten verificatie
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            onPress={() => router.push("/Admin/IncidentsAdmin")}
-            style={styles.navTab}
-          >
-            <Text style={[styles.subTabText, activeTab === "incidents" && styles.activeSubTabText]}>
-              Incidenten
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity style={styles.logoutBtn}>
-          <Text style={styles.logoutText}>Log out</Text>
-          <LogOut size={18} color="#1a2e4c" />
-        </TouchableOpacity>
+      {/* HEADER */}
+      <View style={[styles.header, isMobile && styles.headerMobile]}>
+            <View style={styles.headerLeft}>
+                <Handshake size={28} color="#176B51" strokeWidth={2.5} />
+                {!isMobile && <Text style={styles.headerTitle}>QuickJob Admin</Text>}
+            </View>
+            <View style={[styles.navContainer, isMobile && styles.navContainerMobile]}>
+                <TouchableOpacity onPress={() => router.push("/Admin/DashboardAdmin")} style={styles.navTab}>
+                    <Text style={styles.navTabText}>Home</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push("/Admin/VerificationAdmin")} style={[styles.navTab, styles.activeNavTab]}>
+                    <Text style={[styles.navTabText, styles.activeNavTabText]}>Verificatie</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push("/Admin/IncidentsAdmin")} style={styles.navTab}>
+                    <Text style={styles.navTabText}>Incidenten</Text>
+                </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={styles.logoutBtn} onPress={() => router.push("/Login")}>
+               {!isMobile && <Text style={styles.logoutText}>Log out</Text>}
+               <LogOut size={isMobile ? 24 : 18} color={isMobile ? "#ef4444" : "#1a2e4c"} />
+             </TouchableOpacity>
       </View>
 
-
-
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.contentContainer}>
+        <View style={[styles.contentContainer, isMobile && styles.contentContainerMobile]}>
 
-          <Text style={styles.pageTitle}>Student Verificatie</Text>
+          <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24}}>
+             <Text style={styles.pageTitle}>Student Verificatie</Text>
+             <TouchableOpacity onPress={fetchData} style={{padding: 8, backgroundColor: '#fff', borderRadius: 8}}>
+                 <Text style={{color: '#176B51', fontWeight: '600'}}>Refresh</Text>
+             </TouchableOpacity>
+          </View>
+          
 
           {/* SECTION: TO VERIFY */}
-          <Text style={styles.sectionHeader}>Te Verifiëren</Text>
-
-          <View style={styles.card}>
-            <View style={styles.cardTop}>
-              {/* Avatar Placeholder */}
-              <View style={styles.avatarContainer}>
-                <View style={styles.avatarPlaceholder}>
-                  <User size={32} color="#fff" />
-                </View>
-              </View>
-
-              {/* Details Grid */}
-              <View style={styles.detailsGrid}>
-                <View style={styles.detailColumn}>
-                  <DetailRow label="Naam student" value="dummy data" />
-                  <DetailRow label="Email student" value="dummy data" />
-                  <DetailRow label="Gemeente" value="dummy data" />
-                  <DetailRow label="Datum" value="dummy data" />
-                </View>
-                <View style={styles.detailColumn}>
-                  <DetailRow label="GSM nummer" value="+dummy data" />
-                  <DetailRow label="Universiteit" value="dummy data" />
-                </View>
-              </View>
-            </View>  
-
-            {/* Documents Box */}
-            <View style={styles.docsContainer}>
-              <View style={styles.docsHeader}>
-                <Text style={styles.docsHeaderText}>Documenten</Text>
-              </View>
-              <View style={styles.docsBody}>
-                <DocRow label="Studentenkaart:" status="geupload" />
-                <DocRow label="Identiteitskaart:" status="geupload" />
-                <DocRow label="Verificatiegesprek:" status="te plannen" />
-              </View>
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.actionRow}>
-              <TouchableOpacity style={[styles.actionBtn, styles.approveBtn]}>
-                <Text style={styles.btnText}>Goedkeuren en verifiëren</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]}>
-                <Text style={styles.btnText}>Weigeren</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16}}>
+            <ShieldAlert size={20} color="#F59E0B" />
+            <Text style={styles.sectionHeader}>Te Verifiëren ({pendingStudents.length})</Text>
           </View>
 
+          {loading ? (
+              <ActivityIndicator size="large" color="#176B51" style={{marginVertical: 40}} />
+          ) : pendingStudents.length === 0 ? (
+              <View style={styles.emptyState}>
+                  <Text style={{color: '#64748B'}}>Geen openstaande verificaties 🎉</Text>
+              </View>
+          ) : (
+              pendingStudents.map((student) => (
+                <View key={student.id} style={styles.card}>
+                    <View style={[styles.cardTop, isMobile && {flexDirection: 'column', alignItems: 'flex-start'}]}>
+                    {/* Avatar Placeholder */}
+                    <View style={styles.avatarContainer}>
+                        <View style={styles.avatarPlaceholder}>
+                             <Text style={{color: '#fff', fontSize: 18, fontWeight: '700'}}>
+                                 {(student.first_name?.[0] || 'S').toUpperCase()}
+                             </Text>
+                        </View>
+                    </View>
+
+                    {/* Details Grid */}
+                    <View style={styles.detailsGrid}>
+                        <View style={styles.detailColumn}>
+                        <DetailRow label="Naam" value={`${student.first_name || ''} ${student.last_name || ''}`} />
+                        <DetailRow label="Email" value={student.email || 'N/A'} />
+                        <DetailRow label="Gemeente" value={`${student.postal_code || ''} ${student.city || ''}`} />
+                        </View>
+                        <View style={styles.detailColumn}>
+                        <DetailRow label="GSM" value={student.phone || 'N/A'} />
+                        <DetailRow label="School" value={student.school_name || 'N/A'} />
+                        <DetailRow label="Sinds" value={student.created_at ? new Date(student.created_at).toLocaleDateString() : 'N/A'} />
+                        </View>
+                    </View>
+                    </View>  
+
+                    {/* Simpele Documenten Check (Mockup voor nu) */}
+                    <View style={styles.docsContainer}>
+                        <View style={styles.docsHeader}>
+                             <Text style={styles.docsHeaderText}>Status</Text>
+                        </View>
+                        <View style={styles.docsBody}>
+                            <DocRow label="Registratie voltooid:" status="✅ Ja" />
+                            <DocRow label="Verificatie nodig:" status="⚠️ Pending" />
+                        </View>
+                    </View>
+
+                    {/* Action Buttons */}
+                    <View style={styles.actionRow}>
+                        <TouchableOpacity style={[styles.actionBtn, styles.approveBtn]} onPress={() => handleVerify(student.id, 'verified')}>
+                            <Check size={18} color="#fff" />
+                            <Text style={styles.btnText}>Goedkeuren</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]} onPress={() => handleVerify(student.id, 'rejected')}>
+                            <X size={18} color="#fff" />
+                            <Text style={styles.btnText}>Weigeren</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+              ))
+          )}
 
           {/* SECTION: VERIFIED STUDENTS */}
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeader}>Geverifeerde Studenten</Text>
+            <Text style={styles.sectionHeader}>Geverifieerde Studenten</Text>
             <View style={styles.searchBar}>
               <Search size={16} color="#64748B" />
               <TextInput
-                placeholder="zoekbalk"
+                placeholder="Zoek student..."
                 style={styles.searchInput}
                 placeholderTextColor="#94A3B8"
+                value={searchTerm}
+                onChangeText={setSearchTerm}
               />
             </View>
           </View>
 
-          <TouchableOpacity 
-            onPress={() => router.push("/Admin/StudentProfileAdmin")}
-            style={styles.navTab}
-          >
-            <View style={styles.card}>
-              <View style={styles.cardTop}>
-                <View style={styles.detailsGrid}>
-                  <View style={styles.detailColumn}>
-                    <DetailRow label="Naam student" value="[dummy data]" />
-                    <DetailRow label="Email student" value="[dummy data]" />
-                    <DetailRow label="Gemeente" value="[dummy data]" />
-                  </View>
-                  <View style={styles.detailColumn}>
-                    <DetailRow label="GSM nummer" value="[dummy data]" />
-                    <DetailRow label="Universiteit" value="[dummy data]" />
-                  </View>
+          {filteredVerified.map((student) => (
+             <TouchableOpacity 
+                key={student.id}
+                onPress={() => router.push({ pathname: "/Admin/StudentProfileAdmin", params: { id: student.id } })}
+                activeOpacity={0.7}
+             >
+                <View style={styles.card}>
+                <View style={[styles.cardTop, { marginBottom: 0 }]}>
+                    <View style={styles.detailsGrid}>
+                    <View style={styles.detailColumn}>
+                        <DetailRow label="Naam" value={`${student.first_name || ''} ${student.last_name || ''}`} />
+                        <DetailRow label="Email" value={student.email || 'N/A'} />
+                    </View>
+                    <View style={styles.detailColumn}>
+                        <DetailRow label="School" value={student.school_name || 'N/A'} />
+                        <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 4}}>
+                            <Check size={14} color="green" />
+                            <Text style={{color: 'green', fontWeight: '600', marginLeft: 4, fontSize: 13}}>VERIFIED</Text>
+                        </View>
+                    </View>
+                    </View>
                 </View>
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.cardFooter}>
-                <View style={styles.statsRow}>
-                  <Text style={styles.statText}>jobs voltooid: <Text style={styles.statValue}>dummy data</Text></Text>
-                  <Text style={styles.statText}>Rating: <Text style={styles.statValue}>dummy data</Text></Text>
                 </View>
-                <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]}>
-                  <Text style={styles.btnText}>Verwijderen</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          ))}
+          
+          {filteredVerified.length === 0 && !loading && (
+               <Text style={{textAlign: 'center', color: '#9CA3AF', marginTop: 20}}>Geen studenten gevonden.</Text>
+          )}
 
         </View>
       </ScrollView>
@@ -192,6 +240,16 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 100,
   },
+  emptyState: {
+      padding: 30,
+      backgroundColor: '#fff', 
+      borderRadius: 12,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      borderStyle: 'dashed',
+      marginBottom: 30
+  },
 
   // Header
   header: {
@@ -205,41 +263,64 @@ const styles = StyleSheet.create({
     borderBottomColor: "#EFF0F6",
     paddingTop: Platform.OS === 'android' ? 48 : 16,
   },
+  headerMobile: {
+      flexDirection: 'column',
+      gap: 16,
+      alignItems: 'stretch',
+      paddingHorizontal: 16,
+  },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    justifyContent: isMobile ? 'center' : 'flex-start',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: "800",
     color: "#1a2e4c",
-    marginRight: 24,
+  },
+  navContainer: {
+      flexDirection: 'row',
+      gap: 8,
+      backgroundColor: '#F1F5F9',
+      padding: 4,
+      borderRadius: 8,
+      alignSelf: isMobile ? 'stretch' : 'auto',
+  },
+  navContainerMobile: {
+      justifyContent: 'space-between',
   },
   navTab: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 8,
+    borderRadius: 6,
+  },
+  activeNavTab: {
+      backgroundColor: '#fff',
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 1,
   },
   navTabText: {
-    fontSize: 16,
-    color: "#000",
-    fontWeight: "400",
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "500",
+    textAlign: 'center',
   },
   activeNavTabText: {
+    color: "#176B51",
     fontWeight: "700",
-  },
-  navLink: {
-    paddingHorizontal: 8,
-  },
-  navLinkText: {
-    fontSize: 16,
-    color: "#1a2e4c",
-    fontWeight: "500",
   },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    position: isMobile ? 'absolute' : 'relative',
+    top: isMobile ? 20 : 0,
+    right: isMobile ? 16 : 0,
   },
   logoutText: {
     fontSize: 14,
@@ -247,41 +328,20 @@ const styles = StyleSheet.create({
     color: "#1a2e4c",
   },
 
-  // Sub Header
-  subHeader: {
-    backgroundColor: "#E5E7EB", // Greyish background as per design
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-  },
-  subHeaderContent: {
-    flexDirection: "row",
-    gap: 32,
-  },
-  subTab: {},
-  activeSubTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: "#000",
-    paddingBottom: 2,
-  },
-  subTabText: {
-    fontSize: 16,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  activeSubTabText: {
-    color: "#000",
-    fontWeight: "700",
-  },
-
   // Content
   contentContainer: {
     padding: 24,
+    maxWidth: 1000,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  contentContainerMobile: {
+      padding: 16,
   },
   pageTitle: {
-    fontSize: 18,
-    color: "#374151",
-    marginBottom: 24,
-    marginTop: 8,
+    fontSize: 24,
+    fontWeight: '700',
+    color: "#1a2e4c",
   },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -289,157 +349,148 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 32,
     marginBottom: 16,
+    flexWrap: 'wrap',
+    gap: 12,
   },
   sectionHeader: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#1a2e4c",
-    marginBottom: 16,
   },
 
   // Cards
   card: {
-    backgroundColor: "#D1D5DB", // Specific grey background from image
-    borderRadius: 8,
+    backgroundColor: "#fff",
+    borderRadius: 16,
     padding: 24,
-    marginBottom: 8,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   cardTop: {
     flexDirection: "row",
-    marginBottom: 20,
+    gap: 24,
+    marginBottom: 24,
   },
   avatarContainer: {
-    marginRight: 20,
+    flexShrink: 0,
   },
   avatarPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#81E6D9", // Cyan color from image
+    width: 64,
+    height: 64,
+    backgroundColor: "#176B51",
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   detailsGrid: {
     flex: 1,
     flexDirection: "row",
+    gap: 32,
+    flexWrap: 'wrap',
   },
   detailColumn: {
     flex: 1,
+    minWidth: 200,
   },
   label: {
     fontSize: 12,
-    color: "#4B5563",
+    fontWeight: "600",
+    color: "#64748B",
+    textTransform: "uppercase",
     marginBottom: 2,
   },
   value: {
-    fontSize: 14,
-    color: "#1F2937",
+    fontSize: 15,
+    color: "#1a2e4c",
     fontWeight: "500",
   },
 
-  // Docs Table
+  // Docs
   docsContainer: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    padding: 16,
     marginBottom: 24,
-    borderRadius: 4,
-    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
   },
   docsHeader: {
-    backgroundColor: "#4B5563", // Dark header
-    padding: 8,
-    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingBottom: 8,
   },
   docsHeaderText: {
-    color: "#fff",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: "#1a2e4c",
   },
   docsBody: {
-    backgroundColor: "#6B7280", // Slightly lighter dark background
-    padding: 12,
+    gap: 8,
   },
   docRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 4,
   },
   docLabel: {
-    color: "#E5E7EB",
-    fontSize: 13,
+    fontSize: 14,
+    color: "#64748B",
   },
   docStatus: {
-    color: "#F3F4F6",
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
   },
 
   // Actions
   actionRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 16,
+    gap: 12,
   },
   actionBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 4,
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: 'row',
+    gap: 8,
   },
   approveBtn: {
-    backgroundColor: "#3DA33D", // Green from image
-    flex: 2,
+    backgroundColor: "#176B51",
   },
   rejectBtn: {
-    backgroundColor: "#DC2626", // Red
-    flex: 1,
-  },
-  deleteBtn: {
     backgroundColor: "#DC2626",
   },
   btnText: {
     color: "#fff",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 14,
   },
-
+  
   // Search
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E5E7EB",
-    borderRadius: 4,
-    paddingHorizontal: 10,
-    height: 36,
-    width: 150,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    width: 250,
   },
   searchInput: {
-    flex: 1,
     marginLeft: 8,
-    fontSize: 13,
-    color: "#000",
-    paddingVertical: 0,
-  },
-
-  // Verified Card specific
-  divider: {
-    height: 1,
-    backgroundColor: "#9CA3AF",
-    marginVertical: 16,
-  },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: 24,
-  },
-  statText: {
+    flex: 1,
     fontSize: 14,
-    color: "#374151",
-  },
-  statValue: {
-    fontWeight: "600",
-    color: "#111827",
-  },
+    color: "#1a2e4c",
+    outlineStyle: 'none',
+  } as any,
 });

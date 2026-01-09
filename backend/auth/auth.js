@@ -47,8 +47,8 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Error logging in:", err);
-    res.status(500).json({ error: "Failed to login" });
+    console.error("Register error:", err);
+    res.status(500).json({ error: "Registration failed" });
   }
 });
 

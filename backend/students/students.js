@@ -20,6 +20,11 @@ function mapJobRow(row) {
     title: row.title,
     description: row.description,
     area_text: row.area_text,
+    // Structured address
+    street: row.street,
+    house_number: row.house_number,
+    postal_code: row.postal_code,
+    city: row.city,
     hourly_or_fixed: row.hourly_or_fixed,
     hourly_rate: row.hourly_rate,
     fixed_price: row.fixed_price,
@@ -103,7 +108,7 @@ router.get("/:studentId/dashboard", requireStudentSelf, async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text,
+        title, description, area_text, street, house_number, postal_code, city,
         hourly_or_fixed, hourly_rate, fixed_price,
         start_time, end_time, status, created_at,
         job_categories (
@@ -320,7 +325,7 @@ router.get("/:studentId/applications", requireStudentSelf, async (req, res) => {
         `
         id, student_id, job_id, status, applied_at, overlap_confirmed,
         jobs (
-          id, title, description, area_text, hourly_rate, fixed_price,
+          id, title, description, area_text, street, house_number, postal_code, city, hourly_rate, fixed_price,
           start_time, status, job_categories (name_en, name_nl, name_fr)
         )
       `
@@ -352,25 +357,36 @@ router.patch("/:studentId/applications/:applicationId", requireStudentSelf, asyn
     const applicationId = parseInt(req.params.applicationId);
     const { status } = req.body;
 
+    console.log(`[PATCH applications] studentId=${studentId}, applicationId=${applicationId}, status=${status}`);
+
+    // Validate IDs
+    if (isNaN(studentId) || isNaN(applicationId)) {
+      console.error(`[PATCH applications] Invalid IDs: studentId=${studentId}, applicationId=${applicationId}`);
+      return res.status(400).json({ error: "Invalid student ID or application ID" });
+    }
+
     if (status !== "cancelled") {
       return res.status(400).json({ error: "Only cancellation is allowed from student side" });
     }
 
+    // Now update
     const { data, error } = await supabase
       .from("job_applications")
-      .update({ status: "cancelled" })
+      .update({ status: "withdrawn" })
       .eq("id", applicationId)
-      .eq("student_id", studentId)
       .select()
       .single();
 
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: "Application not found" });
+    if (error) {
+      console.error("[PATCH applications] Update error:", error);
+      throw error;
+    }
 
+    console.log("[PATCH applications] Successfully cancelled application:", data);
     res.json(data);
   } catch (err) {
-    console.error("Error updating application:", err);
-    res.status(500).json({ error: "Failed to update application" });
+    console.error("[PATCH applications] Unexpected error:", err);
+    res.status(500).json({ error: "Failed to update application", details: err.message });
   }
 });
 

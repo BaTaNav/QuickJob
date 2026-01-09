@@ -2,6 +2,21 @@ const express = require("express");
 const supabase = require("../supabaseClient");
 const router = express.Router();
 
+// Multer (optional): use try/catch so the server can still start when multer
+// is not installed (helps development). If missing, the /jobs/upload-image
+// route will return 501 with a helpful message.
+let multer;
+let upload = null;
+try {
+  multer = require("multer");
+  // Configure Multer to store files in memory
+  const storage = multer.memoryStorage();
+  upload = multer({ storage: storage });
+} catch (e) {
+  // multer is optional for local development; log a clear message.
+  console.warn('Multer is not installed. Image upload endpoint will be disabled. To enable, run `npm install multer` in the backend folder.');
+}
+
 /**
  * Helper: Map job row to clean object
  */
@@ -13,12 +28,21 @@ function mapJobRow(row) {
     title: row.title,
     description: row.description,
     area_text: row.area_text,
-    hourly_or_fixed: row.hourly_or_fixed,
+    // Structured address
+    street: row.street,
+    house_number: row.house_number,
+    postal_code: row.postal_code,
+    city: row.city,
+  hourly_or_fixed: row.hourly_or_fixed,
     hourly_rate: row.hourly_rate,
     fixed_price: row.fixed_price,
+  // Optional geocoded coordinates (may be null until DB columns are added/backfilled)
+  latitude: row.latitude || null,
+  longitude: row.longitude || null,
     start_time: row.start_time,
     status: row.status,
     created_at: row.created_at,
+    image_url: row.image_url, 
     category: row.job_categories
       ? {
           id: row.job_categories.id,
@@ -32,23 +56,153 @@ function mapJobRow(row) {
 }
 
 /**
+ * POST /jobs/upload-image
+ * Uploads an image file to Supabase Storage (Bucket: 'job-images')
+ */
+/**
+ * POST /jobs/upload-image
+ * Uploads an image file to Supabase Storage (Bucket: 'job-images')
+ */
+if (upload) {
+  router.post("/upload-image", upload.single("image"), async (req, res) => {
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      console.log("Attempting to upload:", file.originalname); // Log 1
+
+      // 1. Generate a unique filename
+      const fileExt = file.originalname.split(".").pop();
+      const fileName = `job-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // 2. Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from("job-images") // <--- MUST MATCH YOUR SUPABASE BUCKET NAME
+        .upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
+
+      if (error) {
+        console.error("Supabase Storage Error:", error); // Log 2: Print actual error to terminal
+        throw error;
+      }
+
+      // 3. Get Public URL
+      const { data: publicUrlData } = supabase.storage
+        .from("job-images")
+        .getPublicUrl(filePath);
+
+      console.log("Upload success, URL:", publicUrlData.publicUrl); // Log 3
+
+      res.status(200).json({ url: publicUrlData.publicUrl });
+    } catch (error) {
+      console.error("Server Upload Error:", error.message);
+      // Send the ACTUAL error message to the frontend
+      res.status(500).json({ error: error.message, details: error });
+    }
+  });
+} else {
+  router.post("/upload-image", async (req, res) => {
+    res.status(501).json({ error: 'Image upload disabled on server. Install multer in backend: npm install multer' });
+  });
+}
+
+/**
+ * Geocode a free-text or composed address using Nominatim (OpenStreetMap).
+ * Returns { latitude, longitude } or null on failure.
+ * NOTE: For production use, respect Nominatim usage policy and consider a paid geocoding service.
+ */
+async function geocodeAddress(address) {
+  if (!address) return null;
+  try {
+    const q = encodeURIComponent(address + ', Belgium');
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&addressdetails=0&countrycodes=be`;
+    // Log the geocoding request for debugging (remove or reduce verbosity in production)
+    console.log('Geocoding request URL:', url);
+    const res = await fetch(url, {
+      headers: {
+        // Nominatim requires a valid User-Agent or Referer identifying the application
+        'User-Agent': 'QuickJob/1.0 (contact@quickjob.be)'
+      }
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    if (!Array.isArray(j) || j.length === 0) return null;
+    const first = j[0];
+    console.log('Geocoding result:', first);
+    return {
+      latitude: parseFloat(first.lat),
+      longitude: parseFloat(first.lon),
+    };
+  } catch (err) {
+    console.warn('Geocoding failed:', err);
+    return null;
+  }
+}
+
+/**
+ * GET /jobs/geocode?address=...
+ * Simple wrapper around geocodeAddress to support frontend address-based mapping.
+ */
+router.get('/geocode', async (req, res) => {
+  try {
+    const address = req.query.address;
+    if (!address || String(address).trim() === '') {
+      return res.status(400).json({ error: 'Missing address query parameter' });
+    }
+
+    const geo = await geocodeAddress(String(address));
+    if (!geo) {
+      return res.status(404).json({ error: 'No geocoding result' });
+    }
+    res.json(geo);
+  } catch (err) {
+    console.error('Error in /jobs/geocode:', err);
+    res.status(500).json({ error: 'Geocoding failed' });
+  }
+});
+
+/**
  * GET /jobs/available
  * Get all available jobs (not filtered by location yet)
- * Optional query: ?status=open&limit=20
+ * Optional query: ?status=open&limit=20&studentId=123
+ * If studentId is provided, excludes jobs the student has already applied to
  */
 router.get("/available", async (req, res) => {
   try {
     const status = req.query.status || "open";
     const limit = parseInt(req.query.limit) || 50;
+    const studentId = req.query.studentId ? parseInt(req.query.studentId) : null;
 
-    const { data, error } = await supabase
+    // If studentId provided, get job IDs the student has ACTIVE applications for (pending/accepted)
+    // Withdrawn/rejected applications should NOT exclude the job from available
+    let excludeJobIds = [];
+    if (studentId) {
+      const { data: applications, error: appError } = await supabase
+        .from("job_applications")
+        .select("job_id")
+        .eq("student_id", studentId)
+        .in("status", ["pending", "accepted"]); // Only exclude active applications
+      
+      if (appError) {
+        console.error("Error fetching student applications:", appError);
+      } else if (applications && applications.length > 0) {
+        excludeJobIds = applications.map(app => app.job_id);
+      }
+    }
+
+    let query = supabase
       .from("jobs")
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text,
+        title, description, area_text, street, house_number, postal_code, city, latitude, longitude,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
+        start_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -58,54 +212,24 @@ router.get("/available", async (req, res) => {
       .order("start_time", { ascending: true })
       .limit(limit);
 
+    // Exclude jobs the student has already applied to
+    if (excludeJobIds.length > 0) {
+      query = query.not("id", "in", `(${excludeJobIds.join(",")})`);
+    }
+
+    const { data, error } = await query;
+
     if (error) throw error;
 
     const jobs = data?.map(mapJobRow) || [];
     res.json({
       jobs,
       message: jobs.length === 0 ? "No jobs available at the moment" : null,
-      count: jobs.length
+      count: jobs.length,
     });
   } catch (err) {
     console.error("Error fetching available jobs:", err);
     res.status(500).json({ error: "Failed to fetch jobs" });
-  }
-});
-
-/**
- * GET /jobs/:id
- * Get a specific job with full details
- */
-router.get("/:id", async (req, res) => {
-  try {
-    const jobId = parseInt(req.params.id);
-
-    const { data, error } = await supabase
-      .from("jobs")
-      .select(
-        `
-        id, client_id, category_id,
-        title, description, area_text,
-        hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
-        job_categories (
-          id, key, name_nl, name_fr, name_en
-        )
-      `
-      )
-      .eq("id", jobId)
-      .single();
-
-    if (error?.code === 'PGRST116' || !data) {
-      return res.status(404).json({ error: "No job found with this ID" });
-    }
-    if (error) throw error;
-
-    const job = mapJobRow(data);
-    res.json(job);
-  } catch (err) {
-    console.error("Error fetching job:", err);
-    res.status(500).json({ error: "Failed to fetch job" });
   }
 });
 
@@ -124,9 +248,10 @@ router.get("/search", async (req, res) => {
       .select(
         `
         id, client_id, category_id,
-        title, description, area_text,
+  title, description, area_text, street, house_number, postal_code, city,
+        latitude, longitude,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
+        start_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -136,10 +261,13 @@ router.get("/search", async (req, res) => {
 
     // Add filters
     if (searchTerm) {
-      query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+      query = query.or(
+        `title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
+      );
     }
     if (location) {
-      query = query.ilike("area_text", `%${location}%`);
+      // Match location against city OR area_text for backward compatibility
+      query = query.or(`city.ilike.%${location}%,area_text.ilike.%${location}%`);
     }
     if (categoryId) {
       query = query.eq("category_id", parseInt(categoryId));
@@ -155,7 +283,7 @@ router.get("/search", async (req, res) => {
     res.json({
       jobs,
       message: jobs.length === 0 ? "No jobs match your search criteria" : null,
-      count: jobs.length
+      count: jobs.length,
     });
   } catch (err) {
     console.error("Error searching jobs:", err);
@@ -175,10 +303,15 @@ router.post("/", async (req, res) => {
       title,
       description,
       area_text,
+      street,
+      house_number,
+      postal_code,
+      city,
       hourly_or_fixed,
       hourly_rate,
       fixed_price,
       start_time,
+      image_url,
     } = req.body;
 
     const clientIdNum = parseInt(client_id, 10);
@@ -187,16 +320,40 @@ router.post("/", async (req, res) => {
     // Validate required fields
     if (!clientIdNum || !categoryIdNum || !title || !start_time) {
       return res.status(400).json({
-        error: "Missing required fields: client_id, category_id, title, start_time",
+        error:
+          "Missing required fields: client_id, category_id, title, start_time",
       });
     }
 
-    // Validate hourly_or_fixed and corresponding price
-    if (hourly_or_fixed === "fixed" && !fixed_price) {
-      return res.status(400).json({ error: "Fixed price required for fixed jobs" });
+    // Require structured address fields (at least one) instead of relying solely on area_text.
+    const hasStructuredAddress = (street && String(street).trim() !== '') ||
+      (house_number && String(house_number).trim() !== '') ||
+      (postal_code && String(postal_code).trim() !== '') ||
+      (city && String(city).trim() !== '');
+
+    if (!hasStructuredAddress) {
+      return res.status(400).json({
+        error: "Missing structured address. Please provide at least one of: street, house_number, postal_code or city.",
+      });
     }
 
-    // Insert job
+    // If area_text is not provided, compose a best-effort area_text from structured fields for backward compatibility
+    const composedAreaText = area_text && String(area_text).trim() !== ''
+      ? area_text
+      : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
+
+    // Validate hourly_or_fixed and corresponding price
+    if (hourly_or_fixed === "fixed" && !fixed_price) {
+      return res
+        .status(400)
+        .json({ error: "Fixed price required for fixed jobs" });
+    }
+
+  // Insert job
+  // Attempt geocoding of the composed address (best-effort)
+  console.log('Composed area_text for geocoding:', composedAreaText);
+  const geo = await geocodeAddress(composedAreaText);
+
     const { data: job, error: jobError } = await supabase
       .from("jobs")
       .insert({
@@ -204,13 +361,20 @@ router.post("/", async (req, res) => {
         category_id: categoryIdNum,
         title,
         description: description || null,
-        area_text: area_text || null,
+        area_text: composedAreaText,
+        street: street || null,
+        house_number: house_number || null,
+        postal_code: postal_code || null,
+        city: city || null,
+        latitude: geo ? geo.latitude : null,
+        longitude: geo ? geo.longitude : null,
         hourly_or_fixed,
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
         start_time,
         status: "open",
         created_at: new Date().toISOString(),
+        image_url: image_url || null, // Save image URL
       })
       .select()
       .single();
@@ -232,6 +396,7 @@ router.post("/", async (req, res) => {
  * POST /jobs/draft
  * Save a draft job (status=draft)
  */
+// POST /jobs/draft - Save a draft job (status=draft)
 router.post("/draft", async (req, res) => {
   try {
     const {
@@ -240,21 +405,46 @@ router.post("/draft", async (req, res) => {
       title,
       description,
       area_text,
+      street,
+      house_number,
+      postal_code,
+      city,
       hourly_or_fixed,
       hourly_rate,
       fixed_price,
       start_time,
+      image_url,
     } = req.body;
 
     const clientIdNum = parseInt(client_id, 10);
     const categoryIdNum = parseInt(category_id, 10);
 
-    // Minimal required fields for draft
-    if (!clientIdNum || !categoryIdNum || !title) {
+    // Minimal validation for drafts
+    if (!clientIdNum || !categoryIdNum || !title || !start_time) {
       return res.status(400).json({
-        error: "Missing required fields: client_id, category_id, title",
+        error: "Missing required fields: client_id, category_id, title, start_time",
       });
     }
+
+    // For drafts, also encourage structured address. If none provided, reject to enforce the new pattern.
+    const hasStructuredAddress = (street && String(street).trim() !== '') ||
+      (house_number && String(house_number).trim() !== '') ||
+      (postal_code && String(postal_code).trim() !== '') ||
+      (city && String(city).trim() !== '');
+
+    if (!hasStructuredAddress) {
+      return res.status(400).json({
+        error: "Missing structured address for draft. Please provide at least one of: street, house_number, postal_code or city.",
+      });
+    }
+
+    // Compose area_text from structured fields if not explicitly provided
+    const composedAreaText = area_text && String(area_text).trim() !== ''
+      ? area_text
+      : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
+
+    // Attempt geocoding for draft as well (best-effort)
+    const geoDraft = await geocodeAddress(composedAreaText);
 
     const { data: job, error: jobError } = await supabase
       .from("jobs")
@@ -263,13 +453,20 @@ router.post("/draft", async (req, res) => {
         category_id: categoryIdNum,
         title,
         description: description || null,
-        area_text: area_text || null,
-        hourly_or_fixed: hourly_or_fixed || "hourly",
+        area_text: composedAreaText,
+        street: street || null,
+        house_number: house_number || null,
+        postal_code: postal_code || null,
+        city: city || null,
+        latitude: geoDraft ? geoDraft.latitude : null,
+        longitude: geoDraft ? geoDraft.longitude : null,
+        hourly_or_fixed,
         hourly_rate: hourly_rate || null,
         fixed_price: fixed_price || null,
-        start_time: start_time || null,
+        start_time,
         status: "draft",
         created_at: new Date().toISOString(),
+        image_url: image_url || null,
       })
       .select()
       .single();
@@ -278,12 +475,12 @@ router.post("/draft", async (req, res) => {
 
     const mapped = mapJobRow(job);
     res.status(201).json({
-      message: "Job draft saved",
+      message: "Job created successfully",
       job: mapped,
     });
   } catch (err) {
-    console.error("Error saving draft:", err);
-    res.status(500).json({ error: "Failed to save draft" });
+    console.error("Error creating job:", err);
+    res.status(500).json({ error: "Failed to create job" });
   }
 });
 
@@ -307,8 +504,9 @@ router.get("/client/:clientId", async (req, res) => {
         `
         id, client_id, category_id,
         title, description, area_text,
+        street, house_number, postal_code, city, latitude, longitude,
         hourly_or_fixed, hourly_rate, fixed_price,
-        start_time, status, created_at,
+        start_time, status, created_at, image_url,
         job_categories (
           id, key, name_nl, name_fr, name_en
         )
@@ -325,7 +523,34 @@ router.get("/client/:clientId", async (req, res) => {
 
     if (error) throw error;
 
-    const jobs = data?.map(mapJobRow) || [];
+    // Get applicant counts for each job
+    const jobIds = data?.map(job => job.id) || [];
+    let applicantCounts = {};
+    
+    if (jobIds.length > 0) {
+      const { data: applications, error: appError } = await supabase
+        .from("job_applications")
+        .select("job_id, status")
+        .in("job_id", jobIds)
+        .in("status", ["pending", "accepted"]); // Only count active applications
+      
+      if (!appError && applications) {
+        applications.forEach(app => {
+          if (!applicantCounts[app.job_id]) {
+            applicantCounts[app.job_id] = { pending: 0, accepted: 0 };
+          }
+          applicantCounts[app.job_id][app.status]++;
+        });
+      }
+    }
+
+    const jobs = data?.map(job => ({
+      ...mapJobRow(job),
+      applicant_count: (applicantCounts[job.id]?.pending || 0) + (applicantCounts[job.id]?.accepted || 0),
+      pending_applicants: applicantCounts[job.id]?.pending || 0,
+      accepted_applicants: applicantCounts[job.id]?.accepted || 0,
+    })) || [];
+
     res.json({
       jobs,
       message: jobs.length === 0 ? "No jobs found for this client" : null,
@@ -334,6 +559,273 @@ router.get("/client/:clientId", async (req, res) => {
   } catch (err) {
     console.error("Error fetching client jobs:", err);
     res.status(500).json({ error: "Failed to fetch client jobs" });
+  }
+});
+
+/**
+ * GET /jobs/:jobId/applicants
+ * Get all applicants for a specific job (for client to view)
+ */
+router.get("/:jobId/applicants", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId, 10);
+
+    if (!jobId) {
+      return res.status(400).json({ error: "Invalid job ID" });
+    }
+
+    // Get the job to verify it exists
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .select("id, client_id, title")
+      .eq("id", jobId)
+      .single();
+
+    if (jobError || !job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    // Get all applications for this job
+    const { data: applications, error: appError } = await supabase
+      .from("job_applications")
+      .select("id, status, applied_at, student_id")
+      .eq("job_id", jobId)
+      .in("status", ["pending", "accepted"])
+      .order("applied_at", { ascending: false });
+
+    if (appError) throw appError;
+
+    // For each application, fetch the student profile and user info
+    let applicants = [];
+    if (applications && applications.length > 0) {
+      const studentIds = applications.map(app => app.student_id);
+      
+      // Fetch all student profiles
+      const { data: profiles, error: profileError } = await supabase
+        .from("student_profiles")
+        .select("id, school_name, field_of_study, academic_year, avatar_url, verification_status")
+        .in("id", studentIds);
+
+      if (profileError) throw profileError;
+
+      // Fetch all users
+      const { data: users, error: userError } = await supabase
+        .from("users")
+        .select("id, email, phone")
+        .in("id", studentIds);
+
+      if (userError) throw userError;
+
+      // Create lookup maps
+      const profileMap = {};
+      const userMap = {};
+      
+      profiles?.forEach(profile => {
+        profileMap[profile.id] = profile;
+      });
+      
+      users?.forEach(user => {
+        userMap[user.id] = user;
+      });
+
+      // Build applicant list
+      applicants = applications.map(app => ({
+        application_id: app.id,
+        status: app.status,
+        applied_at: app.applied_at,
+        student: {
+          id: app.student_id,
+          email: userMap[app.student_id]?.email,
+          phone: userMap[app.student_id]?.phone,
+          school_name: profileMap[app.student_id]?.school_name,
+          field_of_study: profileMap[app.student_id]?.field_of_study,
+          academic_year: profileMap[app.student_id]?.academic_year,
+          avatar_url: profileMap[app.student_id]?.avatar_url,
+          verification_status: profileMap[app.student_id]?.verification_status,
+        }
+      }));
+    }
+
+    res.json({
+      job_id: jobId,
+      job_title: job.title,
+      applicants,
+      count: applicants.length,
+    });
+  } catch (err) {
+    console.error("Error fetching applicants:", err);
+    res.status(500).json({ error: "Failed to fetch applicants" });
+  }
+});
+
+/**
+ * PATCH /jobs/:jobId/applicants/:applicationId
+ * Accept or reject an applicant
+ */
+router.patch("/:jobId/applicants/:applicationId", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId, 10);
+    const applicationId = parseInt(req.params.applicationId, 10);
+    const { status } = req.body; // 'accepted' or 'rejected'
+
+    if (!jobId || !applicationId) {
+      return res.status(400).json({ error: "Invalid job or application ID" });
+    }
+
+    if (!['accepted', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: "Status must be 'accepted' or 'rejected'" });
+    }
+
+    // Verify the application exists and belongs to this job
+    const { data: existingApp, error: fetchError } = await supabase
+      .from("job_applications")
+      .select("id, job_id, status")
+      .eq("id", applicationId)
+      .eq("job_id", jobId)
+      .single();
+
+    if (fetchError || !existingApp) {
+      return res.status(404).json({ error: "Application not found" });
+    }
+
+    if (existingApp.status !== "pending") {
+      return res.status(400).json({ error: `Cannot update application - already ${existingApp.status}` });
+    }
+
+    // Update the application status
+    const { data: updatedApp, error: updateError } = await supabase
+      .from("job_applications")
+      .update({ status })
+      .eq("id", applicationId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    // If accepting, update job status to 'pending' (assigned but not started)
+    if (status === 'accepted') {
+      await supabase
+        .from("jobs")
+        .update({ status: "pending" })
+        .eq("id", jobId);
+    }
+
+    res.json({
+      message: `Applicant ${status}`,
+      application: updatedApp,
+    });
+  } catch (err) {
+    console.error("Error updating applicant:", err);
+    res.status(500).json({ error: "Failed to update applicant" });
+  }
+});
+
+/**
+ * DELETE /jobs/:jobId
+ * Delete a job (only by the client who owns it)
+ */
+router.delete("/:jobId", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId, 10);
+    const { client_id } = req.body; // Client ID to verify ownership
+
+    if (!jobId) {
+      return res.status(400).json({ error: "Invalid job ID" });
+    }
+
+    // First verify the job exists and belongs to this client
+    const { data: job, error: fetchError } = await supabase
+      .from("jobs")
+      .select("id, client_id, title, status")
+      .eq("id", jobId)
+      .single();
+
+    if (fetchError || !job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    // Verify ownership if client_id provided
+    if (client_id && job.client_id !== parseInt(client_id, 10)) {
+      return res.status(403).json({ error: "You can only delete your own jobs" });
+    }
+
+    // Check if there are accepted applications - don't allow deletion
+    const { data: acceptedApps, error: appError } = await supabase
+      .from("job_applications")
+      .select("id")
+      .eq("job_id", jobId)
+      .eq("status", "accepted");
+
+    if (!appError && acceptedApps && acceptedApps.length > 0) {
+      return res.status(400).json({ 
+        error: "Cannot delete job with accepted applicants",
+        message: "Je kunt geen job verwijderen waarvoor al een student geaccepteerd is."
+      });
+    }
+
+    // Delete ALL applications for this job (pending, rejected, withdrawn)
+    const { error: deleteAppsError } = await supabase
+      .from("job_applications")
+      .delete()
+      .eq("job_id", jobId);
+
+    if (deleteAppsError) {
+      console.error("Error deleting applications:", deleteAppsError);
+    }
+
+    // Delete the job
+    const { error: deleteError } = await supabase
+      .from("jobs")
+      .delete()
+      .eq("id", jobId);
+
+    if (deleteError) throw deleteError;
+
+    res.json({
+      message: "Job deleted successfully",
+      deleted_job: { id: jobId, title: job.title }
+    });
+  } catch (err) {
+    console.error("Error deleting job:", err);
+    res.status(500).json({ error: "Failed to delete job" });
+  }
+});
+
+/**
+ * GET /jobs/:id
+ * Get a specific job with full details
+ * NOTE: This must be AFTER specific routes like /client/:clientId and /:jobId/applicants
+ */
+router.get("/:id", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.id);
+
+    const { data, error } = await supabase
+      .from("jobs")
+      .select(
+        `
+        id, client_id, category_id,
+        title, description, area_text, street, house_number, postal_code, city, latitude, longitude,
+        hourly_or_fixed, hourly_rate, fixed_price,
+        start_time, status, created_at, image_url,
+        job_categories (
+          id, key, name_nl, name_fr, name_en
+        )
+      `
+      )
+      .eq("id", jobId)
+      .single();
+
+    if (error?.code === "PGRST116" || !data) {
+      return res.status(404).json({ error: "No job found with this ID" });
+    }
+    if (error) throw error;
+
+    const job = mapJobRow(data);
+    res.json(job);
+  } catch (err) {
+    console.error("Error fetching job:", err);
+    res.status(500).json({ error: "Failed to fetch job" });
   }
 });
 

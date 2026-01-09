@@ -1,19 +1,73 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, ActivityIndicator, Platform, TextInput } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View, Image, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as React from "react";
-import { useRouter } from 'expo-router';
-import { RefreshCw, Instagram, Linkedin, Facebook, Twitter } from 'lucide-react-native';
-import { jobsAPI } from '../../services/api';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock, MapPin, Briefcase } from 'lucide-react-native';
+import { jobsAPI, studentAPI, getStudentId } from '../../services/api';
+
+// Platform detection
+const isWeb = Platform.OS === 'web';
+
+// Job type definition
+interface Job {
+  id: number;
+  title: string;
+  description?: string;
+  hourly_rate?: number;
+  fixed_price?: number;
+  duration?: number;
+  area_text?: string;
+  location?: string;
+  start_time?: string;
+  image_url?: string;
+  latitude?: number;
+  longitude?: number;
+  hourly_or_fixed?: 'hourly' | 'fixed';
+  category?: {
+    id?: number;
+    name_en?: string;
+    name_nl?: string;
+  };
+  street?: string;
+  house_number?: string;
+  postal_code?: string;
+  city?: string;
+}
 
 export default function StudentDashboard() {
-  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>('available');
+  const params = useLocalSearchParams();
+  const initialTab = (params.tab as 'today' | 'upcoming' | 'available' | 'pending' | 'archive') || 'available';
+  
+  const [tab, setTab] = React.useState<'today' | 'upcoming' | 'available' | 'pending' | 'archive'>(initialTab);
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
+  const [pendingApplications, setPendingApplications] = React.useState<any[]>([]);
+  const [dashboardData, setDashboardData] = React.useState<any>({ today: [], upcoming: [], pending: [], archive: [] });
+
+  // Canonical job categories (kept in sync with PostJob.JOB_CATEGORIES)
+  const JOB_CATEGORIES = [
+    { id: 1, key: 'cleaning', name_nl: 'Schoonmaak', name_fr: 'Nettoyage', name_en: 'Cleaning' },
+    { id: 2, key: 'garden', name_nl: 'Tuinwerk', name_fr: 'Jardinage', name_en: 'Gardening' },
+    { id: 3, key: 'repair', name_nl: 'Reparatie', name_fr: 'Réparation', name_en: 'Repair' },
+    { id: 4, key: 'moving', name_nl: 'Verhuizing', name_fr: 'Déménagement', name_en: 'Moving' },
+    { id: 5, key: 'handyman', name_nl: 'Klusjeswerk', name_fr: 'Bricolage', name_en: 'Handyman' },
+    { id: 6, key: 'petcare', name_nl: 'Dierenverzorging', name_fr: 'Soins pour animaux', name_en: 'Pet care' },
+  ];
+
+  // Only show categories available in PostJob (canonical list). Prepend an 'All' option.
+  const categoryOptions = React.useMemo(() => {
+    const opts: Array<{ id: number | null; name: string }> = [{ id: null, name: 'All' }];
+    JOB_CATEGORIES.forEach((c) => opts.push({ id: c.id, name: c.name_en }));
+    return opts;
+  }, []);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [showFilters, setShowFilters] = React.useState(false);
   const [filterRange, setFilterRange] = React.useState(20);
-  const [filterCategory, setFilterCategory] = React.useState('All');
+  const [filterCategory, setFilterCategory] = React.useState<number | 'All'>('All');
   const [filterDate, setFilterDate] = React.useState('Any');
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
+  const [userLocation, setUserLocation] = React.useState<{ latitude: number; longitude: number } | null>(null);
+  const [showAllJobs, setShowAllJobs] = React.useState(false);
   const [showDatePickerNative, setShowDatePickerNative] = React.useState(false);
   const router = useRouter();
 
@@ -21,7 +75,8 @@ export default function StudentDashboard() {
     try {
       setLoading(true);
       setError('');
-      const data = await jobsAPI.getAvailableJobs('open', 50);
+      const sid = await getStudentId();
+      const data = await jobsAPI.getAvailableJobs('open', 50, sid ? Number(sid) : undefined);
       setAvailableJobs(data || []);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load jobs';
@@ -31,22 +86,114 @@ export default function StudentDashboard() {
     }
   }, []);
 
+  const fetchPending = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const sid = await getStudentId();
+      if (!sid) {
+        setPendingApplications([]);
+        return;
+      }
+      const data = await studentAPI.getApplications(Number(sid));
+      // Filter only pending applications
+      const pending = data.filter((app: any) => app.status === 'pending');
+      setPendingApplications(pending || []);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load applications';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Set tab from params on mount and when params change
+  React.useEffect(() => {
+    if (params.tab) {
+      setTab(params.tab as any);
+    }
+  }, [params.tab]);
+
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      // Update tab if param exists
+      if (params.tab) {
+        setTab(params.tab as any);
+      }
+      // Refresh data
+      fetchAvailable();
+      fetchPending();
+    }, [params.tab, fetchAvailable, fetchPending])
+  );
+
   React.useEffect(() => {
     fetchAvailable();
-  }, [fetchAvailable]);
+    fetchPending();
+  }, [fetchAvailable, fetchPending]);
+
+  // Try to get user's current location (best-effort). Used only for distance filtering.
+  // Guarded so any runtime quirk won't throw a ReferenceError if the setter is unavailable.
+  React.useEffect(() => {
+    const getLocation = () => {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.geolocation && typeof navigator.geolocation.getCurrentPosition === 'function') {
+          const onSuccess = (pos: any) => {
+            try {
+              const { latitude, longitude } = pos.coords ?? {};
+              if (typeof setUserLocation === 'function') {
+                setUserLocation({ latitude, longitude });
+              }
+            } catch (err) {
+              // Defensive: don't let a setter error bubble up
+              // (some bundlers/environments might not have the closure as expected)
+              // eslint-disable-next-line no-console
+              console.warn('Failed to set userLocation:', err);
+            }
+          };
+
+          const onError = (err: any) => {
+            // eslint-disable-next-line no-console
+            console.warn('Geolocation unavailable or denied:', err?.message ?? err);
+            try {
+              if (typeof setUserLocation === 'function') setUserLocation(null);
+            } catch (e) {
+              // ignore
+            }
+          };
+
+          navigator.geolocation.getCurrentPosition(onSuccess, onError, { enableHighAccuracy: false, timeout: 5000 });
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('Geolocation check failed:', e);
+      }
+    };
+    getLocation();
+  }, []);
 
   const handleRefresh = () => {
     fetchAvailable();
+    fetchPending();
   };
 
-  // Filter jobs based on selected filters
+  // Filter jobs based on selected filters and exclude already applied jobs
   const filteredJobs = React.useMemo(() => {
     let filtered = availableJobs;
     
-    if (filterCategory !== 'All') {
-      filtered = filtered.filter(job => job.category === filterCategory);
-    }
+    // Get IDs of jobs the student has already applied to
+    const appliedJobIds = new Set(pendingApplications.map(app => app.job_id));
     
+    // Exclude jobs already applied to
+    filtered = filtered.filter(job => !appliedJobIds.has(job.id));
+    
+    if (filterCategory !== 'All') {
+      filtered = filtered.filter(job => {
+        const catId = job?.category?.id ?? null;
+        return catId === filterCategory;
+      });
+    }
+
     if (filterDate === 'Today') {
       const today = new Date().toDateString();
       filtered = filtered.filter(job => {
@@ -67,37 +214,97 @@ export default function StudentDashboard() {
         return new Date(job.start_time).toDateString() === new Date(selectedDate).toDateString();
       });
     }
-    
-    return filtered;
-  }, [availableJobs, filterCategory, filterDate, selectedDate]);
 
-  const mockJobs: Record<string, Array<any>> = {
+  // Distance filtering: if the 'show all' toggle is ON, skip distance filtering entirely.
+  if (showAllJobs) return filtered;
+
+  // Otherwise, if we have user location and a positive range, compute Haversine and filter
+    const rangeKm = Number(filterRange) || 0;
+    if (userLocation && rangeKm > 0) {
+      const toRad = (v: number) => v * Math.PI / 180;
+      const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // km
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      };
+
+      filtered = filtered.filter(job => {
+        const lat = job.latitude != null ? Number(job.latitude) : null;
+        const lon = job.longitude != null ? Number(job.longitude) : null;
+        if (lat == null || lon == null) {
+          // Without coordinates we can't compute distance — exclude these when filtering by range
+          return false;
+        }
+        const dist = haversineKm(userLocation.latitude, userLocation.longitude, lat, lon);
+        (job as any)._distance_km = Math.round(dist * 10) / 10;
+        return dist <= rangeKm;
+      });
+    }
+
+    return filtered;
+  }, [availableJobs, pendingApplications, filterCategory, filterDate, selectedDate, userLocation, filterRange]);
+
+  const mockJobs: Record<'today' | 'upcoming' | 'available' | 'pending' | 'archive', Array<any>> = {
     today: [],
     upcoming: [],
     available: availableJobs,
-    pending: [],
+    pending: pendingApplications,
     archive: [],
   };
 
   const jobs = mockJobs[tab] ?? [];
+  
+  // Bepaal welke lijst getoond moet worden
+  const displayJobs = tab === 'available' ? filteredJobs : jobs;
+  
+  const formatJobAddress = (job: any) => {
+    // Prefer structured fields, fall back to area_text
+    const parts: string[] = [];
+    if (job.street) {
+      let s = job.street;
+      if (job.house_number) s += ` ${job.house_number}`;
+      parts.push(s);
+    }
+    if (job.postal_code) parts.push(job.postal_code);
+    if (job.city) parts.push(job.city);
+    if (parts.length > 0) return parts.join(' ');
+    // No legacy free-text fallback — rely on structured address
+    return '';
+  };
 
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
-      {/* HEADER */}
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.pageTitle}>Student Dashboard</Text>
-          <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
-        </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFB" }} edges={['top']}>
+      <ScrollView 
+        style={{ flex: 1 }} 
+        contentContainerStyle={[styles.container, !isWeb && styles.containerMobile]}
+      >
+        {/* HEADER */}
+        <View style={[styles.headerRow, !isWeb && styles.headerRowMobile]}>
+          <View>
+            <Text style={styles.pageTitle}>Student Dashboard</Text>
+            <Text style={styles.pageSubtitle}>Find jobs and start earning</Text>
+          </View>
+          
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable onPress={fetchAvailable} style={styles.refreshBtn}>
+              <RefreshCw size={20} color="#64748B" />
+            </Pressable>
 
-        <Pressable
-          onPress={handleRefresh} // Use the simplified native refresh handler
-          style={styles.headerRefresh}
-        >
-          <RefreshCw size={18} color="#64748B" />
-        </Pressable>
-      </View>
+            <Pressable onPress={() => setShowFilters(s => !s)} style={styles.filterToggleBtn}>
+              <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Filters'}</Text>
+            </Pressable>
+
+            <Pressable onPress={() => setShowAllJobs(v => !v)} style={[styles.filterToggleBtn, { backgroundColor: showAllJobs ? '#176B51' : undefined }]}> 
+              <Text style={[styles.filterToggleText, showAllJobs ? { color: '#fff' } : {}]}>{showAllJobs ? 'Showing all' : 'Show all'}</Text>
+            </Pressable>
+          </View>
+        </View>
 
       {/* DOCUMENT BANNER (hidden by default while testing) */}
       {false && ( // Conditional rendering is correct
@@ -127,11 +334,11 @@ export default function StudentDashboard() {
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'available' && styles.tabActive]} onPress={() => setTab('available')}>
-            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({availableJobs.length})</Text>
+            <Text style={tab === 'available' ? styles.tabActiveText : styles.tabText}>Available ({filteredJobs.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'pending' && styles.tabActive]} onPress={() => setTab('pending')}>
-            <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending ({mockJobs.pending.length})</Text>
+            <Text style={tab === 'pending' ? styles.tabActiveText : styles.tabText}>Pending ({pendingApplications.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.tab, tab === 'archive' && styles.tabActive]} onPress={() => setTab('archive')}>
@@ -140,116 +347,156 @@ export default function StudentDashboard() {
         </ScrollView>
       </View>
 
-      {/* FILTERS */}
-      <View style={styles.tabFilterRow}>
-        <View />
-        <View style={styles.filterToggleContainer}>
-          <TouchableOpacity style={styles.filterToggleBtn} onPress={() => setShowFilters(!showFilters)}>
-            <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Show filters'}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
       {showFilters && (
         <View style={styles.filterRow}>
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Category</Text>
             <View style={styles.filterPills}>
-              {['All', 'Hospitality', 'Retail', 'Office', 'Event', 'Other'].map((cat) => (
-                <TouchableOpacity 
-                  key={cat} 
-                  style={[styles.filterBtn, filterCategory === cat && styles.filterBtnActive]} 
-                  onPress={() => setFilterCategory(cat)}
+              {categoryOptions.map((opt) => (
+                <Pressable
+                  key={`${opt.id ?? opt.name}`}
+                  onPress={() => setFilterCategory(opt.id === null ? 'All' : (opt.id as number))}
+                  style={[
+                    styles.filterBtn,
+                    (opt.id === null && filterCategory === 'All') || (opt.id !== null && filterCategory === opt.id) ? styles.filterBtnActive : undefined,
+                  ]}
                 >
-                  <Text style={filterCategory === cat ? styles.filterBtnTextActive : styles.filterBtnText}>{cat}</Text>
-                </TouchableOpacity>
+                  <Text style={(opt.id === null && filterCategory === 'All') || (opt.id !== null && filterCategory === opt.id) ? styles.filterBtnTextActive : styles.filterBtnText}>{opt.name}</Text>
+                </Pressable>
               ))}
             </View>
           </View>
 
           <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Radius (km)</Text>
+            <TextInput
+              style={styles.dateInput}
+              keyboardType="numeric"
+              value={String(filterRange)}
+              onChangeText={(t) => setFilterRange(Number(t) || 0)}
+            />
+          </View>
+
+          <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Date</Text>
             <View style={styles.filterPills}>
-              {['Any', 'Today', 'This week', 'Specific'].map((dateOpt) => (
-                <TouchableOpacity 
-                  key={dateOpt} 
-                  style={[styles.filterBtn, filterDate === dateOpt && styles.filterBtnActive]} 
-                  onPress={() => setFilterDate(dateOpt)}
+              {['Any', 'Today', 'This week', 'Specific'].map((d) => (
+                <Pressable
+                  key={d}
+                  onPress={() => setFilterDate(d)}
+                  style={[styles.filterBtn, filterDate === d && styles.filterBtnActive]}
                 >
-                  <Text style={filterDate === dateOpt ? styles.filterBtnTextActive : styles.filterBtnText}>{dateOpt}</Text>
-                </TouchableOpacity>
+                  <Text style={filterDate === d ? styles.filterBtnTextActive : styles.filterBtnText}>{d}</Text>
+                </Pressable>
               ))}
             </View>
-
             {filterDate === 'Specific' && (
-              <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {Platform.OS === 'web' ? (
-                  <input 
-                    type="date" 
-                    value={selectedDate || ''} 
-                    onChange={(e: any) => setSelectedDate(e.target.value)} 
-                    style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }} 
-                  />
-                ) : (
-                  <TextInput 
-                    placeholder="YYYY-MM-DD" 
-                    value={selectedDate || ''} 
-                    onChangeText={setSelectedDate} 
-                    style={styles.dateInput} 
-                  />
-                )}
-
-                <TouchableOpacity onPress={() => { setSelectedDate(null); setFilterDate('Any'); }} style={styles.clearDateBtn}>
-                  <Text style={styles.clearDateText}>Clear</Text>
-                </TouchableOpacity>
-              </View>
+              <TextInput style={[styles.dateInput, { marginTop: 8 }]} placeholder="YYYY-MM-DD" value={selectedDate ?? ''} onChangeText={setSelectedDate} />
             )}
           </View>
         </View>
       )}
 
-      {/* JOB LIST or EMPTY STATE */}
-      {loading && (
-        <View style={styles.loadingState}>
-          <ActivityIndicator color="#176B51" />
-          <Text style={styles.emptySubtitle}>Jobs ophalen...</Text>
-        </View>
-      )}
+        {/* CONTENT */}
+        {loading ? (
+          <ActivityIndicator size="large" color="#176B51" style={{ marginTop: 40 }} />
+        ) : displayJobs.length > 0 ? (
+          tab === 'available' ? (
+            <View style={[styles.jobsGrid, !isWeb && styles.jobsListMobile]}>
+              {displayJobs.map((job: Job) => (
+                <TouchableOpacity 
+                  key={job.id} 
+                  style={[
+                    styles.jobCard,
+                    isWeb ? { width: '48%' } : styles.jobCardMobile
+                  ]}
+                  onPress={() => router.push(`/Student/Job/${job.id}`)}
+                >
+                  <View style={styles.jobHeader}>
+                    <Text style={styles.jobTitle}>{job.title}</Text>
+                    <View style={styles.priceBadge}>
+                      <Text style={styles.priceText}>€{job.hourly_rate || job.fixed_price}</Text>
+                    </View>
+                  </View>
 
-      {!loading && error ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>⚠️</Text>
-          <Text style={styles.emptyTitle}>Kon jobs niet laden</Text>
-          <Text style={styles.emptySubtitle}>{error}</Text>
-          <TouchableOpacity style={styles.bannerBtn} onPress={handleRefresh}>
-            <Text style={styles.bannerBtnText}>Opnieuw proberen</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
+                  <View style={styles.jobDetails}>
+                    <View style={styles.detailRow}>
+                      <MapPin size={14} color="#64748B" />
+                      <Text style={styles.detailText}>{job.area_text || job.location || 'Unknown location'}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                       <Clock size={14} color="#64748B" />
+                       <Text style={styles.detailText}>
+                         {job.duration ? `${job.duration} hrs` : 'Flexible'}
+                       </Text>
+                    </View>
+                    {job.category && (
+                      <View style={styles.detailRow}>
+                        <Briefcase size={14} color="#64748B" />
+                        <Text style={styles.detailText}>
+                          {job.category.name_nl || job.category.name_en || 'General'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
 
-      {!loading && !error && jobs.length > 0 ? (
-        <View style={styles.jobsContainer}>
-          <View style={styles.jobsList}>
-            {filteredJobs.map((job: any) => (
-              <Pressable 
-                key={job.id} 
-                style={styles.jobCard} 
-                onPress={() => router.push(`/Student/Job/${job.id}` as never)} 
-              >
-                <Text style={styles.jobTitle}>{job.title}</Text>
-                <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
-                <Text style={styles.jobMeta}>
-                  {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
-                  {job.area_text ? ` • ${job.area_text}` : ''}
-                  {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
-                  {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      ) : (
-        <View style={styles.emptyState}>
+                  <Text style={styles.jobDesc} numberOfLines={2}>
+                    {job.description}
+                  </Text>
+                  
+                  <View style={styles.cardFooter}>
+                    <Text style={styles.postedTime}>
+                         {job.start_time ? new Date(job.start_time).toLocaleDateString() : 'Flexible date'}
+                    </Text>
+                    <Text style={styles.viewLink}>View Details →</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.jobsContainer}>
+              <View style={styles.jobsList}>
+                {displayJobs.map((item: any) => {
+                  const isPending = tab === 'pending';
+                  const job = isPending ? item.jobs : item;
+                  
+                  return (
+                    <Pressable 
+                      key={item.id} 
+                      style={styles.jobCard} 
+                      onPress={() => router.push(isPending ? `/Student/Applied/${item.id}` : `/Student/Job/${item.id}` as any)}
+                    >
+                      {isPending && (
+                        <View style={styles.pendingHeader}>
+                          <Clock size={16} color="#F59E0B" />
+                          <Text style={styles.pendingBadge}>Pending Review</Text>
+                        </View>
+                      )}
+                      
+                      {job?.image_url && (
+                        <Image 
+                          source={{ uri: job.image_url }} 
+                          style={styles.jobImage}
+                        />
+                      )}
+                      
+                      <Text style={styles.jobTitle}>{job?.title || 'Job'}</Text>
+                      <Text style={styles.jobDescription}>{job?.description || 'Geen beschrijving'}</Text>
+                      <Text style={styles.jobMeta}>
+                        {isPending && `Applied: ${new Date(item.applied_at).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                        {job?.start_time ? ` • ${isPending ? 'Starts: ' : ''}${new Date(job.start_time).toLocaleString('nl-BE')}` : ''}
+                        {formatJobAddress(job) ? ` • ${formatJobAddress(job)}` : ''}
+                        {job?.hourly_or_fixed === 'fixed' && job?.fixed_price ? ` • €${job.fixed_price}` : ''}
+                        {job?.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )
+        ) : (
+          <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>📄</Text>
           {/* Conditional Empty State Messages */}
           {tab === 'today' && (
@@ -270,6 +517,12 @@ export default function StudentDashboard() {
             <>
               <Text style={styles.emptyTitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'No available jobs match your filters' : 'No available jobs'}</Text>
               <Text style={styles.emptySubtitle}>{(filterRange !== 20 || filterCategory !== 'All' || filterDate !== 'Any') ? 'Try broadening your filters to find more jobs.' : 'Available jobs will appear here.'}</Text>
+              {/* Helpful hint when no jobs are returned at all */}
+              {availableJobs.length === 0 && (
+                <Text style={{ marginTop: 10, color: '#9CA3AF', fontSize: 13, textAlign: 'center', maxWidth: 320 }}>
+                  If you expect jobs but see none, the backend server might be offline. Start the backend with: node server.js from the `backend` folder.
+                </Text>
+              )}
             </>
           )}
 
@@ -287,7 +540,7 @@ export default function StudentDashboard() {
             </>
           )}
         </View>
-      )}
+        )}
 
       {/* FOOTER */}
       <View style={styles.footer}>
@@ -369,83 +622,78 @@ export default function StudentDashboard() {
           <Text style={styles.footerVersion}>v1.0.0</Text>
         </View>
       </View>
-
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
-/* STYLES */
+
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    paddingBottom: 10,
-    backgroundColor: "#fff",
+    padding: 30, // Web padding
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  // Mobiele override
+  containerMobile: {
+    padding: 16, // Minder padding op mobiel
+    maxWidth: '100%',
   },
 
-  /* HEADER */
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 24,
   },
+  headerRowMobile: {
+    marginBottom: 16,
+  },
+
   pageTitle: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "700",
-    marginTop: 10,
     color: "#1B1B1B",
   },
   pageSubtitle: {
     fontSize: 16,
     color: "#7A7F85",
-    marginBottom: 0,
+    marginTop: 4,
   },
-  headerRefresh: { 
-    padding: 6, 
-    borderRadius: 999, 
-    backgroundColor: '#F7F9FC',
-    // Added shadow for visual depth
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1.5,
-    elevation: 2, 
+  refreshBtn: {
+    padding: 10,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
 
-  /* DOCUMENT VERIFICATION BANNER */
-  banner: {
-    backgroundColor: "#FFF4D9",
-    borderLeftWidth: 4,
-    borderLeftColor: "#FFB01F",
-    padding: 18,
-    borderRadius: 12,
-    marginBottom: 28,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 3,
+  /* TABS */
+  tabContainer: {
+    marginBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  bannerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 8,
-    color: "#664D0E",
+  tabScroll: {
+    gap: 24,
+    paddingBottom: 2, // Ruimte voor border
   },
-  bannerText: {
-    fontSize: 14,
-    color: "#7C7C7C",
-    marginBottom: 16,
-    lineHeight: 20,
+  tabItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
-  bannerBtn: {
-    backgroundColor: "#FFB01F",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    alignSelf: "flex-start",
-    borderRadius: 8,
+  tabItemActive: {
+    borderBottomColor: '#176B51',
   },
-  bannerBtnText: {
-    color: "#fff",
+  tabText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#64748B",
+  },
+  tabTextActive: {
+    color: "#176B51",
     fontWeight: "600",
   },
 
@@ -475,14 +723,21 @@ const styles = StyleSheet.create({
   tabActive: {
     backgroundColor: "#176B51",
   },
-  tabText: { color: "#7A7F85", fontWeight: "500" },
+  pendingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  pendingBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#F59E0B',
+  },
   tabActiveText: { color: "#fff", fontWeight: "600" },
 
-  /* JOB LIST */
-  jobsContainer: {
-    borderWidth: 1,
-    borderColor: '#E4E6EB',
-    borderRadius: 12,
+  /* CARD STYLE */
+  jobCard: {
     backgroundColor: '#fff',
     padding: 12,
     marginBottom: 12,
@@ -491,11 +746,14 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 8,
   },
-  jobCard: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF0F2',
-  },
+  jobImage: {
+  width: '20%',
+  height: 300,
+  borderTopLeftRadius: 12,
+  borderTopRightRadius: 12,
+  marginBottom: 10,
+},
+  
   jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
   jobDescription: { fontSize: 14, color: '#4A4A4A', marginBottom: 6 },
   jobMeta: { color: '#7A7F85', fontSize: 13 },
@@ -528,132 +786,248 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E4E6EB",
     borderRadius: 12,
-    backgroundColor: "#fff",
-    paddingHorizontal: 18,
+    padding: 20,
+    // Web: fallback width (wordt overschreven in JSX voor '48%')
+    width: '100%', 
+    minWidth: 300,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
+  // Mobiel: Volledige breedte
+  jobCardMobile: {
+    width: '100%',
+    minWidth: 0,
+    padding: 16,
+  },
+
+  jobHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  priceBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  priceText: {
+    color: '#059669',
+    fontWeight: "700",
+    fontSize: 14,
+  },
+
+  jobDetails: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 12,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  detailText: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+
+  jobDesc: {
+    fontSize: 14,
+    color: "#475569",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 'auto',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  postedTime: {
+    fontSize: 12,
+    color: "#94A3B8",
+  },
+  viewLink: {
+    fontSize: 14,
+    color: "#176B51",
+    fontWeight: "600",
+  },
+
+  /* BANNER */
+  banner: {
+    backgroundColor: '#FEF3C7',
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  bannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 8,
+  },
+  bannerText: {
+    fontSize: 14,
+    color: '#78350F',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  bannerBtn: {
+    backgroundColor: '#F59E0B',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  bannerBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+
+  /* EMPTY STATE */
   emptyState: {
-    paddingVertical: 90,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E4E6EB",
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    paddingHorizontal: 18,
+    paddingVertical: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyIcon: {
-    fontSize: 42,
+    fontSize: 48,
     marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 19,
-    fontWeight: "700",
-    marginBottom: 6,
-    color: "#1B1B1B",
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    maxWidth: 300,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: "#7A7F85",
-    textAlign: "center",
-    lineHeight: 20,
-    maxWidth: 260,
+    color: '#64748B',
+    textAlign: 'center',
+    maxWidth: 300,
+  },
+
+  /* JOBS GRID & LIST */
+  jobsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginBottom: 24,
+  },
+  jobsListMobile: {
+    flexDirection: 'column',
+    gap: 0,
+  },
+  jobsContainer: {
+    marginBottom: 40,
   },
 
   /* FOOTER */
   footer: {
     marginTop: 60,
     paddingTop: 40,
-    paddingBottom: 20,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    padding: 20,
+    borderTopColor: '#E2E8F0',
   },
   footerSection: {
-    marginBottom: 24,
+    marginBottom: 40,
   },
   footerTitle: {
     fontSize: 20,
-    fontWeight: "700",
-    color: "#176B51",
-    marginBottom: 8,
+    fontWeight: '700',
+    color: '#1B1B1B',
+    marginBottom: 12,
   },
   footerDescription: {
     fontSize: 14,
-    color: "#6B7280",
+    color: '#64748B',
     lineHeight: 20,
+    maxWidth: 300,
   },
   footerLinks: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 40,
+    flexWrap: 'wrap',
+    gap: 32,
   },
   footerColumn: {
     flex: 1,
+    minWidth: 150,
   },
   footerColumnTitle: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#1F2937",
+    fontWeight: '700',
+    color: '#1B1B1B',
     marginBottom: 12,
   },
   footerLink: {
     fontSize: 13,
-    color: "#6B7280",
+    color: '#64748B',
     marginBottom: 8,
   },
   footerSocial: {
-    marginBottom: 24,
-    alignItems: "center",
+    marginBottom: 40,
   },
   footerSocialTitle: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#1F2937",
+    fontWeight: '700',
+    color: '#1B1B1B',
     marginBottom: 12,
   },
   socialIcons: {
-    flexDirection: "row",
-    justifyContent: "center",
+    flexDirection: 'row',
     gap: 12,
   },
   socialIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  socialIconText: {
-    fontSize: 20,
+    borderRadius: 8,
+    backgroundColor: '#F4F6F7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   footerContact: {
-    alignItems: "center",
-    marginBottom: 20,
-    gap: 8,
+    marginBottom: 24,
   },
   footerContactText: {
     fontSize: 13,
-    color: "#6B7280",
+    color: '#64748B',
+    marginBottom: 8,
   },
   footerBottom: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 20,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: '#E2E8F0',
   },
   footerCopyright: {
     fontSize: 12,
-    color: "#9CA3AF",
+    color: '#94A3B8',
   },
   footerVersion: {
     fontSize: 12,
-    color: "#9CA3AF",
-    fontWeight: "500",
+    color: '#94A3B8',
   },
 });
