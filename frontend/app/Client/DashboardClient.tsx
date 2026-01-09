@@ -214,37 +214,52 @@ function DashboardClientContent() {
 
   // Handle marking job as completed
   const handleMarkAsCompleted = async (job: any) => {
+    // --- WEB SPECIFIEKE AFHANDELING ---
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Weet je zeker dat job "${job.title}" voltooid is?`);
+      if (confirmed) {
+        performCompletion(job);
+      }
+      return;
+    }
+
+    // --- MOBILE AFHANDELING ---
+    Alert.alert(
+      'Job Voltooien',
+      'Weet je zeker dat het werk klaar is?',
+      [
+        { text: 'Annuleren', style: 'cancel' },
+        {
+          text: 'Ja, Voltooien',
+          onPress: () => performCompletion(job)
+        }
+      ]
+    );
+  };
+
+  // Helper functie voor de daadwerkelijke actie
+  const performCompletion = async (job: any) => {
     try {
-      Alert.alert(
-        'Job voltooien',
-        `Weet je zeker dat deze job "${job.title}" voltooid is?`,
-        [
-          {
-            text: 'Annuleren',
-            style: 'cancel'
-          },
-          {
-            text: 'Ja, voltooid',
-            onPress: async () => {
-              try {
-                const clientId = await getClientId();
-                if (!clientId) {
-                  Alert.alert('Error', 'Geen client sessie gevonden');
-                  return;
-                }
-                
-                await jobsAPI.updateJobStatus(job.id, 'completed', parseInt(clientId));
-                Alert.alert('Succes', 'Job is gemarkeerd als voltooid! 🎉');
-                fetchJobs(); // Refresh jobs list
-              } catch (err: any) {
-                Alert.alert('Error', err.message || 'Kon job status niet updaten');
-              }
-            }
-          }
-        ]
-      );
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Er ging iets mis');
+      const clientId = await getClientId();
+      console.log('Marking completed. ClientID:', clientId);
+
+      if (!clientId) {
+          const msg = 'Je bent niet ingelogd (Geen Client ID).';
+          Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Fout', msg);
+          return;
+      }
+
+      console.log('Sending update request for job:', job.id);
+      await jobsAPI.updateJobStatus(job.id, 'completed', parseInt(clientId));
+      
+      const successMsg = "Job is voltooid! Hij staat nu bij 'Completed'.";
+      Platform.OS === 'web' ? window.alert(successMsg) : Alert.alert("Succes", successMsg);
+      
+      await fetchJobs(); 
+    } catch (error: any) {
+      console.error('Update failed:', error);
+      const errorMsg = "Kon status niet updaten: " + error.message;
+      Platform.OS === 'web' ? window.alert(errorMsg) : Alert.alert("Fout", errorMsg);
     }
   };
 

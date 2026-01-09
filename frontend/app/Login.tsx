@@ -7,7 +7,7 @@ import { saveStudentId, saveClientId, saveAuthToken } from '@/services/api';
 // API URL - use localhost for web, IP address for mobile
 const API_BASE_URL = Platform.OS === 'web' 
   ? 'http://localhost:3000' 
-  : 'http://10.2.88.146:3000';
+  : 'http://10.2.88.163:3000';
 
 type Props = {
   title?: string;

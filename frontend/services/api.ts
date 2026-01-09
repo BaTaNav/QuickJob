@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // For mobile simulator: Use your computer's IP addressr
 const API_BASE_URL = Platform.OS === 'web' 
   ? 'http://localhost:3000' 
-  : 'http://192.168.129.7:3000';
+  : 'http://10.2.88.163:3000';
 
 // Add logging for debugging
 const logRequest = (method: string, url: string) => {
@@ -448,30 +448,29 @@ export const jobsAPI = {
   async updateJobStatus(jobId: number, status: string, clientId: number) {
     try {
       const url = `${API_BASE_URL}/jobs/${jobId}/status`;
-      logRequest('PATCH', url);
+      console.log(`[API] PATCH ${url}`, { status, role: 'client', clientId });
       
       const response = await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          status, 
-          updated_by_role: 'client',
+          status: status, 
+          updated_by_role: 'client', 
           client_id: clientId 
         }),
       });
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('[API Error]', response.status, errorText);
-        throw new Error(`Failed to update job status: ${response.status}`);
+        throw new Error(`Server fout (${response.status}): ${errorText}`);
       }
       
       const data = await response.json();
-      console.log('[API Success] Job status updated:', data);
+      console.log('[API] Update response:', data);
       return data;
     } catch (error: any) {
-      console.error('[API Exception]', error);
-      throw new Error(error.message || 'Failed to update job status');
+      console.error('[API Error in updateJobStatus]', error);
+      throw error;
     }
   },
 };
