@@ -120,25 +120,35 @@ router.get("/:studentId/dashboard", async (req, res) => {
     const archive = [];
 
     for (const job of mappedJobs) {
-      const startDateISO = job.start_time.slice(0, 10);
+      // Defensive: start_time may be null/undefined for legacy rows — handle safely
+      const startDateISO = job.start_time ? String(job.start_time).slice(0, 10) : null;
       const appStatus = job.application_status;
 
       // Archive: completed or rejected or withdrawn
       if (appStatus === "completed" || appStatus === "rejected" || appStatus === "withdrawn") {
         archive.push(job);
+        continue;
       }
+
       // Pending: awaiting response
-      else if (appStatus === "pending") {
+      if (appStatus === "pending") {
         pending.push(job);
+        continue;
       }
-      // Today: starts today
-      else if (startDateISO === todayISO && appStatus === "accepted") {
-        today.push(job);
+
+      // Only consider accepted apps for today/upcoming buckets
+      if (appStatus === 'accepted') {
+        if (startDateISO && startDateISO === todayISO) {
+          today.push(job);
+          continue;
+        }
+
+        if (startDateISO && startDateISO > todayISO) {
+          upcoming.push(job);
+          continue;
+        }
       }
-      // Upcoming: future date and accepted
-      else if (startDateISO > todayISO && appStatus === "accepted") {
-        upcoming.push(job);
-      }
+      // Any other cases fall through (not included in lists)
     }
 
     res.json({
@@ -154,7 +164,8 @@ router.get("/:studentId/dashboard", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Error fetching student dashboard:", err);
+    // Log full error including stack for easier debugging
+    console.error("Error fetching student dashboard:", err && err.stack ? err.stack : err);
     res.status(500).json({ error: "Failed to fetch dashboard" });
   }
 });
@@ -355,6 +366,21 @@ router.post("/:studentId/apply", /* verifyJwt, */ async (req, res) => {
       return res.status(409).json({ error: "Already applied to this job" });
     }
 
+    // Ensure the job is open for applications
+    const { data: jobRow, error: jobErr } = await supabase
+      .from('jobs')
+      .select('id, status, start_time')
+      .eq('id', job_id)
+      .single();
+
+    if (jobErr || !jobRow) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (jobRow.status !== 'open') {
+      return res.status(400).json({ error: 'Job is not open for applications' });
+    }
+
     // Create application
     const { data, error } = await supabase
       .from("job_applications")
@@ -391,7 +417,7 @@ router.get("/:studentId/applications", async (req, res) => {
         id, student_id, job_id, status, applied_at, overlap_confirmed,
         jobs (
           id, title, description, area_text, street, house_number, postal_code, city, hourly_rate, fixed_price, image_url,
-          start_time, status, job_categories (name_en, name_nl, name_fr)
+          start_time, end_time, status, job_categories (name_en, name_nl, name_fr)
         )
       `
       )
