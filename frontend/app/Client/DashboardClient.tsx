@@ -80,7 +80,6 @@ function DashboardClientContent() {
 
   // Filter jobs by status
   const openJobs = jobs.filter(j => j.status === 'open');
-  // Treat pending/assigned/planned as Planned so accepted applicants appear here
   const plannedJobs = jobs.filter(j => ['planned', 'assigned', 'pending'].includes(j.status));
   // Include expired jobs in Completed view so clients can see which jobs expired
   const completedJobs = jobs.filter(j => j.status === 'completed' || j.status === 'expired');

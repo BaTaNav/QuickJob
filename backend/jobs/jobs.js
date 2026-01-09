@@ -80,7 +80,7 @@ if (upload) {
 
       // 2. Upload to Supabase Storage
       const { data, error } = await supabase.storage
-        .from("job-images") // <--- MUST MATCH YOUR SUPABASE BUCKET NAME
+        .from("job-images")
         .upload(filePath, file.buffer, {
           contentType: file.mimetype,
           upsert: false,
@@ -142,6 +142,16 @@ async function geocodeAddress(address) {
     console.warn('Geocoding failed:', err);
     return null;
   }
+}
+
+/**
+ * Sanitize user-provided filter values for use in PostgREST .or() strings.
+ * Removes dangerous characters and caps length to avoid filter-injection.
+ */
+function sanitizeFilterValue(v) {
+  const s = String(v || '').slice(0, 200); // cap length
+  // Remove characters that can alter PostgREST filter expressions or inject operators
+  return s.replace(/[%(),"'`;]/g, '').trim();
 }
 
 /**
@@ -214,9 +224,12 @@ router.get("/available", async (req, res) => {
       .order("start_time", { ascending: true })
       .limit(limit);
 
-    // Exclude jobs the student has already applied to
+    // Exclude jobs the student has already applied to (ensure IDs are numeric)
     if (excludeJobIds.length > 0) {
-      query = query.not("id", "in", `(${excludeJobIds.join(",")})`);
+      const safeExcludeIds = excludeJobIds.map(id => Number(id)).filter(n => !isNaN(n));
+      if (safeExcludeIds.length > 0) {
+        query = query.not("id", "in", `(${safeExcludeIds.join(",")})`);
+      }
     }
 
     const { data, error } = await query;
@@ -261,15 +274,15 @@ router.get("/search", async (req, res) => {
       )
       .eq("status", "open");
 
-    // Add filters
-    if (searchTerm) {
-      query = query.or(
-        `title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
-      );
+    // Add filters (sanitize user inputs to avoid filter-injection)
+    const q = sanitizeFilterValue(searchTerm);
+    if (q.length > 0) {
+      query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
     }
-    if (location) {
+    const loc = sanitizeFilterValue(location);
+    if (loc.length > 0) {
       // Match location against city OR area_text for backward compatibility
-      query = query.or(`city.ilike.%${location}%,area_text.ilike.%${location}%`);
+      query = query.or(`city.ilike.%${loc}%,area_text.ilike.%${loc}%`);
     }
     if (categoryId) {
       query = query.eq("category_id", parseInt(categoryId));
