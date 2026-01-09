@@ -1,9 +1,9 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View,  Image, ActivityIndicator, Platform, TextInput, Alert } from "react-native";
+import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View,  Image, ActivityIndicator, Platform, TextInput, Alert, Linking } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as React from "react";
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock, MapPin, Briefcase } from 'lucide-react-native';
-import { jobsAPI, studentAPI, getStudentId } from '../../services/api';
+import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock, MapPin, Briefcase, CreditCard } from 'lucide-react-native';
+import { jobsAPI, studentAPI, getStudentId, paymentAPI } from '../../services/api';
 
 // Platform detection
 const isWeb = Platform.OS === 'web';
@@ -104,21 +104,18 @@ export default function StudentDashboard() {
   const fetchPending = React.useCallback(async () => {
     try {
       setLoading(true);
-      setError('');
-      const sid = await getStudentId();
-      if (!sid) {
-        setPendingApplications([]);
-        return;
+      const studentId = await getStudentId();
+      if (studentId) {
+        const apps = await studentAPI.getApplications(parseInt(studentId, 10));
+        // Map applications to Job structure if needed. Assuming apps have a 'job' property.
+        // Adjust this mapping based on actual API response structure.
+        const jobs = apps.map((app: any) => app.job).filter(Boolean); 
+        setPendingApplications(jobs);
       }
-      const data = await studentAPI.getApplications(Number(sid));
-      // Filter only pending applications
-      const pending = data.filter((app: any) => app.status === 'pending');
-      setPendingApplications(pending || []);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load applications';
-      setError(errorMessage);
+       console.log('Error fetching pending jobs:', err);
     } finally {
-      setLoading(false);
+       setLoading(false);
     }
   }, []);
 
@@ -292,6 +289,22 @@ export default function StudentDashboard() {
     return '';
   };
 
+  // Handle Stripe account setup
+  const handleStripeSetup = async () => {
+    try {
+      const studentId = await getStudentId();
+      if (!studentId) {
+        Alert.alert('Error', 'No student ID found');
+        return;
+      }
+      const response = await paymentAPI.connectStudentAccount(parseInt(studentId, 10));
+      if (response?.onboarding_url) {
+        Linking.openURL(response.onboarding_url);
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFB" }} edges={['top']}>
@@ -320,6 +333,12 @@ export default function StudentDashboard() {
             </Pressable>
           </View>
         </View>
+
+        {/* Stripe Setup Button */}
+        <TouchableOpacity style={styles.stripeBtn} onPress={handleStripeSetup}>
+          <CreditCard size={20} color="#fff" />
+          <Text style={styles.stripeBtnText}>Setup Stripe Account</Text>
+        </TouchableOpacity>
 
       {/* DOCUMENT BANNER (hidden by default while testing) */}
       {false && ( // Conditional rendering is correct
@@ -787,6 +806,36 @@ const styles = StyleSheet.create({
   clearDateText: { color: '#1a2e4c', fontWeight: '600' },
   datePickerBtn: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#F4F6F7', borderRadius: 8 },
   datePickerText: { color: '#1a2e4c', fontWeight: '600' },
+  stripeOnboardingBtn: {
+    backgroundColor: '#176B51',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stripeOnboardingText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  stripeOnboardingBtnFull: {
+    backgroundColor: '#176B51',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  stripeOnboardingTextFull: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
+  },
 
 
   /* EMPTY STATE */
@@ -872,6 +921,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#176B51",
     fontWeight: "600",
+  },
+
+  /* STRIPE SETUP BUTTON */
+  stripeBtn: {
+    backgroundColor: '#176B51',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  stripeBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
   },
 
   /* BANNER */
@@ -1042,3 +1109,5 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
 });
+
+console.log('Component rendered - Stripe button should be visible');

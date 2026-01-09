@@ -209,6 +209,8 @@ router.get("/available", async (req, res) => {
       `
       )
       .eq("status", status)
+      // Exclude jobs that are already in the past so students can't apply to them
+      .gt('start_time', new Date().toISOString())
       .order("start_time", { ascending: true })
       .limit(limit);
 
@@ -349,6 +351,20 @@ router.post("/", async (req, res) => {
         .json({ error: "Fixed price required for fixed jobs" });
     }
 
+    // Validate start_time is at least 2 hours in the future
+    if (!start_time) {
+      return res.status(400).json({ error: 'start_time is required and must be an ISO timestamp at least 2 hours in the future' });
+    }
+    const startDate = new Date(start_time);
+    if (isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: 'start_time is not a valid date' });
+    }
+    const now = new Date();
+    const minAllowed = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    if (startDate.getTime() < minAllowed.getTime()) {
+      return res.status(400).json({ error: 'start_time must be at least 2 hours in the future' });
+    }
+
   // Insert job
   // Attempt geocoding of the composed address (best-effort)
   console.log('Composed area_text for geocoding:', composedAreaText);
@@ -391,6 +407,88 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: "Failed to create job" });
   }
 });
+
+/**
+ * Background expiry runner
+ * - Finds open jobs that start within the next 30 minutes
+ * - If a job has ZERO applicants, mark it completed and flag as expired (best-effort)
+ * Implementation notes:
+ * - We first attempt to update with `expired` and `closed_at` fields; if those columns don't exist
+ *   the update call may return an error. In that case we fallback to updating only the `status`.
+ * - This runner is intended for local/dev usage. For production consider running as a single
+ *   cron job or scheduled task to avoid duplicate workers across multiple instances.
+ */
+async function runExpirySweep() {
+  try {
+    const now = new Date();
+    const threshold = new Date(now.getTime() + 30 * 60 * 1000).toISOString(); // now + 30min
+
+    console.log('[ExpiryRunner] scanning for open jobs starting before', threshold);
+
+    const { data: jobsToCheck, error: jobsError } = await supabase
+      .from('jobs')
+      .select('id, start_time')
+      .eq('status', 'open')
+      .lte('start_time', threshold)
+      .limit(200);
+
+    if (jobsError) {
+      console.error('[ExpiryRunner] error querying jobs:', jobsError);
+      return;
+    }
+
+    if (!jobsToCheck || jobsToCheck.length === 0) {
+      // nothing to do
+      return;
+    }
+
+    for (const job of jobsToCheck) {
+      try {
+        // Check if any applications exist for this job
+        const { count, error: appCountError } = await supabase
+          .from('job_applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('job_id', job.id);
+
+        if (appCountError) {
+          console.warn('[ExpiryRunner] failed to get applications count for job', job.id, appCountError);
+          continue;
+        }
+
+        if (Number(count) > 0) {
+          // job has applicants; skip
+          continue;
+        }
+
+        // Mark job as expired (set status = 'expired')
+        try {
+          const resp = await supabase
+            .from('jobs')
+            .update({ status: 'expired' })
+            .eq('id', job.id)
+            .select()
+            .single();
+          if (resp.error) {
+            console.error('[ExpiryRunner] failed to mark job expired', job.id, resp.error);
+          } else {
+            console.log('[ExpiryRunner] marked job expired id=', job.id);
+          }
+        } catch (e) {
+          console.error('[ExpiryRunner] unexpected error updating job', job.id, e);
+        }
+      } catch (innerErr) {
+        console.error('[ExpiryRunner] error processing job', job.id, innerErr);
+      }
+    }
+  } catch (err) {
+    console.error('[ExpiryRunner] top-level error:', err);
+  }
+}
+
+// Run the expiry sweep immediately and then every 60 seconds.
+// Note: in multi-instance deployments consider moving this to a single scheduled worker.
+runExpirySweep().catch((e) => console.error('[ExpiryRunner] initial run failed:', e));
+setInterval(() => runExpirySweep().catch((e) => console.error('[ExpiryRunner] interval run failed:', e)), 60 * 1000);
 
 /**
  * POST /jobs/draft
@@ -444,6 +542,17 @@ router.post("/draft", async (req, res) => {
       : [street, house_number, postal_code, city].filter(Boolean).join(' ').trim() || null;
 
     // Attempt geocoding for draft as well (best-effort)
+    // Validate start_time for drafts as well: at least 2 hours ahead
+    const startDateDraft = new Date(start_time);
+    if (isNaN(startDateDraft.getTime())) {
+      return res.status(400).json({ error: 'start_time is not a valid date' });
+    }
+    const nowDraft = new Date();
+    const minAllowedDraft = new Date(nowDraft.getTime() + 2 * 60 * 60 * 1000);
+    if (startDateDraft.getTime() < minAllowedDraft.getTime()) {
+      return res.status(400).json({ error: 'start_time must be at least 2 hours in the future for drafts' });
+    }
+
     const geoDraft = await geocodeAddress(composedAreaText);
 
     const { data: job, error: jobError } = await supabase
@@ -790,6 +899,346 @@ router.delete("/:jobId", async (req, res) => {
     res.status(500).json({ error: "Failed to delete job" });
   }
 });
+
+/**
+ * PATCH /jobs/:jobId/status
+ * Update job status (voor job lifecycle)
+ * Mogelijke statussen: open → pending → in_progress → completed → paid
+ * Body: { status, updated_by_role } (role: 'client' of 'student')
+ */
+router.patch("/:jobId/status", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId, 10);
+    const { status, updated_by_role, student_id, client_id } = req.body;
+
+    if (!jobId) {
+      return res.status(400).json({ error: "Invalid job ID" });
+    }
+
+    const validStatuses = ["open", "pending", "in_progress", "completed", "paid", "cancelled"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        error: "Invalid status",
+        valid_statuses: validStatuses 
+      });
+    }
+
+    // Haal huidige job op
+    const { data: job, error: fetchError } = await supabase
+      .from("jobs")
+      .select("id, status, client_id, title")
+      .eq("id", jobId)
+      .single();
+
+    if (fetchError || !job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    // Validatie logica op basis van status transition
+    const currentStatus = job.status;
+
+    // Status transition validatie
+    const allowedTransitions = {
+      "open": ["pending", "cancelled"],
+      "pending": ["in_progress", "cancelled"],
+      "in_progress": ["completed", "cancelled"],
+      "completed": ["paid"],
+      "paid": [], // Final state
+      "cancelled": [], // Final state
+    };
+
+    if (!allowedTransitions[currentStatus]?.includes(status)) {
+      return res.status(400).json({ 
+        error: `Cannot transition from '${currentStatus}' to '${status}'`,
+        allowed_transitions: allowedTransitions[currentStatus] || []
+      });
+    }
+
+    // Rol-specifieke validatie
+    if (status === "in_progress" && updated_by_role !== "student") {
+      return res.status(403).json({ error: "Only student can mark job as in_progress" });
+    }
+
+    if (status === "completed" && updated_by_role !== "student") {
+      return res.status(403).json({ error: "Only student can mark job as completed" });
+    }
+
+    if (status === "paid" && updated_by_role !== "client") {
+      return res.status(403).json({ error: "Only client can mark job as paid (via payment)" });
+    }
+
+    // Voor 'completed' status: controleer of er een accepted application is
+    if (status === "completed") {
+      const { data: acceptedApp, error: appError } = await supabase
+        .from("job_applications")
+        .select("id, student_id")
+        .eq("job_id", jobId)
+        .eq("status", "accepted")
+        .maybeSingle();
+
+      if (appError || !acceptedApp) {
+        return res.status(400).json({ 
+          error: "Can only complete job with an accepted student application" 
+        });
+      }
+
+      // Optioneel: verifieer dat de juiste student de job markeert als completed
+      if (student_id && acceptedApp.student_id !== parseInt(student_id, 10)) {
+        return res.status(403).json({ 
+          error: "Only the assigned student can mark this job as completed" 
+        });
+      }
+    }
+
+    // Update job status
+    const { data: updatedJob, error: updateError } = await supabase
+      .from("jobs")
+      .update({ 
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", jobId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.json({
+      message: `Job status updated to '${status}'`,
+      job: updatedJob,
+      previous_status: currentStatus,
+    });
+  } catch (err) {
+    console.error("Error updating job status:", err);
+    res.status(500).json({ error: "Failed to update job status" });
+  }
+});
+
+/**
+ * POST /jobs/:jobId/mark-in-progress
+ * Student markeert job als "in_progress" (convenience endpoint)
+ * Body: { student_id }
+ */
+router.post("/:jobId/mark-in-progress", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId, 10);
+    const { student_id } = req.body;
+
+    if (!jobId || !student_id) {
+      return res.status(400).json({ error: "job_id and student_id required" });
+    }
+
+    // Verify student has accepted application for this job
+    const { data: application, error: appError } = await supabase
+      .from("job_applications")
+      .select("id, status")
+      .eq("job_id", jobId)
+      .eq("student_id", student_id)
+      .eq("status", "accepted")
+      .maybeSingle();
+
+    if (appError || !application) {
+      return res.status(403).json({ 
+        error: "Student must have an accepted application for this job" 
+      });
+    }
+
+    // Update job status to in_progress
+    const { data: updatedJob, error: updateError } = await supabase
+      .from("jobs")
+      .update({ 
+        status: "in_progress",
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", jobId)
+      .eq("status", "pending") // Only allow transition from pending
+      .select()
+      .single();
+
+    if (updateError) {
+      if (updateError.code === 'PGRST116') {
+        return res.status(400).json({ 
+          error: "Job must be in 'pending' status to start" 
+        });
+      }
+      throw updateError;
+    }
+
+    res.json({
+      message: "Job marked as in progress",
+      job: updatedJob,
+    });
+  } catch (err) {
+    console.error("Error marking job in progress:", err);
+    res.status(500).json({ error: "Failed to mark job in progress" });
+  }
+});
+
+/**
+ * POST /jobs/:jobId/mark-completed
+ * Student markeert job als "completed" (convenience endpoint)
+ * Body: { student_id }
+ */
+router.post("/:jobId/mark-completed", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId, 10);
+    const { student_id } = req.body;
+
+    if (!jobId || !student_id) {
+      return res.status(400).json({ error: "job_id and student_id required" });
+    }
+
+    // Verify student has accepted application for this job
+    const { data: application, error: appError } = await supabase
+      .from("job_applications")
+      .select("id, status")
+      .eq("job_id", jobId)
+      .eq("student_id", student_id)
+      .eq("status", "accepted")
+      .maybeSingle();
+
+    if (appError || !application) {
+      return res.status(403).json({ 
+        error: "Student must have an accepted application for this job" 
+      });
+    }
+
+    // Get job details to check current status
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .select("id, status, hourly_or_fixed, hourly_rate, fixed_price")
+      .eq("id", jobId)
+      .single();
+
+    if (jobError || !job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    if (job.status !== "in_progress") {
+      return res.status(400).json({ 
+        error: `Job must be 'in_progress' to mark as completed. Current status: ${job.status}` 
+      });
+    }
+
+    // Update job status to completed
+    const { data: updatedJob, error: updateError } = await supabase
+      .from("jobs")
+      .update({ 
+        status: "completed",
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", jobId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.json({
+      message: "Job marked as completed. Client can now proceed with payment.",
+      job: updatedJob,
+      payment_info: {
+        amount: job.hourly_or_fixed === "fixed" ? job.fixed_price : null,
+        type: job.hourly_or_fixed,
+        requires_client_payment: true,
+      }
+    });
+  } catch (err) {
+    console.error("Error marking job completed:", err);
+    res.status(500).json({ error: "Failed to mark job completed" });
+  }
+});
+
+/**
+ * GET /jobs/:jobId/payment-info
+ * Haal payment info op voor een completed job
+ */
+router.get("/:jobId/payment-info", async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId, 10);
+
+    if (!jobId) {
+      return res.status(400).json({ error: "Invalid job ID" });
+    }
+
+    // Get job with accepted student
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .select(`
+        id, status, client_id, title,
+        hourly_or_fixed, hourly_rate, fixed_price,
+        start_time
+      `)
+      .eq("id", jobId)
+      .single();
+
+    if (jobError || !job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    if (job.status !== "completed" && job.status !== "paid") {
+      return res.status(400).json({ 
+        error: `Job must be 'completed' or 'paid' to view payment info. Current: ${job.status}` 
+      });
+    }
+
+    // Get accepted application to find student
+    const { data: application, error: appError } = await supabase
+      .from("job_applications")
+      .select(`
+        id, student_id,
+        users:student_id (
+          id, email
+        ),
+        student_profiles!inner (
+          id, school_name
+        )
+      `)
+      .eq("job_id", jobId)
+      .eq("status", "accepted")
+      .maybeSingle();
+
+    if (appError || !application) {
+      return res.status(400).json({ 
+        error: "No accepted student found for this job" 
+      });
+    }
+
+    // Calculate amount in cents
+    let amountCents = 0;
+    if (job.hourly_or_fixed === "fixed") {
+      amountCents = Math.round(job.fixed_price * 100); // Convert euros to cents
+    } else if (job.hourly_or_fixed === "hourly" && job.hourly_rate) {
+      // For hourly: calculate based on start/end time or default 2 hours
+      amountCents = Math.round(job.hourly_rate * 100 * 2); // Default 2 hours
+    }
+
+    // Check if payment already exists
+    const { data: existingPayment, error: paymentError } = await supabase
+      .from("payments")
+      .select("payment_intent_id, status, amount")
+      .eq("job_id", jobId)
+      .maybeSingle();
+
+    res.json({
+      job_id: jobId,
+      job_title: job.title,
+      job_status: job.status,
+      student_id: application.student_id,
+      student_email: application.users?.email,
+      client_id: job.client_id,
+      payment_type: job.hourly_or_fixed,
+      amount_cents: amountCents,
+      amount_euros: (amountCents / 100).toFixed(2),
+      currency: "eur",
+      payment_status: existingPayment ? existingPayment.status : "not_started",
+      payment_intent_id: existingPayment?.payment_intent_id || null,
+    });
+  } catch (err) {
+    console.error("Error fetching payment info:", err);
+    res.status(500).json({ error: "Failed to fetch payment info" });
+  }
+});
+
 
 /**
  * GET /jobs/:id
