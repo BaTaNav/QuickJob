@@ -638,12 +638,12 @@ export default function PostJob() {
 
                 )}
                 {/* Image Picker UI */}
-                <View style={{ marginBottom: 20, alignItems: 'center' }}>
+                <View style={{ marginBottom: 100, alignItems: 'center', marginTop: 100 }}>
                   <TouchableOpacity
                     onPress={pickImage}
                     style={{
                       width: '100%',
-                      height: 150,
+                      height: 200,
                       backgroundColor: '#f0f0f0',
                       borderRadius: 10,
                       justifyContent: 'center',
@@ -654,14 +654,14 @@ export default function PostJob() {
                     }}
                   >
                     {image ? (
-                      <Image source={{ uri: image }} style={{ width: '100%', height: '100%', borderRadius: 10 }} />
+                      <Image source={{ uri: image }} style={{ width: '100%', height: '200%', borderRadius: 10 }} />
                     ) : (
                       <Text style={{ color: '#666' }}>+ Upload Job Photo</Text>
                     )}
                   </TouchableOpacity>
 
                   {image && (
-                    <TouchableOpacity onPress={() => setImage(null)} style={{ marginTop: 10 }}>
+                    <TouchableOpacity onPress={() => setImage(null)} style={{ marginTop: 100 }}>
                       <Text style={{ color: 'red' }}>Remove Photo</Text>
                     </TouchableOpacity>
                   )}
