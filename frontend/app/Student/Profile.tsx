@@ -279,7 +279,7 @@ export default function StudentProfile() {
                    )}
 
                    <RNView style={styles.rightFooter}>
-                      <Pressable style={styles.editBtn} onPress={() => { /* TODO */ }}>
+                      <Pressable style={styles.editBtn} onPress={startEdit}>
                         <Text style={styles.editBtnText}>Edit profile</Text>
                       </Pressable>
                       

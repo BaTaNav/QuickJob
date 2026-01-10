@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, Pressable, View as RNView, Switch, Image, TextInput, Alert, Platform, ScrollView } from 'react-native';
+import { StyleSheet, Pressable, View as RNView, Switch, Image, TextInput, Alert, Platform, ScrollView, RefreshControl, } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRouter } from 'expo-router';
 import { authAPI, getClientId } from '@/services/api';
@@ -8,9 +8,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration
-const API_BASE_URL = Platform.OS === 'web' 
-  ? 'http://localhost:3000' 
-  : 'http://10.2.88.163:3000'; 
+const API_BASE_URL = Platform.OS === 'web'
+  ? 'http://localhost:3000'
+  : 'http://10.2.88.163:3000';
 
 const isWeb = Platform.OS === 'web';
 
@@ -38,61 +38,73 @@ export default function ClientProfile() {
   }
 
   // Load profile
-  React.useEffect(() => {
-    async function loadProfile() {
-      try {
-        let userJson: string | null = null;
-        let userId: number | null = null;
-        
-        if (Platform.OS === 'web') {
-          userJson = localStorage.getItem('user');
-          if (userJson) {
-            const user = JSON.parse(userJson);
-            userId = user.id;
-          }
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  // 1. Define the fetching logic outside useEffect so it can be reused
+  const fetchProfile = React.useCallback(async () => {
+    try {
+      let userJson: string | null = null;
+      let userId: number | null = null;
+
+      if (Platform.OS === 'web') {
+        userJson = localStorage.getItem('user');
+        if (userJson) {
+          const user = JSON.parse(userJson);
+          userId = user.id;
+        }
+      } else {
+        // Mobile - use AsyncStorage
+        userJson = await AsyncStorage.getItem('user');
+        if (userJson) {
+          const user = JSON.parse(userJson);
+          userId = user.id;
         } else {
-          // Mobile - use AsyncStorage
-          userJson = await AsyncStorage.getItem('user');
-          if (userJson) {
-            const user = JSON.parse(userJson);
-            userId = user.id;
-          } else {
-            // Fallback to clientId
-            const clientId = await getClientId();
-            if (clientId) userId = parseInt(clientId);
-          }
+          // Fallback to clientId
+          const clientId = await getClientId();
+          if (clientId) userId = parseInt(clientId);
         }
-        
-        if (!userId) return;
-
-        const res = await fetch(`${API_BASE_URL}/clients/${userId}`);
-        if (!res.ok) throw new Error('Failed to fetch profile');
-
-        const data = await res.json();
-        
-        // Add cache-busting timestamp to avatar URL
-        if (data.client?.avatar_url) {
-          data.client.avatar_url = `${data.client.avatar_url}?t=${Date.now()}`;
-        }
-        
-        setClientProfile(data.client);
-
-        // Pre-fill settings form
-        setEmail(data.client.email || '');
-        setPhone(data.client.phone || '');
-        setLanguage(data.client.preferred_language?.toUpperCase() || 'NL');
-        setAddressLine(data.client.address_line || '');
-        setPostalCode(data.client.postal_code || '');
-        setCity(data.client.city || '');
-        setRegion(data.client.region || '');
-        setFirstJobNeedsApproval(!!data.client.first_job_needs_approval);
-
-      } catch (err) {
-        console.error('Error loading client profile:', err);
       }
+
+      if (!userId) return;
+
+      const res = await fetch(`${API_BASE_URL}/clients/${userId}`);
+      if (!res.ok) throw new Error('Failed to fetch profile');
+
+      const data = await res.json();
+
+      // Add cache-busting timestamp to avatar URL
+      if (data.client?.avatar_url) {
+        data.client.avatar_url = `${data.client.avatar_url}?t=${Date.now()}`;
+      }
+
+      setClientProfile(data.client);
+
+      // Pre-fill settings form
+      setEmail(data.client.email || '');
+      setPhone(data.client.phone || '');
+      setLanguage(data.client.preferred_language?.toUpperCase() || 'NL');
+      setAddressLine(data.client.address_line || '');
+      setPostalCode(data.client.postal_code || '');
+      setCity(data.client.city || '');
+      setRegion(data.client.region || '');
+      setFirstJobNeedsApproval(!!data.client.first_job_needs_approval);
+
+    } catch (err) {
+      console.error('Error loading client profile:', err);
     }
-    loadProfile();
   }, []);
+
+  // 2. Load on Mount
+  React.useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  // 3. Handle Pull-to-Refresh
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await fetchProfile();
+    setRefreshing(false);
+  }, [fetchProfile]);
 
   // Avatar upload functie
   const uploadAvatar = async () => {
@@ -103,7 +115,7 @@ export default function ClientProfile() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.5, // Iets lagere kwaliteit voor snellere upload
+        quality: 0.5,
       });
 
       if (result.canceled) return;
@@ -116,22 +128,22 @@ export default function ClientProfile() {
         // --- WEB LOGICA ---
         const response = await fetch(localUri);
         const blob = await response.blob();
-        
+
         const blobExt = blob.type.split('/')[1] || 'jpg';
         const properFilename = `avatar.${blobExt === 'jpeg' ? 'jpg' : blobExt}`;
-        
+
         formData.append('avatar', blob, properFilename);
       } else {
         // --- MOBILE LOGICA ---
         // Bepaal extensie en mime type op basis van de URI of asset data
         const filename = localUri.split('/').pop() || 'avatar.jpg';
-        
+
         // Simpele mime-type gok op basis van extensie
         let type = 'image/jpeg';
         if (filename.endsWith('.png')) type = 'image/png';
         else if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) type = 'image/jpeg';
-        
-        // Append als object (zoals React Native verwacht)
+
+
         formData.append('avatar', {
           uri: localUri,
           name: filename,
@@ -204,7 +216,9 @@ export default function ClientProfile() {
       }
 
       const updated = await res.json();
-      setClientProfile(updated.client);
+      // Merge user (client) + profile fields so the UI immediately reflects updates
+      const mergedClient = { ...(updated.client || {}), ...(updated.profile || {}) };
+      setClientProfile(mergedClient);
       Alert.alert('Success', 'Profile updated successfully');
     } catch (err) {
       console.error('Update profile error:', err);
@@ -215,23 +229,23 @@ export default function ClientProfile() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }} edges={['top']}>
       <ScrollView contentContainerStyle={isWeb ? styles.containerWeb : styles.containerMobile}>
-        
+
         {/* LAYOUT LOGICA */}
         <RNView style={isWeb ? styles.layoutRowWeb : styles.layoutColumnMobile}>
-          
+
           {/* LINKER KOLOM (Web) / BOVENKANT (Mobile) */}
           <View style={isWeb ? styles.leftCardWeb : styles.headerCardMobile}>
-                                   <Pressable onPress={() => router.push('/Client/DashboardClient')} style={{ padding: 8 }}>
-                          <Text style={{ color: '#176B51', fontWeight: '600', fontSize: 14 }}>← Dashboard</Text>
-                       </Pressable>
+            <Pressable onPress={() => router.push('/Client/DashboardClient')} style={{ padding: 8 }}>
+              <Text style={{ color: '#176B51', fontWeight: '600', fontSize: 14 }}>← Dashboard</Text>
+            </Pressable>
             <RNView style={isWeb ? styles.leftTopRow : styles.headerRowMobile}>
-              
+
               <Pressable onPress={uploadAvatar}>
-                <Image 
-                  source={clientProfile?.avatar_url 
-                    ? { uri: clientProfile.avatar_url } 
-                    : require('../../assets/images/blank-profile-picture.png')} 
-                  style={isWeb ? styles.avatarSmall : styles.avatarMedium} 
+                <Image
+                  source={clientProfile?.avatar_url
+                    ? { uri: clientProfile.avatar_url }
+                    : require('../../assets/images/blank-profile-picture.png')}
+                  style={isWeb ? styles.avatarSmall : styles.avatarMedium}
                 />
               </Pressable>
               <RNView style={isWeb ? styles.leftIdentity : styles.headerIdentityMobile}>
@@ -244,7 +258,7 @@ export default function ClientProfile() {
             <RNView style={isWeb ? styles.controlsContainer : styles.tabsMobile}>
               <Pressable
                 style={[
-                  isWeb ? styles.controlBtn : styles.tabBtnMobile, 
+                  isWeb ? styles.controlBtn : styles.tabBtnMobile,
                   panel === 'info' && (isWeb ? styles.controlBtnActive : styles.tabBtnActiveMobile)
                 ]}
                 onPress={() => setPanel('info')}
@@ -254,7 +268,7 @@ export default function ClientProfile() {
 
               <Pressable
                 style={[
-                  isWeb ? styles.controlBtn : styles.tabBtnMobile, 
+                  isWeb ? styles.controlBtn : styles.tabBtnMobile,
                   panel === 'settings' && (isWeb ? styles.controlBtnActive : styles.tabBtnActiveMobile)
                 ]}
                 onPress={() => setPanel('settings')}
@@ -283,11 +297,11 @@ export default function ClientProfile() {
                       <Text style={styles.value}>{clientProfile?.email}</Text>
                     </RNView>
                     <Pressable onPress={uploadAvatar}>
-                      <Image 
-                        source={clientProfile?.avatar_url 
-                          ? { uri: clientProfile.avatar_url } 
-                          : require('../../assets/images/blank-profile-picture.png')} 
-                        style={styles.avatarLarge} 
+                      <Image
+                        source={clientProfile?.avatar_url
+                          ? { uri: clientProfile.avatar_url }
+                          : require('../../assets/images/blank-profile-picture.png')}
+                        style={styles.avatarLarge}
                       />
                     </Pressable>
                   </RNView>
@@ -298,7 +312,7 @@ export default function ClientProfile() {
 
                 <Text style={styles.label}>Address</Text>
                 <Text style={styles.value}>{clientProfile?.address_line || 'N/A'}</Text>
-                
+
                 <RNView style={{ flexDirection: 'row', gap: 20 }}>
                   <RNView>
                     <Text style={styles.label}>Postal Code</Text>
@@ -315,7 +329,7 @@ export default function ClientProfile() {
 
                 <Text style={styles.label}>First Job Needs Approval</Text>
                 <Text style={styles.value}>{clientProfile?.first_job_needs_approval ? 'Yes' : 'No'}</Text>
-                
+
                 {!isWeb && (
                   <Pressable style={[styles.editBtn, { backgroundColor: '#B00020', marginTop: 32 }]} onPress={handleLogout}>
                     <Text style={styles.editBtnText}>Log out</Text>
@@ -377,7 +391,16 @@ export default function ClientProfile() {
                   <Text style={styles.value}>{notifications ? 'On' : 'Off'}</Text>
                 </RNView>
 
-                <Pressable style={styles.editBtn} onPress={handleSaveSettings}>
+                <Pressable
+                  style={styles.editBtn}
+                  onPress={async () => {
+                    await handleSaveSettings(); // Save data
+                    await onRefresh();          // Refresh data
+                    // Navigate to the Profile tab. 
+                    // CHANGE THIS PATH if your profile tab is at a different route (e.g., '/Student/Profile')
+                    router.replace('/Client/Profile');
+                  }}
+                >
                   <Text style={styles.editBtnText}>Save Settings</Text>
                 </Pressable>
               </RNView>
@@ -395,7 +418,7 @@ const styles = StyleSheet.create({
   layoutRowWeb: { flexDirection: 'row', gap: 24, justifyContent: 'center' },
   leftCardWeb: { width: 300, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 14, backgroundColor: '#fff', height: 560, justifyContent: 'space-between', flexShrink: 0 },
   rightCardWeb: { width: 600, borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 12, padding: 24, backgroundColor: '#fff', minHeight: 560 },
-  
+
   // Mobile Containers
   containerMobile: { padding: 16, backgroundColor: '#F8F9FA' },
   layoutColumnMobile: { flexDirection: 'column', gap: 16 },
@@ -406,7 +429,7 @@ const styles = StyleSheet.create({
   tabsMobile: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#eee' },
   tabBtnMobile: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActiveMobile: { borderBottomColor: '#176B51' },
-  
+
   // Generieke stijlen
   leftTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 0 },
   controlsContainer: { alignItems: 'center' },
@@ -414,29 +437,29 @@ const styles = StyleSheet.create({
   controlBtnActive: { backgroundColor: '#176B51' },
   controlBtnText: { color: '#333', fontWeight: '600' },
   controlBtnTextActive: { color: isWeb ? '#fff' : '#176B51', fontWeight: '600' }, // Mobile text color fix
-  
+
   label: { color: '#7A7F85', marginTop: 12, fontWeight: '600', fontSize: 13 },
   value: { fontSize: 16, marginTop: 4, color: '#1B1B1B' },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
-  
+
   langRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   langBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#F4F6F7' },
   langBtnActive: { backgroundColor: '#176B51' },
   langBtnText: { color: '#333', fontWeight: '600' },
   langBtnTextActive: { color: '#fff', fontWeight: '600' },
-  
+
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
   rightContent: { flex: 1, justifyContent: 'flex-start' },
-  
+
   // Avatars
   avatarSmall: { width: 60, height: 60, borderRadius: 30 },
   avatarMedium: { width: 70, height: 70, borderRadius: 35 },
   avatarLarge: { width: 120, height: 120, borderRadius: 60 },
-  
+
   leftIdentity: { marginLeft: 8 },
   leftName: { fontWeight: '700', fontSize: 16 },
   leftEmail: { color: '#7A7F85', marginTop: 4, fontSize: 13 },
-  
+
   profileHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   input: { borderWidth: 1, borderColor: '#E4E6EB', borderRadius: 8, padding: 12, marginTop: 4, backgroundColor: '#FAFAFA' },
   editBtn: { marginTop: 24, backgroundColor: '#176B51', paddingVertical: 14, borderRadius: 8, alignItems: 'center' },
