@@ -391,28 +391,32 @@ router.post("/", async (req, res) => {
   console.log('Composed area_text for geocoding:', composedAreaText);
   const geo = await geocodeAddress(composedAreaText);
 
+    const insertPayload = {
+      client_id: clientIdNum,
+      category_id: categoryIdNum,
+      title,
+      description: description || null,
+      area_text: composedAreaText,
+      street: street || null,
+      house_number: house_number || null,
+      postal_code: postal_code || null,
+      city: city || null,
+      latitude: geo ? geo.latitude : null,
+      longitude: geo ? geo.longitude : null,
+      hourly_or_fixed,
+      hourly_rate: hourlyRateNum !== null ? hourlyRateNum : null,
+      fixed_price: fixed_price || null,
+      start_time,
+      status: "open",
+      created_at: new Date().toISOString(),
+      image_url: image_url || null, // Save image URL
+    };
+
+    console.log('Inserting job payload to DB (open):', insertPayload);
+
     const { data: job, error: jobError } = await supabase
       .from("jobs")
-      .insert({
-        client_id: clientIdNum,
-        category_id: categoryIdNum,
-        title,
-        description: description || null,
-        area_text: composedAreaText,
-        street: street || null,
-        house_number: house_number || null,
-        postal_code: postal_code || null,
-        city: city || null,
-        latitude: geo ? geo.latitude : null,
-        longitude: geo ? geo.longitude : null,
-        hourly_or_fixed,
-        hourly_rate: hourlyRateNum !== null ? hourlyRateNum : null,
-        fixed_price: fixed_price || null,
-        start_time,
-        status: "open",
-        created_at: new Date().toISOString(),
-        image_url: image_url || null, // Save image URL
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -425,7 +429,9 @@ router.post("/", async (req, res) => {
     });
   } catch (err) {
     console.error("Error creating job:", err);
-    res.status(500).json({ error: "Failed to create job" });
+    // Provide the upstream error message/details in the response for easier debugging (safe for local dev)
+    const errMessage = (err && (err.message || err.error || (typeof err === 'string' ? err : JSON.stringify(err)))) || 'Failed to create job';
+    res.status(500).json({ error: errMessage, details: err && err.details ? err.details : null });
   }
 });
 
@@ -576,28 +582,32 @@ router.post("/draft", async (req, res) => {
 
     const geoDraft = await geocodeAddress(composedAreaText);
 
+    const insertPayload = {
+      client_id: clientIdNum,
+      category_id: categoryIdNum,
+      title,
+      description: description || null,
+      area_text: composedAreaText,
+      street: street || null,
+      house_number: house_number || null,
+      postal_code: postal_code || null,
+      city: city || null,
+      latitude: geoDraft ? geoDraft.latitude : null,
+      longitude: geoDraft ? geoDraft.longitude : null,
+      hourly_or_fixed,
+      hourly_rate: hourly_rate || null,
+      fixed_price: fixed_price || null,
+      start_time,
+      status: "draft",
+      created_at: new Date().toISOString(),
+      image_url: image_url || null,
+    };
+
+    console.log('Inserting job payload to DB (draft):', insertPayload);
+
     const { data: job, error: jobError } = await supabase
       .from("jobs")
-      .insert({
-        client_id: clientIdNum,
-        category_id: categoryIdNum,
-        title,
-        description: description || null,
-        area_text: composedAreaText,
-        street: street || null,
-        house_number: house_number || null,
-        postal_code: postal_code || null,
-        city: city || null,
-        latitude: geoDraft ? geoDraft.latitude : null,
-        longitude: geoDraft ? geoDraft.longitude : null,
-        hourly_or_fixed,
-        hourly_rate: hourly_rate || null,
-        fixed_price: fixed_price || null,
-        start_time,
-        status: "draft",
-        created_at: new Date().toISOString(),
-        image_url: image_url || null,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -610,7 +620,9 @@ router.post("/draft", async (req, res) => {
     });
   } catch (err) {
     console.error("Error creating job:", err);
-    res.status(500).json({ error: "Failed to create job" });
+    // Provide the upstream error message/details in the response for easier debugging (safe for local dev)
+    const errMessage = (err && (err.message || err.error || (typeof err === 'string' ? err : JSON.stringify(err)))) || 'Failed to create job';
+    res.status(500).json({ error: errMessage, details: err && err.details ? err.details : null });
   }
 });
 
