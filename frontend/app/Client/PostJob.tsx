@@ -1095,10 +1095,11 @@ export default function PostJob() {
                 </View>
                 <View style={styles.divider} />
                 <Text style={styles.previewPrice}>
-                  
+                  {formData.hourly_or_fixed === 'fixed'
+                    ? `€${formData.fixed_price || 0}`
+                    : (formData.duration ? `~ €${(formData.hourly_rate ?? 20) * (formData.duration || 1)} (schatting)` : `€${formData.hourly_rate ?? 20}/uur`)}
                 </Text>
               </View>
-              {/* Extra spacer in sidebar to prevent overlap if content grows */}
               <View style={{ height: 100 }} />
             </View>
           )}
