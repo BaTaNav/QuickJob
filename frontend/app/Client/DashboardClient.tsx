@@ -82,7 +82,7 @@ function DashboardClientContent() {
   const openJobs = jobs.filter(j => j.status === 'open');
   // Treat jobs that already have an accepted applicant as planned in the UI
   // (some historical accepts may have left job.status as 'pending')
-  const plannedJobs = jobs.filter(j => j.status === 'planned' || j.status === 'assigned' || (j.accepted_applicants && j.accepted_applicants > 0) || !!j.accepted_applicant);
+  const plannedJobs = jobs.filter(j => (j.status === 'planned' || j.status === 'assigned' || (j.accepted_applicants && j.accepted_applicants > 0) || !!j.accepted_applicant) && j.status !== 'completed');
   // Include expired jobs in Completed view so clients can see which jobs expired
   const completedJobs = jobs.filter(j => j.status === 'completed' || j.status === 'expired');
   const todayJobs = jobs.filter(j => {
@@ -387,9 +387,21 @@ function DashboardClientContent() {
           </TouchableOpacity>
         )}
         
-        {/* Show Pay button only for completed jobs */}
+        {/* Show Complete button for planned jobs */}
+        {(job.status === 'planned' || job.status === 'assigned' || (job.accepted_applicants && job.accepted_applicants > 0) || !!job.accepted_applicant) && job.status !== 'completed' && (
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity 
+              style={styles.completeButton}
+              onPress={() => handleMarkAsCompleted(job)}
+            >
+              <Text style={styles.completeButtonText}>✓ Voltooid</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {/* Show Pay and Review buttons only for completed jobs */}
         {job.status === 'completed' && (
-          <>
+          <View style={styles.actionButtonsContainer}>
             <TouchableOpacity 
               style={[styles.payButton, payingJobId === job.id && styles.payButtonDisabled]}
               onPress={() => handlePayment(job)}
@@ -399,7 +411,7 @@ function DashboardClientContent() {
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
-                  <CreditCard size={16} color="#fff" />
+                  <CreditCard size={14} color="#fff" />
                   <Text style={styles.payButtonText}>Betalen</Text>
                 </>
               )}
@@ -410,7 +422,7 @@ function DashboardClientContent() {
             >
               <Text style={styles.reviewButtonText}>✍️ Review</Text>
             </TouchableOpacity>
-          </>
+          </View>
         )}
       </View>
 
@@ -865,25 +877,31 @@ const styles = StyleSheet.create({
   payButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
     backgroundColor: '#176B51',
-    borderRadius: 8,
+    borderRadius: 6,
+    minWidth: 100,
   },
   payButtonDisabled: { opacity: 0.6 },
-  payButtonText: { fontSize: 14, fontWeight: "600", color: "#fff" },
+  payButtonText: { fontSize: 13, fontWeight: "600", color: "#fff" },
   reviewButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
     backgroundColor: '#F59E0B',
-    borderRadius: 8,
-    marginLeft: 8,
+    borderRadius: 6,
+    minWidth: 100,
   },
-  reviewButtonText: { fontSize: 14, fontWeight: "600", color: "#fff" },
+  reviewButtonText: { fontSize: 13, fontWeight: "600", color: "#fff" },
+  actionButtonsContainer: {
+    flexDirection: 'column',
+    gap: 6,
+    alignItems: 'flex-end',
+  },
   loadingWrapper: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
   loadingText: { marginTop: 12, fontSize: 14, color: "#64748B" },
   emptyWrapper: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
@@ -973,6 +991,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   jobPrice: {
     fontSize: 15,
