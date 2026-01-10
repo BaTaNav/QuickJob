@@ -82,7 +82,7 @@ function DashboardClientContent() {
   const openJobs = jobs.filter(j => j.status === 'open');
   // Treat jobs that already have an accepted applicant as planned in the UI
   // (some historical accepts may have left job.status as 'pending')
-  const plannedJobs = jobs.filter(j => j.status === 'planned' || j.status === 'assigned' || (j.accepted_applicants && j.accepted_applicants > 0) || !!j.accepted_applicant);
+  const plannedJobs = jobs.filter(j => (j.status === 'planned' || j.status === 'assigned' || (j.accepted_applicants && j.accepted_applicants > 0) || !!j.accepted_applicant) && j.status !== 'completed');
   // Include expired jobs in Completed view so clients can see which jobs expired
   const completedJobs = jobs.filter(j => j.status === 'completed' || j.status === 'expired');
   const todayJobs = jobs.filter(j => {
@@ -387,7 +387,19 @@ function DashboardClientContent() {
           </TouchableOpacity>
         )}
         
-        {/* Show Pay button only for completed jobs */}
+        {/* Show Complete button for planned jobs */}
+        {(job.status === 'planned' || job.status === 'assigned' || (job.accepted_applicants && job.accepted_applicants > 0) || !!job.accepted_applicant) && job.status !== 'completed' && (
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity 
+              style={styles.completeButton}
+              onPress={() => handleMarkAsCompleted(job)}
+            >
+              <Text style={styles.completeButtonText}>✓ Voltooid</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {/* Show Pay and Review buttons only for completed jobs */}
         {job.status === 'completed' && (
           <View style={styles.actionButtonsContainer}>
             <TouchableOpacity 
