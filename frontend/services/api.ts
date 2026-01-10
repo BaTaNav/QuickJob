@@ -378,12 +378,31 @@ export const jobsAPI = {
     return response.json();
   },
 
+  // Delete job
+  async deleteJob(jobId: number, clientId: number) {
+    const url = `${API_BASE_URL}/jobs/${jobId}`;
+    logRequest('DELETE', url);
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId }),
+    });
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const parsed = JSON.parse(text);
+            throw new Error(parsed.error || parsed.message || 'Failed to delete job');
+        } catch {
+            throw new Error(text || 'Failed to delete job');
+        }
+    }
+    return response.json();
+  },
+
   // Search jobs
-  async searchJobs(query?: string, location?: string, category?: number) {
+  async searchJobs(query: string) {
     const params = new URLSearchParams();
     if (query) params.append('q', query);
-    if (location) params.append('location', location);
-    if (category) params.append('category', category.toString());
     
     const response = await fetch(`${API_BASE_URL}/jobs/search?${params.toString()}`);
     if (!response.ok) {

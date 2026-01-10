@@ -57,6 +57,7 @@ export default function StudentDashboard() {
   const [availableJobs, setAvailableJobs] = React.useState<any[]>([]);
   const [pendingApplications, setPendingApplications] = React.useState<any[]>([]);
   const [upcomingApplications, setUpcomingApplications] = React.useState<any[]>([]);
+  const [archiveApplications, setArchiveApplications] = React.useState<any[]>([]);
   const [dashboardData, setDashboardData] = React.useState<any>({ today: [], upcoming: [], pending: [], archive: [] });
 
   // Canonical job categories (kept in sync with PostJob.JOB_CATEGORIES)
@@ -116,9 +117,17 @@ export default function StudentDashboard() {
       const data = await studentAPI.getApplications(Number(sid));
       // Split into application-level groups for filtering and counts
       const pending = data.filter((app: any) => app.status === 'pending');
-      const accepted = data.filter((app: any) => app.status === 'accepted');
+      const allAccepted = data.filter((app: any) => app.status === 'accepted');
+
+      // Filter upcoming: Accepted and NOT completed
+      const upcoming = allAccepted.filter((app: any) => app.jobs?.status !== 'completed');
+      
+      // Filter archive: Accepted and Completed
+      const archive = allAccepted.filter((app: any) => app.jobs?.status === 'completed');
+
       setPendingApplications(pending || []); // keep as application objects (have job_id and jobs)
-      setUpcomingApplications(accepted || []);
+      setUpcomingApplications(upcoming || []);
+      setArchiveApplications(archive || []);
     } catch (err) {
        console.log('Error fetching pending jobs:', err);
     } finally {
@@ -275,7 +284,7 @@ export default function StudentDashboard() {
     upcoming: upcomingApplications.map((a: any) => a.jobs || a.job || a),
     available: availableJobs,
     pending: pendingApplications.map((a: any) => a.jobs || a.job || a),
-    archive: [],
+    archive: archiveApplications.map((a: any) => a.jobs || a.job || a),
   };
 
   const jobs = mockJobs[tab] ?? [];
@@ -547,6 +556,30 @@ export default function StudentDashboard() {
                     {job.area_text ? ` • ${job.area_text}` : ''}
                     {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
                     {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
+                  </Text>
+                </Pressable>
+              ))
+            )}
+
+            {tab === 'archive' && (
+              // Render archive (completed) jobs
+              archiveApplications.map((app: any) => (
+                <Pressable
+                  key={app.id}
+                  style={styles.jobCard}
+                  onPress={() => router.push(`/Student/Applied/${app.id}` as never)}
+                >
+                  <JobImage uri={app.jobs?.image_url} />
+                  <View style={styles.pendingHeader}>
+                    <Briefcase size={16} color="#64748B" />
+                    <Text style={[styles.pendingBadge, { color: '#475569', backgroundColor: '#F1F5F9' }]}>Completed</Text>
+                  </View>
+
+                  <Text style={styles.jobTitle}>{app.jobs?.title || 'Job'}</Text>
+                  <Text style={styles.jobDescription}>{app.jobs?.description || 'Geen beschrijving'}</Text>
+                  <Text style={styles.jobMeta}>
+                    Finished • {app.jobs?.start_time ? new Date(app.jobs.start_time).toLocaleDateString('nl-BE') : 'Unknown date'}
+                    {app.jobs?.area_text ? ` • ${app.jobs.area_text}` : ''}
                   </Text>
                 </Pressable>
               ))
