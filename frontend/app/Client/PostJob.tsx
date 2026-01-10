@@ -388,6 +388,14 @@ export default function PostJob() {
     return parts.length > 0 ? parts.join(' ') : '';
   };
 
+  // Apply 10% increase to prices when urgent is enabled (frontend display and payload)
+  const applyUrgentIncrease = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return null;
+    const v = Number(value);
+    if (isNaN(v)) return null;
+    return formData.urgent ? Math.round(v * 1.1 * 100) / 100 : v;
+  };
+
 
   const isStep1Valid = !!formData.category_id && formData.title.trim().length > 3 && validateAddressFields(formData);
   const isStep2Valid = true;
@@ -490,6 +498,12 @@ export default function PostJob() {
         finalEndTime.setHours(finalEndTime.getHours() + 2);
       }
 
+      // Compute amounts to send (apply 10% for urgent)
+      const rawHourly = formData.hourly_or_fixed === 'hourly' ? (formData.hourly_rate ?? null) : null;
+      const rawFixed = formData.hourly_or_fixed === 'fixed' ? (formData.fixed_price ?? null) : null;
+      const hourlyToSend = rawHourly !== null ? applyUrgentIncrease(rawHourly) : null;
+      const fixedToSend = rawFixed !== null ? applyUrgentIncrease(rawFixed) : null;
+
       const payload = {
         client_id: formData.client_id,
         category_id: formData.category_id!,
@@ -501,12 +515,12 @@ export default function PostJob() {
         postal_code: formData.postal_code || undefined,
         city: formData.city || undefined,
         hourly_or_fixed: formData.hourly_or_fixed,
-        hourly_rate: formData.hourly_or_fixed === 'hourly' ? (formData.hourly_rate ?? null) : null,
-        fixed_price: formData.fixed_price,
+        hourly_rate: hourlyToSend,
+        fixed_price: fixedToSend,
         start_time: formData.start_time.toISOString(),
         end_time: finalEndTime?.toISOString(),
         image_url: uploadedImageUrl,
-      };
+      }; 
 
       // 4. Send Job to Backend
       console.log('Job payload being sent:', payload);
@@ -1004,8 +1018,8 @@ export default function PostJob() {
                     <DollarSign size={18} color="#666" />
                     <Text style={styles.summaryText}>
                       {formData.hourly_or_fixed === 'fixed'
-                        ? `Vaste prijs: €${formData.fixed_price}`
-                        : `Per uur: €${formData.hourly_rate ?? 'N/A'} (${formData.duration ? formData.duration + 'u' : 'Duur onbekend'})`}
+                        ? `Vaste prijs: €${applyUrgentIncrease(formData.fixed_price) ?? 'N/A'}${formData.urgent ? ' (+10%)' : ''}`
+                        : `Per uur: €${applyUrgentIncrease(formData.hourly_rate) ?? 'N/A'}${formData.urgent ? ' (+10%)' : ''} (${formData.duration ? formData.duration + 'u' : 'Duur onbekend'})`}
                     </Text>
                   </View>
 
@@ -1096,8 +1110,8 @@ export default function PostJob() {
                 <View style={styles.divider} />
                 <Text style={styles.previewPrice}>
                   {formData.hourly_or_fixed === 'fixed'
-                    ? `€${formData.fixed_price || 0}`
-                    : (formData.duration ? `~ €${(formData.hourly_rate ?? 20) * (formData.duration || 1)} (schatting)` : `€${formData.hourly_rate ?? 20}/uur`)}
+                    ? `€${applyUrgentIncrease(formData.fixed_price) ?? 0}${formData.urgent ? ' (+10%)' : ''}`
+                    : (formData.duration ? `~ €${((applyUrgentIncrease(formData.hourly_rate) ?? 20) * (formData.duration || 1)).toFixed(2)} (schatting)` : `€${applyUrgentIncrease(formData.hourly_rate) ?? 20}/uur${formData.urgent ? ' (+10%)' : ''}`)}
                 </Text>
               </View>
               <View style={{ height: 100 }} />
