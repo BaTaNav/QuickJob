@@ -194,11 +194,11 @@ export default function JobDetail() {
         />
       )}
 
-      <View style={styles.section}>
+      <View style={styles.descriptionSection}>
         <Text style={styles.sectionText}>{job.description || 'Geen beschrijving'}</Text>
       </View>
 
-      <View style={styles.section}>
+      <View style={styles.infoCard}>
         <Text style={styles.sectionTitle}>Address</Text>
         <Text style={styles.sectionText}>{(() => {
           const parts: string[] = [];
@@ -215,7 +215,7 @@ export default function JobDetail() {
       </View>
 
       {/* Map / Geocoding */}
-      <View style={styles.section}>
+      <View style={styles.infoCard}>
         <Text style={styles.sectionTitle}>Locatie</Text>
         {geoLoading ? (
           <ActivityIndicator color="#176B51" />
@@ -264,7 +264,7 @@ export default function JobDetail() {
         )}
       </View>
 
-      <View style={styles.section}>
+      <View style={styles.infoCard}>
         <Text style={styles.sectionTitle}>Budget</Text>
         <Text style={styles.sectionText}>
           {job.hourly_or_fixed === 'fixed' && job.fixed_price
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: '#F8FAFB',
     paddingBottom: 60,
   },
   category: {
@@ -328,19 +328,35 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 6,
-    color: '#000',
+    color: '#1B1B1B',
   },
   jobMeta: {
-    color: '#7A7F85',
+    color: '#64748B',
     marginBottom: 20,
     fontSize: 14,
   },
   jobImage: {
-    width: '20%',
+    width: '100%',
     height: 200,
     borderRadius: 12,
     marginBottom: 20,
     backgroundColor: '#f0f0f0',
+  },
+  descriptionSection: {
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E8EEF2',
+  },
+  infoCard: {
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E8EEF2',
   },
   section: {
     marginBottom: 20,
@@ -349,10 +365,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 8,
-    color: '#333',
+    color: '#1B1B1B',
   },
   sectionText: {
-    color: '#4A4A4A',
+    color: '#475569',
     lineHeight: 22,
     fontSize: 15,
   },

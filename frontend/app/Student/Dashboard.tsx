@@ -341,14 +341,6 @@ export default function StudentDashboard() {
             <Pressable onPress={fetchAvailable} style={styles.refreshBtn}>
               <RefreshCw size={20} color="#64748B" />
             </Pressable>
-
-            <Pressable onPress={() => setShowFilters(s => !s)} style={styles.filterToggleBtn}>
-              <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Filters'}</Text>
-            </Pressable>
-
-            <Pressable onPress={() => setShowAllJobs(v => !v)} style={[styles.filterToggleBtn, { backgroundColor: showAllJobs ? '#176B51' : undefined }]}> 
-              <Text style={[styles.filterToggleText, showAllJobs ? { color: '#fff' } : {}]}>{showAllJobs ? 'Showing all' : 'Show all'}</Text>
-            </Pressable>
           </View>
         </View>
 
@@ -399,9 +391,20 @@ export default function StudentDashboard() {
         </ScrollView>
       </View>
 
+      {/* Filter Toggle Buttons */}
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <Pressable onPress={() => setShowFilters(s => !s)} style={styles.filterToggleBtn}>
+          <Text style={styles.filterToggleText}>{showFilters ? 'Hide filters' : 'Filters'}</Text>
+        </Pressable>
+
+        <Pressable onPress={() => setShowAllJobs(v => !v)} style={[styles.filterToggleBtn, { backgroundColor: showAllJobs ? '#176B51' : undefined }]}> 
+          <Text style={[styles.filterToggleText, showAllJobs ? { color: '#fff' } : {}]}>{showAllJobs ? 'Showing all' : 'Show all'}</Text>
+        </Pressable>
+      </View>
+
       {showFilters && (
-        <View style={styles.filterRow}>
-          <View style={styles.filterGroup}>
+        <View style={[styles.filterRow, !isWeb && styles.filterRowMobile]}>
+          <View style={[styles.filterGroup, !isWeb && styles.filterGroupMobile]}>
             <Text style={styles.filterLabel}>Category</Text>
             <View style={styles.filterPills}>
               {categoryOptions.map((opt) => (
@@ -419,7 +422,7 @@ export default function StudentDashboard() {
             </View>
           </View>
 
-          <View style={styles.filterGroup}>
+          <View style={[styles.filterGroup, !isWeb && styles.filterGroupMobile]}>
             <Text style={styles.filterLabel}>Radius (km)</Text>
             <TextInput
               style={styles.dateInput}
@@ -429,7 +432,7 @@ export default function StudentDashboard() {
             />
           </View>
 
-          <View style={styles.filterGroup}>
+          <View style={[styles.filterGroup, !isWeb && styles.filterGroupMobile]}>
             <Text style={styles.filterLabel}>Date</Text>
             <View style={styles.filterPills}>
               {['Any', 'Today', 'This week', 'Specific'].map((d) => (
@@ -443,20 +446,20 @@ export default function StudentDashboard() {
               ))}
             </View>
             {filterDate === 'Specific' && (
-              <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {Platform.OS === 'web' ? (
                   <input
                     type="date"
                     value={selectedDate || ''}
                     onChange={(e: any) => setSelectedDate(e.target.value)}
-                    style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0' }}
+                    style={{ padding: 8, borderRadius: 8, border: '1px solid #E2E8F0', flex: 1, minWidth: 150 }}
                   />
                 ) : (
                   <TextInput
                     placeholder="YYYY-MM-DD"
                     value={selectedDate || ''}
                     onChangeText={setSelectedDate}
-                    style={styles.dateInput}
+                    style={[styles.dateInput, { flex: 1 }]}
                   />
                 )}
 
@@ -838,12 +841,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   jobImage: {
-    width: '20%',
-    height: 300,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    marginBottom: 10,
-    resizeMode: "cover",
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    marginRight: 8,
   },
 
   jobTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
@@ -856,10 +857,12 @@ const styles = StyleSheet.create({
   filterToggleBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F4F6F7', borderRadius: 8 },
   filterToggleText: { color: '#1a2e4c', fontWeight: '600' },
   filterRow: { flexDirection: 'row', gap: 12, marginBottom: 16, backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E8EEF2' },
+  filterRowMobile: { flexDirection: 'column', gap: 16 },
   filterGroup: { flex: 1 },
-  filterLabel: { color: '#64748B', marginBottom: 8 },
+  filterGroupMobile: { flex: 1, width: '100%' },
+  filterLabel: { color: '#64748B', marginBottom: 8, fontSize: 14, fontWeight: '600' },
   filterPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  filterBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#F4F6F7', marginRight: 8 },
+  filterBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#F4F6F7', marginRight: 8, marginBottom: 4 },
   filterBtnActive: { backgroundColor: '#176B51' },
   filterBtnText: { color: '#333', fontWeight: '600' },
   filterBtnTextActive: { color: '#fff', fontWeight: '600' },

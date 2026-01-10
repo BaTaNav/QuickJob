@@ -5,15 +5,9 @@ import { useRouter } from 'expo-router';
 import { studentAPI, authAPI, getStudentId } from '@/services/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-<<<<<<< Updated upstream
-const API_BASE_URL = Platform.OS === 'web'
-  ? 'http://localhost:3000'
-  : 'http://10.2.88.163:3000';
-=======
 const API_BASE_URL = Platform.OS === 'web' 
   ? 'http://localhost:3000' 
   : 'http://192.168.129.7:3000';
->>>>>>> Stashed changes
 
 const isWeb = Platform.OS === 'web';
 import * as ImagePicker from 'expo-image-picker';
