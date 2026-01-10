@@ -409,7 +409,9 @@ export default function PostJob() {
   };
 
   // Add this constant at the TOP of your file (outside the component) if not already there
-  const API_URL = 'http://localhost:3000'; // Use your computer's IP if on real device
+  const API_URL = Platform.OS === 'web' 
+  ? 'http://localhost:3000' 
+  : 'http://192.168.129.7:3000';  // Use your computer's IP if on real device
 
   // ... imports remain the same
 
