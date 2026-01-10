@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Star } from 'lucide-react-native';
 import { jobsAPI, getClientId } from '@/services/api';
@@ -36,12 +36,14 @@ export default function ReviewPage() {
 
   const handleSubmitReview = async () => {
     if (rating === 0) {
-      Alert.alert('Fout', 'Selecteer een rating');
+      const msg = 'Selecteer een rating';
+      Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Fout', msg);
       return;
     }
 
     if (!comment.trim()) {
-      Alert.alert('Fout', 'Schrijf een review');
+      const msg = 'Schrijf een review';
+      Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Fout', msg);
       return;
     }
 
@@ -53,7 +55,7 @@ export default function ReviewPage() {
         job_id: Number(jobId),
         rating,
         comment: comment.trim(),
-        client_id: Number(clientId), // Temporary - will come from auth token later
+        client_id: Number(clientId),
       };
 
       console.log('Submitting review:', payload);
@@ -72,14 +74,20 @@ export default function ReviewPage() {
       }
 
       console.log('Review submitted successfully:', data);
-      console.log('Informatie verstuurd!');
 
-      Alert.alert('Succes', 'Review verzonden!', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      // Show success message and navigate back to dashboard
+      if (Platform.OS === 'web') {
+        window.alert('Review geplaatst! ');
+        router.push('/Client/DashboardClient');
+      } else {
+        Alert.alert('Succes', 'Review geplaatst! ', [
+          { text: 'OK', onPress: () => router.push('/Client/DashboardClient') }
+        ]);
+      }
     } catch (err: any) {
       console.error('Error submitting review:', err);
-      Alert.alert('Error', err.message || 'Kon review niet verzenden');
+      const errorMsg = err.message || 'Kon review niet verzenden';
+      Platform.OS === 'web' ? window.alert('Error: ' + errorMsg) : Alert.alert('Error', errorMsg);
     } finally {
       setLoading(false);
     }
