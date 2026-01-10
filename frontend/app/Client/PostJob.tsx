@@ -276,7 +276,7 @@ export default function PostJob() {
     hourly_or_fixed: "hourly",
     hourly_rate: null,
     fixed_price: null,
-    start_time: new Date(Date.now() + 7200000),
+    start_time: new Date(Date.now() + 9000000),
     end_time: null,
     duration: null,
     urgent: false,
@@ -300,6 +300,13 @@ export default function PostJob() {
       }
     })();
   }, []);
+
+  // Ensure we have a sensible default hourly rate when switching to hourly
+  useEffect(() => {
+    if (formData.hourly_or_fixed === 'hourly' && (formData.hourly_rate === null || formData.hourly_rate === undefined)) {
+      setFormData(p => ({ ...p, hourly_rate: 20 }));
+    }
+  }, [formData.hourly_or_fixed]);
 
   // --- Handlers ---
 
@@ -494,7 +501,7 @@ export default function PostJob() {
         postal_code: formData.postal_code || undefined,
         city: formData.city || undefined,
         hourly_or_fixed: formData.hourly_or_fixed,
-        hourly_rate: formData.hourly_rate,
+        hourly_rate: formData.hourly_or_fixed === 'hourly' ? (formData.hourly_rate ?? null) : null,
         fixed_price: formData.fixed_price,
         start_time: formData.start_time.toISOString(),
         end_time: finalEndTime?.toISOString(),
@@ -502,6 +509,7 @@ export default function PostJob() {
       };
 
       // 4. Send Job to Backend
+      console.log('Job payload being sent:', payload);
       await jobsAPI.createJob(payload);
 
       Alert.alert("Success", "Job posted successfully!");
@@ -864,6 +872,31 @@ export default function PostJob() {
                           </TouchableOpacity>
                         ))}
                       </View>
+
+                      <View style={{ height: 12 }} />
+
+                      <Text style={styles.label}>Uurloon (€)</Text>
+                      <View style={styles.presetsRow}>
+                        {[10,15,20,25].map(p => (
+                          <TouchableOpacity
+                            key={p}
+                            style={[styles.presetCircle, formData.hourly_rate === p && styles.presetCircleActive]}
+                            onPress={() => setFormData(pr => ({ ...pr, hourly_rate: p }))}
+                            accessibilityRole="button"
+                            accessibilityLabel={`€${p}`}
+                          >
+                            <Text style={[styles.presetText, formData.hourly_rate === p && styles.presetTextActive]}>€{p}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <TextInput
+                        placeholder="Ander uurloon..."
+                        keyboardType="numeric"
+                        style={styles.input}
+                        value={formData.hourly_rate !== null ? String(formData.hourly_rate) : ''}
+                        onChangeText={(t) => setFormData(p => ({ ...p, hourly_rate: t ? Number(t) : null }))}
+                        accessibilityLabel="Uurloon invullen"
+                      />
                     </>
                   ) : (
                     <>
@@ -972,7 +1005,7 @@ export default function PostJob() {
                     <Text style={styles.summaryText}>
                       {formData.hourly_or_fixed === 'fixed'
                         ? `Vaste prijs: €${formData.fixed_price}`
-                        : `Per uur (${formData.duration ? formData.duration + 'u' : 'Duur onbekend'})`}
+                        : `Per uur: €${formData.hourly_rate ?? 'N/A'} (${formData.duration ? formData.duration + 'u' : 'Duur onbekend'})`}
                     </Text>
                   </View>
 
@@ -1062,9 +1095,7 @@ export default function PostJob() {
                 </View>
                 <View style={styles.divider} />
                 <Text style={styles.previewPrice}>
-                  {formData.hourly_or_fixed === 'fixed'
-                    ? `€${formData.fixed_price || 0}`
-                    : `~ €${(formData.duration || 0) * 20} (schatting)`}
+                  
                 </Text>
               </View>
               {/* Extra spacer in sidebar to prevent overlap if content grows */}

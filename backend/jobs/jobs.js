@@ -332,6 +332,8 @@ router.post("/", async (req, res) => {
     const clientIdNum = parseInt(client_id, 10);
     const categoryIdNum = parseInt(category_id, 10);
 
+    console.log('Creating job, hourly_or_fixed:', hourly_or_fixed, 'hourly_rate (raw):', hourly_rate);
+
     // Validate required fields
     if (!clientIdNum || !categoryIdNum || !title || !start_time) {
       return res.status(400).json({
@@ -362,6 +364,12 @@ router.post("/", async (req, res) => {
       return res
         .status(400)
         .json({ error: "Fixed price required for fixed jobs" });
+    }
+
+    // If job is hourly, hourly_rate must be provided and be a positive number
+    const hourlyRateNum = (hourly_rate !== undefined && hourly_rate !== null) ? Number(hourly_rate) : null;
+    if (hourly_or_fixed === 'hourly' && (hourlyRateNum === null || isNaN(hourlyRateNum) || hourlyRateNum <= 0)) {
+      return res.status(400).json({ error: "hourly_rate is required and must be a positive number for hourly jobs" });
     }
 
     // Validate start_time is at least 2 hours in the future
@@ -398,7 +406,7 @@ router.post("/", async (req, res) => {
         latitude: geo ? geo.latitude : null,
         longitude: geo ? geo.longitude : null,
         hourly_or_fixed,
-        hourly_rate: hourly_rate || null,
+        hourly_rate: hourlyRateNum !== null ? hourlyRateNum : null,
         fixed_price: fixed_price || null,
         start_time,
         status: "open",

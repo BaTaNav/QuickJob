@@ -322,7 +322,7 @@ function DashboardClientContent() {
         <Text style={styles.jobPrice}>
           {job.hourly_or_fixed === 'fixed' 
             ? `€${job.fixed_price || 0}` 
-            : `€${job.hourly_rate || 0}/uur`}
+            : `€${job.hourly_rate || 20}/uur`}
         </Text>
         
         {/* Show Mark as Completed button for today's jobs that are not completed yet */}
