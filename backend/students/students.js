@@ -427,8 +427,34 @@ router.get("/:studentId/applications", async (req, res) => {
     if (error) throw error;
 
     const applications = data || [];
+    
+    // Fetch reviews for completed applications
+    const jobIds = applications.map(app => app.job_id);
+    let reviewsMap = {};
+    
+    if (jobIds.length > 0) {
+      const { data: reviews, error: reviewsError } = await supabase
+        .from("reviews")
+        .select("id, job_id, rating, comment, created_at, client_id")
+        .eq("student_id", studentId)
+        .in("job_id", jobIds);
+      
+      if (!reviewsError && reviews) {
+        reviewsMap = reviews.reduce((acc, review) => {
+          acc[review.job_id] = review;
+          return acc;
+        }, {});
+      }
+    }
+    
+    // Attach reviews to applications
+    const applicationsWithReviews = applications.map(app => ({
+      ...app,
+      review: reviewsMap[app.job_id] || null
+    }));
+    
     res.json({
-      applications,
+      applications: applicationsWithReviews,
       message: applications.length === 0 ? "No job applications yet" : null,
       count: applications.length
     });

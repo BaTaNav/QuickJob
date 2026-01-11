@@ -2,7 +2,7 @@ import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View,  Image
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as React from "react";
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock, MapPin, Briefcase, CreditCard, Calendar } from 'lucide-react-native';
+import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock, MapPin, Briefcase, CreditCard, Calendar, Star } from 'lucide-react-native';
 import { jobsAPI, studentAPI, getStudentId, paymentAPI } from '../../services/api';
 
 // Platform detection
@@ -616,6 +616,28 @@ export default function StudentDashboard() {
                     Finished • {app.jobs?.start_time ? new Date(app.jobs.start_time).toLocaleDateString('nl-BE') : 'Unknown date'}
                     {app.jobs?.area_text ? ` • ${app.jobs.area_text}` : ''}
                   </Text>
+                  
+                  {/* Display Review if available */}
+                  {app.review && (
+                    <View style={styles.reviewContainer}>
+                      <View style={styles.reviewHeader}>
+                        <Text style={styles.reviewTitle}>Jouw review:</Text>
+                        <View style={styles.starsRow}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              size={16}
+                              color={star <= app.review.rating ? '#F59E0B' : '#D1D5DB'}
+                              fill={star <= app.review.rating ? '#F59E0B' : 'transparent'}
+                            />
+                          ))}
+                        </View>
+                      </View>
+                      {app.review.comment && (
+                        <Text style={styles.reviewComment}>{app.review.comment}</Text>
+                      )}
+                    </View>
+                  )}
                 </Pressable>
               ))
             )}
@@ -1142,6 +1164,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#64748B',
+  },
+  
+  /* REVIEW DISPLAY */
+  reviewContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  reviewTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1B1B1B',
+  },
+  starsRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  reviewComment: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
   },
 
   /* FOOTER */

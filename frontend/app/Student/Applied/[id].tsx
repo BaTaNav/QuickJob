@@ -1,7 +1,7 @@
 import { StyleSheet, TouchableOpacity, ScrollView, Text, View, ActivityIndicator, Alert, Image } from "react-native";
 import * as React from "react";
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
+import { Clock, CheckCircle, XCircle, AlertCircle, Star } from 'lucide-react-native';
 import { studentAPI, getStudentId } from '../../../services/api';
 
 export default function ApplicationDetail() {
@@ -173,6 +173,41 @@ export default function ApplicationDetail() {
         </View>
       </View>
 
+      {/* Display Review if available */}
+      {application.review && (
+        <View style={styles.reviewSection}>
+          <Text style={styles.reviewSectionTitle}>Jouw Review</Text>
+          <View style={styles.reviewContainer}>
+            <View style={styles.reviewHeader}>
+              <Text style={styles.reviewLabel}>Rating:</Text>
+              <View style={styles.starsRow}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    size={20}
+                    color={star <= application.review.rating ? '#F59E0B' : '#D1D5DB'}
+                    fill={star <= application.review.rating ? '#F59E0B' : 'transparent'}
+                  />
+                ))}
+              </View>
+            </View>
+            {application.review.comment && (
+              <View style={styles.reviewCommentContainer}>
+                <Text style={styles.reviewLabel}>Comment:</Text>
+                <Text style={styles.reviewComment}>{application.review.comment}</Text>
+              </View>
+            )}
+            <Text style={styles.reviewDate}>
+              Reviewed on {new Date(application.review.created_at).toLocaleDateString('nl-BE', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+              })}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Actions */}
       {application.status === 'pending' && (
         <TouchableOpacity 
@@ -273,6 +308,51 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginTop: 4,
     lineHeight: 22,
+  },
+  reviewSection: {
+    marginBottom: 20,
+  },
+  reviewSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  reviewContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  reviewLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  starsRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  reviewCommentContainer: {
+    marginBottom: 12,
+  },
+  reviewComment: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontStyle: 'italic',
   },
   cancelBtn: {
     backgroundColor: '#DC2626',
