@@ -142,7 +142,7 @@ QuickJob/
 
 Supabase (PostgreSQL). Tabellen: `users`, `jobs`, `job_categories`, `job_applications`, `student_stripe_accounts`, `job_payments`, `incidents`.
 
-**Opmerking**: Database schema is afgeleid uit backend queries. Geen expliciete SQL migration bestanden aanwezig in repository.
+
 
 ### Experimentele keuzes
 
@@ -224,7 +224,6 @@ Geen formele API documentatie (OpenAPI/Swagger) aanwezig. API endpoints zijn afg
 - Incidents: [backend/incidents/incidents.js](backend/incidents/incidents.js)
 
 ### Database Schema
-Geen SQL schema bestanden aanwezig. Schema is afgeleid uit Supabase queries in backend code.
 
 **Belangrijkste tabellen**:
 - `users`: id, email, password_hash, role, phone, preferred_language, two_factor_enabled
