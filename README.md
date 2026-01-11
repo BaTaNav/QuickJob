@@ -234,10 +234,6 @@ Geen formele API documentatie (OpenAPI/Swagger) aanwezig. API endpoints zijn afg
 - `job_payments`: id, job_id, student_id, client_id, amount, currency, stripe_payment_intent_id, status
 - `incidents`: id, job_id, application_id, student_id, client_id, status, severity, summary, description, admin_notes
 
-### Feature Documentatie
-- [PostJob_IMPLEMENTATION.md](PostJob_IMPLEMENTATION.md): Gedetailleerde technische documentatie van job posting feature (UI flow, validatie, API endpoints)
-- [POSTJOB_QUICK_REFERENCE.md](POSTJOB_QUICK_REFERENCE.md): Beknopte referentie voor PostJob functionaliteit
-
 ---
 
 ## GDPR & Security
