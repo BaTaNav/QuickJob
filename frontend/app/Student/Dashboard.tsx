@@ -2,7 +2,7 @@ import { StyleSheet, TouchableOpacity, ScrollView, Pressable, Text, View,  Image
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as React from "react";
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock, MapPin, Briefcase, CreditCard } from 'lucide-react-native';
+import { RefreshCw, Instagram, Linkedin, Facebook, Twitter, Clock, MapPin, Briefcase, CreditCard, Calendar } from 'lucide-react-native';
 import { jobsAPI, studentAPI, getStudentId, paymentAPI } from '../../services/api';
 
 // Platform detection
@@ -47,6 +47,29 @@ function JobImage({ uri }: { uri?: string }) {
       onError={() => setErrored(true)}
     />
   );
+}
+
+// Helper function to group jobs by day
+function groupJobsByDay(jobs: any[]) {
+  const grouped: { [key: string]: any[] } = {};
+  
+  jobs.forEach(job => {
+    const dateKey = job.start_time 
+      ? new Date(job.start_time).toLocaleDateString('nl-BE', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        })
+      : 'Datum onbekend';
+    
+    if (!grouped[dateKey]) {
+      grouped[dateKey] = [];
+    }
+    grouped[dateKey].push(job);
+  });
+  
+  return grouped;
 }
 
 export default function StudentDashboard() {
@@ -543,26 +566,35 @@ export default function StudentDashboard() {
               ))
             )}
 
-            {tab === 'available' && (
-              // Render available jobs
-              filteredJobs.map((job: any) => (
-                <Pressable
-                  key={job.id}
-                  style={styles.jobCard}
-                  onPress={() => router.push(`/Student/Job/${job.id}` as never)}
-                >
-                  <JobImage uri={job.image_url} />
-                  <Text style={styles.jobTitle}>{job.title}</Text>
-                  <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
-                  <Text style={styles.jobMeta}>
-                    {job.start_time ? new Date(job.start_time).toLocaleString('nl-BE') : 'Starttijd TBA'}
-                    {job.area_text ? ` • ${job.area_text}` : ''}
-                    {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
-                    {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
-                  </Text>
-                </Pressable>
-              ))
-            )}
+            {tab === 'available' && (() => {
+              const groupedJobs = groupJobsByDay(filteredJobs);
+              return Object.entries(groupedJobs).map(([day, dayJobs]) => (
+                <View key={day} style={styles.daySection}>
+                  <View style={styles.daySectionHeader}>
+                    <Calendar size={18} color="#176B51" />
+                    <Text style={styles.daySectionTitle}>{day}</Text>
+                    <Text style={styles.daySectionCount}>({dayJobs.length})</Text>
+                  </View>
+                  {dayJobs.map((job: any) => (
+                    <Pressable
+                      key={job.id}
+                      style={styles.jobCard}
+                      onPress={() => router.push(`/Student/Job/${job.id}` as never)}
+                    >
+                      <JobImage uri={job.image_url} />
+                      <Text style={styles.jobTitle}>{job.title}</Text>
+                      <Text style={styles.jobDescription}>{job.description || 'Geen beschrijving'}</Text>
+                      <Text style={styles.jobMeta}>
+                        {job.start_time ? new Date(job.start_time).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' }) : 'Starttijd TBA'}
+                        {job.area_text ? ` • ${job.area_text}` : ''}
+                        {job.hourly_or_fixed === 'fixed' && job.fixed_price ? ` • €${job.fixed_price}` : ''}
+                        {job.hourly_or_fixed === 'hourly' ? ' • Uurloon' : ''}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ));
+            })()}
 
             {tab === 'archive' && (
               // Render archive (completed) jobs
@@ -1082,6 +1114,34 @@ const styles = StyleSheet.create({
   },
   jobsContainer: {
     marginBottom: 40,
+  },
+  daySection: {
+    marginBottom: 32,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  daySectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#176B51',
+  },
+  daySectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1B1B1B',
+    marginLeft: 8,
+    flex: 1,
+  },
+  daySectionCount: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748B',
   },
 
   /* FOOTER */

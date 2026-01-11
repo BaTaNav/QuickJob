@@ -1,13 +1,36 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator, Image, Modal, Alert, Linking } from "react-native";
 import { useRouter } from 'expo-router';
-import { RefreshCw, Plus, ArrowDown, Handshake, User, Users, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, X, CreditCard, Trash } from "lucide-react-native";
+import { RefreshCw, Plus, ArrowDown, Handshake, User, Users, Instagram, Linkedin, Facebook, Twitter, MapPin, Clock, Briefcase, X, CreditCard, Trash, Calendar } from "lucide-react-native";
 import { jobsAPI, getClientId, paymentAPI } from "@/services/api";
 import { StripeProvider, useStripe } from '@/services/stripe';
 import PaymentModal from '@/components/PaymentModal';
 
 // Stripe publishable key (vervang met je ECHTE test key!)
 const STRIPE_PUBLISHABLE_KEY = 'pk_test_51SnKnBD3r0NQD7o9ndTkrFfUSHT9Jp5m9IrIaGBZaS51qYjt368MzWfPfUnMYUkBcVGDFYH6wsZWca2zyg8piYoN00Ua1cqjXE';
+
+// Helper function to group jobs by day
+function groupJobsByDay(jobs: any[]) {
+  const grouped: { [key: string]: any[] } = {};
+  
+  jobs.forEach(job => {
+    const dateKey = job.start_time 
+      ? new Date(job.start_time).toLocaleDateString('nl-BE', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        })
+      : 'Datum onbekend';
+    
+    if (!grouped[dateKey]) {
+      grouped[dateKey] = [];
+    }
+    grouped[dateKey].push(job);
+  });
+  
+  return grouped;
+}
 
 function DashboardClientContent() {
   const [activeTab, setActiveTab] = useState("Open");
@@ -521,11 +544,23 @@ function DashboardClientContent() {
           )}
 
           {/* Job List */}
-          {!loading && !error && filteredJobs.length > 0 && (
-            <View style={styles.jobsContainer}>
-              {filteredJobs.map(renderJobCard)}
-            </View>
-          )}
+          {!loading && !error && filteredJobs.length > 0 && (() => {
+            const groupedJobs = groupJobsByDay(filteredJobs);
+            return (
+              <View style={styles.jobsContainer}>
+                {Object.entries(groupedJobs).map(([day, dayJobs]) => (
+                  <View key={day} style={styles.daySection}>
+                    <View style={styles.daySectionHeader}>
+                      <Calendar size={18} color="#176B51" />
+                      <Text style={styles.daySectionTitle}>{day}</Text>
+                      <Text style={styles.daySectionCount}>({dayJobs.length})</Text>
+                    </View>
+                    {dayJobs.map(renderJobCard)}
+                  </View>
+                ))}
+              </View>
+            );
+          })()}
 
           {/* Empty State */}
           {!loading && !error && filteredJobs.length === 0 && (
@@ -942,6 +977,34 @@ const styles = StyleSheet.create({
   // Job Cards
   jobsContainer: {
     gap: 12,
+  },
+  daySection: {
+    marginBottom: 24,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  daySectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#176B51',
+  },
+  daySectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1B1B1B',
+    marginLeft: 8,
+    flex: 1,
+  },
+  daySectionCount: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748B',
   },
   jobHeader: {
     flexDirection: "row",
