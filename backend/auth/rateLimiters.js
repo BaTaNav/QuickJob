@@ -1,35 +1,55 @@
 const rateLimit = require("express-rate-limit");
+const { ipKeyGenerator } = require("express-rate-limit");
 const slowDown = require("express-slow-down");
 
-// ✅ FIX for IPv6: use ipKeyGenerator from express-rate-limit
-const { ipKeyGenerator } = require("express-rate-limit");
-
 function keyByUserOrIp(req) {
-  if (req.user?.sub) return `user:${req.user.sub}`;
-  return `ip:${ipKeyGenerator(req)}`; // ✅ IPv6-safe
+  return req.user?.sub ? `user:${req.user.sub}` : ipKeyGenerator(req);
 }
 
-// 🔐 Login brute-force protection
-const loginLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 10,
-  message: { error: "Too many login attempts. Try again later." },
+// ✅ Admin limiter
+const adminLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 30,
+  keyGenerator: keyByUserOrIp,
+  message: { error: "Too many admin requests. Please slow down." },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => ipKeyGenerator(req), // ✅ IPv6-safe
 });
 
-// 🌍 Global basic protection
+// ✅ Admin slowdown
+const slowDownAdmin = slowDown({
+  windowMs: 60 * 1000,
+  delayAfter: 15,
+  delayMs: () =>  ,
+  keyGenerator: keyByUserOrIp,
+});
+
+// ✅ Login limiter (per email)
+const loginLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10, // blocks on 11th (set 9 to block on 10th)
+  keyGenerator: (req) => {
+    const email = (req.body?.email || "").toString().trim().toLowerCase();
+    return `login:${email}`;
+  },
+  handler: (req, res) => {
+    return res.status(429).json({ error: "Too many login attempts. Try again later." });
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// 🌍 Global basic DDoS protection
 const publicApiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 120,
+  keyGenerator: ipKeyGenerator, // ✅ FIXED (was ipKeyGenerator)
   message: { error: "Too many requests. Slow down." },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => ipKeyGenerator(req), // ✅ IPv6-safe
 });
 
-// 👤 Authenticated limiter
+// 👤 Authenticated user limiter
 const authLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 60,
@@ -49,12 +69,12 @@ const createJobLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// 🐌 Slow down spam (also needs IPv6-safe keyGenerator)
+// 🐌 Slow down spam
 const slowDownAuth = slowDown({
   windowMs: 60 * 1000,
   delayAfter: 30,
   delayMs: () => 250,
-  keyGenerator: (req) => keyByUserOrIp(req), // ✅ IPv6-safe
+  keyGenerator: keyByUserOrIp,
 });
 
 module.exports = {
@@ -63,4 +83,6 @@ module.exports = {
   authLimiter,
   createJobLimiter,
   slowDownAuth,
+  adminLimiter,
+  slowDownAdmin,
 };

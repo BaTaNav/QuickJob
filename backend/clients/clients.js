@@ -18,11 +18,8 @@ const router = express.Router();
 // IMPORTANT: support both export styles of supabaseClient
 const supabase = supabaseModule.supabase || supabaseModule;
 
-/**
- * Only allow:
- * - admin OR
- * - client whose token.sub matches req.params.id
- */
+
+
 const requireSelfOrAdmin = (req, res, next) => {
   if (!req.user?.sub) return res.status(401).json({ error: "Unauthorized" });
 
