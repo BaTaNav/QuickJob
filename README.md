@@ -92,7 +92,17 @@ QuickJob/
    npm install
    ```
 
-2. **Configureer API base URL**
+2. **Configureer environment variables**
+   
+   Maak `.env` bestand aan in `frontend/`:
+   ```env
+   EXPO_PUBLIC_AUTH0_DOMAIN=your-auth0-domain
+   EXPO_PUBLIC_AUTH0_CLIENT_ID=your-auth0-client-id
+   EXPO_PUBLIC_AUTH0_AUDIENCE=http://localhost:3000
+   EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+   ```
+
+3. **Configureer API base URL**
    
    In [frontend/services/api.ts](frontend/services/api.ts), pas `API_BASE_URL` aan:
    ```typescript
@@ -101,7 +111,7 @@ QuickJob/
      : 'http://<YOUR_LOCAL_IP>:3000';
    ```
 
-3. **Start Expo development server**
+4. **Start Expo development server**
    ```bash
    npm start
    ```
@@ -140,7 +150,7 @@ QuickJob/
 
 ### Database
 
-Supabase (PostgreSQL). Tabellen: `users`, `jobs`, `job_categories`, `job_applications`, `student_stripe_accounts`, `job_payments`, `incidents`.
+Supabase (PostgreSQL). Tabellen: `users`, `jobs`, `job_categories`, `job_applications`, `student_stripe_accounts`, `incidents`, `student__profiles`, `student_penalties`, `student_documents`, `reviews`, `payments`, `notifications`, `client_profiles`, `chat_threads`, `chat_messages'.
 
 
 
@@ -214,7 +224,6 @@ Commit history en branch-gebruik zijn te vinden in de Git repository zelf.
 [Trello board link.](https://trello.com/invite/b/691c334b7fb6f6bbd590f91e/ATTIff54885c021cbddcb309cdb3f9a64c8aE1C92D9F/it-project)
 
 ### API Documentatie
-Geen formele API documentatie (OpenAPI/Swagger) aanwezig. API endpoints zijn afgeleid uit code:
 - Authenticatie: [backend/auth/auth.js](backend/auth/auth.js)
 - Jobs: [backend/jobs/jobs.js](backend/jobs/jobs.js)
 - Studenten: [backend/students/students.js](backend/students/students.js)
