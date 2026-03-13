@@ -14,10 +14,10 @@ DROP TABLE IF EXISTS student_availability CASCADE;
 DROP TABLE IF EXISTS student_category_preferences CASCADE;
 DROP TABLE IF EXISTS payouts CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
+DROP TABLE IF EXISTS monthly_invoices CASCADE;
 DROP TABLE IF EXISTS incidents CASCADE;
 DROP TABLE IF EXISTS reviews CASCADE;
 DROP TABLE IF EXISTS student_documents CASCADE;
-DROP TABLE IF EXISTS student_stripe_accounts CASCADE;
 DROP TABLE IF EXISTS job_applications CASCADE;
 DROP TABLE IF EXISTS jobs CASCADE;
 DROP TABLE IF EXISTS job_categories CASCADE;
@@ -174,30 +174,32 @@ CREATE TABLE student_documents (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ── Student Stripe Accounts ──────────────────────────────────
-CREATE TABLE student_stripe_accounts (
+-- ── Monthly Billing ───────────────────────────────────────────
+-- Replaces Stripe: tracks monthly invoices for clients
+CREATE TABLE monthly_invoices (
   id                SERIAL PRIMARY KEY,
-  student_id        INT  NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-  stripe_account_id TEXT NOT NULL,
-  charges_enabled   BOOLEAN NOT NULL DEFAULT FALSE,
-  payouts_enabled   BOOLEAN NOT NULL DEFAULT FALSE,
-  details_submitted BOOLEAN NOT NULL DEFAULT FALSE,
+  client_id         INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  month             DATE NOT NULL,                       -- first day of billing month
+  total_amount      INT NOT NULL DEFAULT 0,              -- in cents
+  currency          TEXT NOT NULL DEFAULT 'eur',
+  status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'paid', 'overdue')),
+  due_date          DATE,
+  paid_at           TIMESTAMPTZ,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(client_id, month)
 );
 
--- ── Payments ─────────────────────────────────────────────────
+-- ── Payments (Monthly Billing) ───────────────────────────────
 CREATE TABLE payments (
   id                SERIAL PRIMARY KEY,
-  payment_intent_id TEXT UNIQUE,
+  invoice_id        INT REFERENCES monthly_invoices(id) ON DELETE SET NULL,
   job_id            INT REFERENCES jobs(id) ON DELETE SET NULL,
   client_id         INT REFERENCES users(id) ON DELETE SET NULL,
   student_id        INT REFERENCES users(id) ON DELETE SET NULL,
-  amount            INT NOT NULL,                        -- in centen
+  amount            INT NOT NULL,                        -- in cents
   currency          TEXT NOT NULL DEFAULT 'eur',
-  platform_fee      INT,                                 -- 🆕 commissie in centen
-  status            TEXT NOT NULL DEFAULT 'pending',
-  last_event        TEXT,
+  status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'invoiced', 'paid')),
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -327,7 +329,7 @@ CREATE INDEX idx_reviews_job     ON reviews(job_id);
 -- Payments
 CREATE INDEX idx_payments_job    ON payments(job_id);
 CREATE INDEX idx_payments_client ON payments(client_id);
-CREATE INDEX idx_payments_intent ON payments(payment_intent_id);
+-- (Stripe removed) idx_payments_intent no longer needed
 
 -- Notifications
 CREATE INDEX idx_notifications_user   ON notifications(user_id, read);
@@ -364,7 +366,7 @@ CREATE TRIGGER trg_student_profiles_upd   BEFORE UPDATE ON student_profiles     
 CREATE TRIGGER trg_client_profiles_upd    BEFORE UPDATE ON client_profiles       FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trg_payments_updated       BEFORE UPDATE ON payments              FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trg_incidents_updated      BEFORE UPDATE ON incidents             FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-CREATE TRIGGER trg_stripe_accounts_upd    BEFORE UPDATE ON student_stripe_accounts FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+-- (Stripe removed) trg_stripe_accounts_upd no longer needed
 CREATE TRIGGER trg_payouts_updated        BEFORE UPDATE ON payouts               FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 
@@ -380,7 +382,7 @@ ALTER TABLE jobs                        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE job_applications            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews                     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_documents           ENABLE ROW LEVEL SECURITY;
-ALTER TABLE student_stripe_accounts     ENABLE ROW LEVEL SECURITY;
+-- (Stripe removed) student_stripe_accounts RLS no longer needed
 ALTER TABLE payments                    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE incidents                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications               ENABLE ROW LEVEL SECURITY;

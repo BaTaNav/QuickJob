@@ -1,0 +1,28 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "app",
+    "components",
+    "constants",
+    "context",
+    "features",
+    "lib",
+    "services",
+    "styles",
+    "types",
+    "utils",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ]
+}

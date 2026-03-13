@@ -1,0 +1,21 @@
+import { ENV } from "@/config/env";
+
+const API_BASE = ENV.API_BASE_URL;
+
+
+
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "api_error");
+  }
+
+  return data as T;
+}
